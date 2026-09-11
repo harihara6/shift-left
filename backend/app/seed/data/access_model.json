@@ -1,0 +1,30 @@
+[
+ {
+  "t": "Sign-in is SSO only, inside the VPN",
+  "d": "The service sits at shiftleft.backbase.com behind the corporate VPN, with Backbase SSO (OIDC) as the only identity provider. There is no local account, no password reset, and no anonymous share link — a permalink still requires a session."
+ },
+ {
+  "t": "Authentication is not authorisation",
+  "d": "Being signed in gets you the app, not the data. Every dashboard, connector instance and rule belongs to exactly one project, and access is evaluated at the API layer on every read and write — not hidden in the UI."
+ },
+ {
+  "t": "SSO groups seed access, explicit grants layer on top",
+  "d": "A team's SSO group maps to its project with a default role on first login. Cross-team reviewers who need read access across many projects get an explicit grant instead of joining every team's group."
+ },
+ {
+  "t": "Three roles, project-scoped",
+  "d": "Viewer reads dashboards. Contributor edits dashboards and rules within the project. Admin manages connectors, access grants and template governance for that project. A small, audited platform-admin set exists for the service's own operators."
+ },
+ {
+  "t": "Connector credentials are service accounts, not yours",
+  "d": "Scheduled syncs run as a service account whose own source-system permissions define the ceiling of what can ever be ingested. Where a source supports it, drill-down opens in the source system so the user's own permissions apply at the moment of reading."
+ },
+ {
+  "t": "Sensitive evidence is status-only",
+  "d": "Threat models, unresolved security findings and pen-test evidence are stored as presence and status. The content never leaves the source system, so a broad dashboard grant can never become a broad security-data grant."
+ },
+ {
+  "t": "Secrets live in the vault, never in a dashboard",
+  "d": "Tokens and keys are write-only in this UI: you can replace one, never read one back. Rotation is scheduled per connector, and every grant, revoke and credential change is an immutable audit entry with longer retention than ordinary dashboard edits."
+ }
+]

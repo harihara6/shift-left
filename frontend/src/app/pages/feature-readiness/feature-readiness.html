@@ -1,0 +1,158 @@
+@if (data(); as readiness) {
+  <div class="page">
+    <!-- The one screen that carries this badge. Reviews always open here. -->
+    <div class="record-banner">
+      <p class="record-text">
+        <span class="record-tag">Evidence of record</span>
+        {{ readiness.subtitle }}
+      </p>
+      <div class="record-actions">
+        <span class="meta mono">release {{ readiness.release }}</span>
+        <button class="btn" (click)="showGuide()">How this page works</button>
+      </div>
+    </div>
+
+    <sl-freshness [freshness]="readiness.freshness" />
+
+    @if (notice(); as message) {
+      <p class="notice">{{ message }}</p>
+    }
+
+    <div class="tiles">
+      @for (tile of readiness.tiles; track tile.label) {
+        <sl-tile [tile]="tile" />
+      }
+    </div>
+
+    <section class="card">
+      <header class="card-head">
+        <div class="card-title">Feature readiness</div>
+        <div class="meta">Jira · Confluence · Xray · CI</div>
+      </header>
+      <table class="table">
+        <caption class="sr-only">
+          Features tracked for release {{ readiness.release }}, with evidence held at each gate.
+          Open a feature to see the eleven-row evidence checklist.
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col" class="col-feature">Feature</th>
+            <th scope="col" class="col-tier">Risk tier</th>
+            <th scope="col" class="col-bar">Ready evidence</th>
+            <th scope="col" class="col-bar">Done evidence</th>
+            <th scope="col" class="col-status">Status &amp; reason</th>
+            <th scope="col" class="col-chevron"><span class="sr-only">Open evidence</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (feature of readiness.features; track feature.key) {
+            <tr>
+              <th scope="row">
+                <button class="feature-open" (click)="selectedKey.set(feature.key)"
+                        [attr.aria-expanded]="selectedKey() === feature.key">
+                  {{ feature.name }}
+                  <span class="feature-meta mono">{{ feature.key }} · {{ feature.gate }}</span>
+                </button>
+              </th>
+              <td><span class="tier" [class]="'tier ' + tierClass(feature.tier)">{{ feature.tier }}</span></td>
+              <td>
+                <span class="bar-value mono">{{ feature.ready.label }}</span>
+                <span class="bar" [class]="'bar bar-' + feature.ready.status.rag"
+                      [attr.aria-label]="feature.ready.percent + '% of required Ready artifacts held'">
+                  <span [style.width.%]="feature.ready.percent"></span>
+                </span>
+              </td>
+              <td>
+                <span class="bar-value mono">{{ feature.done.label }}</span>
+                <span class="bar" [class]="'bar bar-' + feature.done.status.rag"
+                      [attr.aria-label]="feature.done.percent + '% of required Done artifacts held'">
+                  <span [style.width.%]="feature.done.percent"></span>
+                </span>
+              </td>
+              <td>
+                <sl-rag [state]="feature.status" />
+                <span class="reason">{{ feature.reason }}</span>
+              </td>
+              <td class="chevron" aria-hidden="true">›</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </section>
+
+    <div class="panels">
+      <section class="card">
+        <header class="card-head">
+          <div class="card-title">Scoped-out artifacts</div>
+          <div class="meta mono">artifact_waivers · reportable</div>
+        </header>
+        @for (waiver of readiness.waivers; track waiver.artifact + waiver.feature_key) {
+          <div class="waiver" [class.waiver-flagged]="waiver.flagged">
+            <span class="waiver-bar" aria-hidden="true"></span>
+            <div class="waiver-text">
+              <div class="waiver-title">
+                {{ waiver.artifact }} <span class="waiver-feature mono">· {{ waiver.feature_key }}</span>
+              </div>
+              <p class="waiver-why">“{{ waiver.rationale }}”</p>
+              <div class="waiver-who mono">{{ waiver.owner }} · {{ waiver.waived_at }} · tier {{ waiver.tier }}</div>
+              @if (waiver.flagged) {
+                <div class="waiver-flag">{{ waiver.flag_note }}</div>
+              }
+            </div>
+          </div>
+        } @empty {
+          <p class="panel-note">Nothing scoped out for this release.</p>
+        }
+        <p class="panel-note">{{ readiness.waiver_note }}</p>
+      </section>
+
+      <section class="card">
+        <header class="card-head">
+          <div class="card-title">Open actions</div>
+          <div class="meta">auto-created on red</div>
+        </header>
+        @for (action of readiness.actions; track action.id) {
+          <div class="action">
+            <div class="action-head">
+              <div class="action-signal">{{ action.signal }}</div>
+              <span class="action-status">{{ action.status_label }}</span>
+            </div>
+            <p class="action-next">{{ action.next_action }}</p>
+            <div class="action-foot">
+              <span class="action-who mono">{{ action.owner }} · {{ action.age }}</span>
+              <sl-rag [state]="action.severity" />
+              @if (action.status === 'open') {
+                <button class="btn" (click)="acknowledge(action.id, action.signal)">Acknowledge</button>
+              } @else {
+                <span class="action-who mono">
+                  {{ action.acknowledged_by ? 'acknowledged by ' + action.acknowledged_by : 'acknowledged' }}
+                </span>
+              }
+            </div>
+          </div>
+        } @empty {
+          <p class="panel-note">No open actions. Actions are created automatically when a signal goes red.</p>
+        }
+      </section>
+    </div>
+
+    <!-- Acknowledging is a state change a screen reader has to hear, not just see. -->
+    <p class="sr-only" role="status" aria-live="polite">{{ announcement() }}</p>
+  </div>
+
+  @if (selected(); as feature) {
+    <sl-evidence-panel [feature]="feature" (closed)="selectedKey.set(null)"
+                       (acceptDraft)="acceptDraft($event)" (openFlow)="openFlow.emit()" />
+  }
+} @else if (error(); as message) {
+  <div class="card empty">
+    <strong>Nothing to show, and that is the finding</strong>
+    {{ message }}
+  </div>
+} @else {
+  <div class="card empty">Loading the evidence record…</div>
+}
+
+@if (openGuide() && guide()) {
+  <sl-guide-modal [guide]="guide()!" (closed)="openGuide.set(false)" />
+}

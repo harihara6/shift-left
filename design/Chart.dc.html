@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="display:flex;flex-direction:column;gap:10px">
+  <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:#6B6E76;letter-spacing:0.01em">
+    <sc-for list="{{ spec.legend }}" as="l" hint-placeholder-count="2">
+      <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:2px;display:inline-block;background:{{ l.color }}"></span>{{ l.name }}</span>
+    </sc-for>
+  </div>
+  <svg viewBox="0 0 640 220" style="width:100%;height:auto;display:block;overflow:visible">
+    <sc-for list="{{ spec.grid }}" as="g" hint-placeholder-count="5">
+      <line x1="46" x2="632" y1="{{ g.y }}" y2="{{ g.y }}" stroke="#ECEBE7" stroke-width="1"></line>
+    </sc-for>
+    <sc-for list="{{ spec.grid }}" as="g" hint-placeholder-count="5">
+      <text x="40" y="{{ g.ty }}" font-size="10" fill="#9A9CA3" text-anchor="end" font-family="JetBrains Mono, monospace">{{ g.label }}</text>
+    </sc-for>
+    <sc-for list="{{ spec.bars }}" as="b" hint-placeholder-count="4">
+      <rect x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" rx="2" fill="{{ b.fill }}"></rect>
+    </sc-for>
+    <sc-for list="{{ spec.lines }}" as="p" hint-placeholder-count="1">
+      <polyline fill="none" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="{{ p.points }}" stroke="{{ p.stroke }}"></polyline>
+    </sc-for>
+    <sc-for list="{{ spec.dots }}" as="d" hint-placeholder-count="5">
+      <circle cx="{{ d.cx }}" cy="{{ d.cy }}" r="2.8" fill="{{ d.fill }}"></circle>
+    </sc-for>
+    <sc-for list="{{ spec.xlabels }}" as="x" hint-placeholder-count="5">
+      <text x="{{ x.x }}" y="{{ x.y }}" font-size="10" fill="#8A8D95" text-anchor="middle">{{ x.label }}</text>
+    </sc-for>
+  </svg>
+  <div style="font-size:11px;color:#9A9CA3;line-height:1.5">{{ spec.caption }}</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:640,&quot;height&quot;:260},&quot;spec&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;object&quot;}}"></script>
+</body>
+</html>

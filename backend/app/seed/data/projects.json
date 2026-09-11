@@ -1,0 +1,99 @@
+[
+ {
+  "key": "ENT",
+  "name": "Entitlements",
+  "owner": "M. Okonjo",
+  "dashboards": 4,
+  "created": "12 Mar 2026",
+  "off": [
+   "portfolio",
+   "signal"
+  ],
+  "access": [
+   [
+    "bb-eng-entitlements",
+    "Contributor",
+    "SSO group"
+   ],
+   [
+    "bb-qa-shared",
+    "Viewer",
+    "SSO group"
+   ],
+   [
+    "h.nuti@backbase.com",
+    "Admin",
+    "Explicit grant"
+   ]
+  ]
+ },
+ {
+  "key": "PAY",
+  "name": "DB Payments",
+  "owner": "R. Diallo",
+  "dashboards": 6,
+  "created": "04 Feb 2026",
+  "off": [
+   "signal"
+  ],
+  "access": [
+   [
+    "bb-eng-payments",
+    "Contributor",
+    "SSO group"
+   ],
+   [
+    "bb-release-mgmt",
+    "Viewer",
+    "SSO group"
+   ]
+  ]
+ },
+ {
+  "key": "NUC",
+  "name": "Nucleus",
+  "owner": "T. Verhoeven",
+  "dashboards": 3,
+  "created": "21 Apr 2026",
+  "off": [
+   "portfolio",
+   "signal"
+  ],
+  "access": [
+   [
+    "bb-eng-nucleus",
+    "Contributor",
+    "SSO group"
+   ],
+   [
+    "bb-mobile-guild",
+    "Viewer",
+    "SSO group"
+   ]
+  ]
+ },
+ {
+  "key": "PLT",
+  "name": "Platform Programme",
+  "owner": "H. Nuti",
+  "dashboards": 2,
+  "created": "30 May 2026",
+  "off": [
+   "discipline",
+   "execution",
+   "release"
+  ],
+  "access": [
+   [
+    "bb-directors",
+    "Viewer",
+    "SSO group"
+   ],
+   [
+    "bb-platform-admins",
+    "Admin",
+    "SSO group"
+   ]
+  ]
+ }
+]

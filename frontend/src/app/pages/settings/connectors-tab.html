@@ -1,0 +1,109 @@
+<div class="split">
+  <aside class="connector-groups">
+    @for (group of groups(); track group.category) {
+      <div class="connector-group">
+        <div class="connector-cat">{{ group.category }}</div>
+        @for (connector of group.items; track connector.key) {
+          <button class="connector-row" [class.active]="connector.key === selected()?.key"
+                  [attr.aria-current]="connector.key === selected()?.key ? 'true' : null"
+                  (click)="select(connector.key)">
+            <!-- Decorative: the state is carried in words right beside it. -->
+            <span class="connector-dot" aria-hidden="true" [style.background]="dotColor(connector)"></span>
+            <span class="connector-text">
+              <span class="project-name">{{ connector.name }}</span>
+              <span class="project-meta">{{ connector.state_label }} · {{ connector.sync_label }}</span>
+            </span>
+          </button>
+        }
+      </div>
+    }
+  </aside>
+
+  <div class="detail">
+    @if (notice(); as message) { <p class="notice" role="status">{{ message }}</p> }
+
+    @if (selected(); as connector) {
+      <section class="card panel">
+        <div class="head-card" style="padding: 0">
+          <div class="head-text">
+            <h3>{{ connector.name }}</h3>
+            <p class="meta">
+              {{ connector.category }} · last sync {{ connector.sync_label }} ·
+              stale past {{ connector.staleness_minutes }} min
+            </p>
+          </div>
+          <span class="state" [class.state-on]="connector.state === 'connected'">{{ connector.state_label }}</span>
+        </div>
+        <p class="desc">{{ connector.description }}</p>
+        @if (connector.stale) {
+          <p class="warn">
+            This connector is past its freshness threshold. Until it syncs, nothing it feeds can render green.
+          </p>
+        }
+        @if (connector.status_only) {
+          <p class="meta">
+            Status-only: the platform stores whether evidence exists and its state. The content never
+            leaves the source system.
+          </p>
+        }
+      </section>
+
+      <section class="card panel">
+        <div class="card-title">Authentication</div>
+        @for (method of connector.auth_methods; track method.label) {
+          <button class="auth-option" [class.selected]="method.label === connector.selected_auth"
+                  (click)="chooseAuth(connector, method.label)">
+            <span class="radio"></span>
+            <span>{{ method.label }}@if (method.recommended) { <span class="meta"> — recommended</span> }</span>
+          </button>
+        }
+        <p class="meta">Scopes requested: {{ connector.scopes }}</p>
+      </section>
+
+      <section class="card panel">
+        <div class="card-title">Configuration</div>
+        @for (field of connector.fields; track field.key) {
+          <div class="config-row">
+            <div class="config-label">
+              <span class="name">{{ field.label }}</span>
+              <span class="help">{{ field.help }}</span>
+            </div>
+            @if (field.type === 'secret') {
+              <div class="secret-field">
+                <span class="secret-value">{{ field.placeholder }}</span>
+                @if (rotating() === field.key) {
+                  <!-- Masked and never autofilled: the value is typed once and goes to the vault. -->
+                  <input type="password" name="secret" autocomplete="new-password" spellcheck="false"
+                         [attr.aria-label]="'New value for ' + field.label"
+                         placeholder="New value — sent to the vault, never stored here"
+                         [ngModel]="newSecret()" (ngModelChange)="newSecret.set($event)" />
+                  <button class="btn btn-primary" (click)="rotate(connector, field.key)">Save to vault</button>
+                  <button class="btn" (click)="rotating.set(null); newSecret.set('')">Cancel</button>
+                } @else {
+                  <button class="btn" (click)="rotating.set(field.key); newSecret.set('')">Rotate</button>
+                }
+              </div>
+            } @else {
+              <input type="text" [value]="field.value ?? ''" [attr.aria-label]="field.label"
+                     (change)="saveField(connector, field.key, $any($event.target).value)" />
+            }
+          </div>
+        }
+        <p class="meta">{{ connector.rate_limits }}</p>
+        <div class="widget-actions">
+          <button class="btn btn-primary" (click)="test(connector)">Test connection</button>
+          <button class="btn btn-danger" (click)="toggle(connector)">
+            {{ connector.state === 'disabled' ? 'Enable' : 'Disable' }}
+          </button>
+          @if (testResult(); as result) {
+            <span class="test-result" [class.ok]="result.ok" role="status">{{ result.message }}</span>
+          }
+        </div>
+        @if (testResult()?.ok) {
+          <p class="meta">Capabilities: {{ testResult()!.capabilities.join(' · ') || 'none reported' }}</p>
+          <p class="meta">Filters: {{ testResult()!.filters.join(' · ') || 'none reported' }}</p>
+        }
+      </section>
+    }
+  </div>
+</div>

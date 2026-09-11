@@ -1,0 +1,589 @@
+[
+ {
+  "id": "jira",
+  "name": "Jira",
+  "cat": "Planning & docs",
+  "state": "Connected",
+  "sync": "6m ago",
+  "instances": 3,
+  "desc": "Issues, changelog, story points, versions and links. The backbone of both evidence and flow.",
+  "auth": [
+   "OAuth 2.0 (3LO) app — recommended",
+   "API token + service account",
+   "Personal access token (Data Center)"
+  ],
+  "fields": [
+   [
+    "Site URL",
+    "https://backbase.atlassian.net",
+    "Cloud site or Data Center base URL."
+   ],
+   [
+    "Service account",
+    "svc-shiftleft@backbase.com",
+    "Used when a query runs on a schedule rather than on a user's behalf."
+   ],
+   [
+    "API token",
+    "secret",
+    "Stored in the vault, rotated every 90 days."
+   ],
+   [
+    "Project keys in scope",
+    "ENT, PAY, NUC, MAINT",
+    "Restricts every query this instance can run."
+   ],
+   [
+    "Custom field map",
+    "Risk tier → customfield_10412, Detection stage → customfield_10488",
+    "Maps Backbase fields to the canonical model."
+   ]
+  ],
+  "scopes": "read:jira-work · read:jira-user",
+  "rate": "Cloud rate limits apply; sync backs off automatically."
+ },
+ {
+  "id": "confluence",
+  "name": "Confluence",
+  "cat": "Planning & docs",
+  "state": "Connected",
+  "sync": "14m ago",
+  "instances": 2,
+  "desc": "Requirements, test plans, HLD/LLD, threat models and NFR sign-off pages, discovered by label.",
+  "auth": [
+   "OAuth 2.0 (3LO) app — recommended",
+   "API token + service account"
+  ],
+  "fields": [
+   [
+    "Site URL",
+    "https://backbase.atlassian.net/wiki",
+    "Same Atlassian site as Jira in most setups."
+   ],
+   [
+    "Spaces in scope",
+    "ENG, ARCH, SEC",
+    "CQL is restricted to these spaces."
+   ],
+   [
+    "API token",
+    "secret",
+    "Stored in the vault."
+   ],
+   [
+    "Artifact label map",
+    "sl-requirements, sl-testplan, sl-hld, sl-lld, sl-threatmodel, sl-performance, sl-accessibility",
+    "Which page label satisfies which checklist artifact."
+   ]
+  ],
+  "scopes": "read:content:confluence · read:space:confluence",
+  "rate": "CQL results paged at 100."
+ },
+ {
+  "id": "xray",
+  "name": "Xray",
+  "cat": "Test management",
+  "state": "Stale",
+  "sync": "4h 12m ago",
+  "instances": 1,
+  "desc": "Test sets, executions, traceability to requirements, and automated results imported from CI.",
+  "auth": [
+   "API key — client ID + client secret (Cloud)",
+   "Personal access token (Server / Data Center)"
+  ],
+  "fields": [
+   [
+    "Edition",
+    "Xray Cloud",
+    "Cloud uses an API key pair; Server/DC uses a Jira PAT instead."
+   ],
+   [
+    "Client ID",
+    "32A27E69C0AC4E539C14…",
+    "From Xray Global Settings → API Keys."
+   ],
+   [
+    "Client secret",
+    "secret",
+    "Exchanged for a bearer token that expires after 24h; refreshed automatically."
+   ],
+   [
+    "Test project keys",
+    "ENT, PAY, NUC",
+    "Scopes the GraphQL queries."
+   ]
+  ],
+  "scopes": "Inherits the API key user's Jira permissions.",
+  "rate": "300 requests / 5 min on Standard, 1000 on Enterprise."
+ },
+ {
+  "id": "github",
+  "name": "GitHub",
+  "cat": "Code & review",
+  "state": "Connected",
+  "sync": "3m ago",
+  "instances": 1,
+  "desc": "Pull requests, reviews, changed files, Actions runs, check results and deployments.",
+  "auth": [
+   "GitHub App installation — recommended",
+   "Fine-grained personal access token"
+  ],
+  "fields": [
+   [
+    "Organisation",
+    "backbase",
+    "Installation is scoped to this org."
+   ],
+   [
+    "App installation ID",
+    "48219004",
+    "Created once by a platform admin."
+   ],
+   [
+    "Private key",
+    "secret",
+    "Signs the app JWT; stored in the vault."
+   ],
+   [
+    "Repositories",
+    "entitlements, payments-web, nucleus-ios, nucleus-android",
+    "Only these repos are read."
+   ],
+   [
+    "Webhook secret",
+    "secret",
+    "Enables near-real-time PR and run updates instead of polling."
+   ]
+  ],
+  "scopes": "contents:read · pull_requests:read · checks:read · actions:read · deployments:read",
+  "rate": "5,000 requests/hour per installation."
+ },
+ {
+  "id": "bitbucket",
+  "name": "Bitbucket",
+  "cat": "Code & review",
+  "state": "Disabled",
+  "sync": "—",
+  "instances": 0,
+  "desc": "Alternative source for pull requests and pipelines where a team has not migrated to GitHub.",
+  "auth": [
+   "OAuth 2.0 consumer",
+   "Repository access token"
+  ],
+  "fields": [
+   [
+    "Workspace",
+    "backbase",
+    "Bitbucket workspace slug."
+   ],
+   [
+    "Consumer key",
+    "—",
+    "From workspace settings → OAuth consumers."
+   ],
+   [
+    "Consumer secret",
+    "secret",
+    "Stored in the vault."
+   ],
+   [
+    "Repositories",
+    "—",
+    "Explicit list; wildcards are not accepted."
+   ]
+  ],
+  "scopes": "repository:read · pullrequest:read · pipeline:read",
+  "rate": "1,000 requests/hour."
+ },
+ {
+  "id": "sonarqube",
+  "name": "SonarQube",
+  "cat": "Code quality",
+  "state": "Connected",
+  "sync": "22m ago",
+  "instances": 1,
+  "desc": "Coverage on changed files, new violations and quality-gate status per branch.",
+  "auth": [
+   "User token"
+  ],
+  "fields": [
+   [
+    "Server URL",
+    "https://sonar.backbase.net",
+    "Self-hosted instance behind the VPN."
+   ],
+   [
+    "User token",
+    "secret",
+    "Generated for a read-only service user."
+   ],
+   [
+    "Project keys",
+    "bb:entitlements, bb:payments, bb:nucleus",
+    "One key per analysed component."
+   ],
+   [
+    "Branch strategy",
+    "main + PR branches",
+    "Determines which analysis the widgets read."
+   ]
+  ],
+  "scopes": "Browse permission on the listed projects.",
+  "rate": "No published limit; polled every 30 min."
+ },
+ {
+  "id": "ci",
+  "name": "CI (GitHub Actions)",
+  "cat": "Build & deploy",
+  "state": "Connected",
+  "sync": "3m ago",
+  "instances": 1,
+  "desc": "Workflow runs, durations, first-attempt pass rate, and the artifacts that carry NFR evidence.",
+  "auth": [
+   "Shares the GitHub App installation"
+  ],
+  "fields": [
+   [
+    "Workflows in scope",
+    "verify.yml, nightly.yml, release.yml",
+    "Other workflows are ignored."
+   ],
+   [
+    "Evidence artifacts",
+    "accessibility-report, performance-report, junit-results",
+    "Artifact names the connector looks for on each run."
+   ],
+   [
+    "Retention window",
+    "90 days",
+    "How far back runs are ingested."
+   ]
+  ],
+  "scopes": "actions:read · checks:read",
+  "rate": "Shared with the GitHub installation budget."
+ },
+ {
+  "id": "jenkins",
+  "name": "Jenkins",
+  "cat": "Build & deploy",
+  "state": "Disabled",
+  "sync": "—",
+  "instances": 0,
+  "desc": "For teams still on Jenkins pipelines rather than Actions.",
+  "auth": [
+   "User + API token",
+   "Bearer token (with the plugin)"
+  ],
+  "fields": [
+   [
+    "Base URL",
+    "—",
+    "e.g. https://jenkins.backbase.net"
+   ],
+   [
+    "User",
+    "—",
+    "Read-only service user."
+   ],
+   [
+    "API token",
+    "secret",
+    "From the user's configure page."
+   ],
+   [
+    "Jobs / folders",
+    "—",
+    "Folder path prefixes to ingest."
+   ],
+   [
+    "CSRF crumb",
+    "enabled",
+    "Required when CSRF protection is on."
+   ]
+  ],
+  "scopes": "Overall/Read · Job/Read",
+  "rate": "Polled every 15 min."
+ },
+ {
+  "id": "linearb",
+  "name": "LinearB",
+  "cat": "Flow metrics",
+  "state": "Connected",
+  "sync": "41m ago",
+  "instances": 1,
+  "desc": "PR cycle time, size distribution and review latency, already normalised per team.",
+  "auth": [
+   "API key"
+  ],
+  "fields": [
+   [
+    "API key",
+    "secret",
+    "Workspace-level key from LinearB settings."
+   ],
+   [
+    "Team IDs",
+    "418 (Entitlements), 502 (Payments), 377 (Nucleus)",
+    "Maps a LinearB team to a project here."
+   ],
+   [
+    "Repository scope",
+    "inherited from the LinearB team",
+    "Mirror the scope in both tools or PRs count against the wrong team."
+   ]
+  ],
+  "scopes": "Read-only workspace access.",
+  "rate": "Hourly pull."
+ },
+ {
+  "id": "jsm",
+  "name": "Jira Service Management",
+  "cat": "Operations",
+  "state": "Connected",
+  "sync": "9m ago",
+  "instances": 1,
+  "desc": "Incidents, escaped defects and the alert destination for release-blocking findings.",
+  "auth": [
+   "Shares the Jira connection"
+  ],
+  "fields": [
+   [
+    "Service desk project",
+    "OPS",
+    "Incidents are read from here."
+   ],
+   [
+    "Incident link field",
+    "Caused-by deployment",
+    "Used to attribute change failures to a deployment."
+   ],
+   [
+    "Alert route",
+    "OPS · Quality gate queue",
+    "Where high-severity findings are raised as tickets."
+   ]
+  ],
+  "scopes": "read:servicedesk-request · write:servicedesk-request",
+  "rate": "Shares the Jira budget."
+ },
+ {
+  "id": "slack",
+  "name": "Slack",
+  "cat": "Operations",
+  "state": "Connected",
+  "sync": "live",
+  "instances": 1,
+  "desc": "Delivery channel for unacknowledged high-severity findings, so they don't wait to be noticed.",
+  "auth": [
+   "Slack app — bot token",
+   "Incoming webhook"
+  ],
+  "fields": [
+   [
+    "Workspace",
+    "backbase.slack.com",
+    "Single workspace."
+   ],
+   [
+    "Bot token",
+    "secret",
+    "xoxb- token from the installed app."
+   ],
+   [
+    "Default channel",
+    "#shiftleft-alerts",
+    "Per-project overrides live in Alert routes."
+   ],
+   [
+    "Severity filter",
+    "Blocker, Critical",
+    "Anything lower stays on the dashboard only."
+   ]
+  ],
+  "scopes": "chat:write · channels:read",
+  "rate": "1 message/second per channel."
+ },
+ {
+  "id": "sentry",
+  "name": "Sentry",
+  "cat": "Operations",
+  "state": "Connected",
+  "sync": "8m ago",
+  "instances": 1,
+  "desc": "Release regressions and crash-rate signals feeding the post-deploy detection metric.",
+  "auth": [
+   "Internal integration token",
+   "OAuth application"
+  ],
+  "fields": [
+   [
+    "Organisation slug",
+    "backbase",
+    "From the Sentry URL."
+   ],
+   [
+    "Auth token",
+    "secret",
+    "Internal integration token, read scopes only."
+   ],
+   [
+    "Projects",
+    "entitlements-api, nucleus-ios, nucleus-android",
+    "One entry per Sentry project."
+   ],
+   [
+    "Release naming",
+    "match the CI release tag",
+    "Lets a regression be attributed to a release."
+   ]
+  ],
+  "scopes": "project:read · event:read · org:read",
+  "rate": "Polled every 10 min."
+ },
+ {
+  "id": "pagerduty",
+  "name": "PagerDuty",
+  "cat": "Operations",
+  "state": "Not configured",
+  "sync": "—",
+  "instances": 0,
+  "desc": "Optional paging target for release-blocking findings. Deferred in v1 — Slack and JSM cover the launch case.",
+  "auth": [
+   "REST API key",
+   "Events API v2 routing key"
+  ],
+  "fields": [
+   [
+    "API key",
+    "—",
+    "Read-only REST key for service lookup."
+   ],
+   [
+    "Routing key",
+    "—",
+    "Events API v2 key for the target service."
+   ],
+   [
+    "Services",
+    "—",
+    "Which services may be paged from here."
+   ]
+  ],
+  "scopes": "services.read · incidents.write",
+  "rate": "Event API is rate limited per routing key."
+ },
+ {
+  "id": "figma",
+  "name": "Figma",
+  "cat": "Design",
+  "state": "Connected",
+  "sync": "3h ago",
+  "instances": 1,
+  "desc": "Presence of visual design for a feature — file and frame existence only, never file content.",
+  "auth": [
+   "OAuth 2.0",
+   "Personal access token"
+  ],
+  "fields": [
+   [
+    "Team / project",
+    "Backbase Design · Banking",
+    "Scopes file discovery."
+   ],
+   [
+    "Access token",
+    "secret",
+    "Read-only token for a service account."
+   ],
+   [
+    "File keys",
+    "BB-Entitlements, BB-Nucleus",
+    "Files checked for feature frames."
+   ],
+   [
+    "Frame naming rule",
+    "frame name contains the Jira key",
+    "How a design is matched to a feature."
+   ]
+  ],
+  "scopes": "file_read",
+  "rate": "Polled hourly; design changes rarely need faster."
+ },
+ {
+  "id": "datadog",
+  "name": "Datadog",
+  "cat": "Observability",
+  "state": "Not configured",
+  "sync": "—",
+  "instances": 0,
+  "desc": "Optional. Post-deploy service health for the Maintain loop and executive MTTR.",
+  "auth": [
+   "API key + Application key"
+  ],
+  "fields": [
+   [
+    "Site",
+    "datadoghq.eu",
+    "Region matters — EU and US are separate endpoints."
+   ],
+   [
+    "API key",
+    "—",
+    "Organisation-level key."
+   ],
+   [
+    "Application key",
+    "—",
+    "Scoped to a read-only role."
+   ],
+   [
+    "Monitors / SLOs",
+    "—",
+    "Which objects contribute to the widgets."
+   ]
+  ],
+  "scopes": "metrics_read · monitors_read · slos_read",
+  "rate": "Per-org limits by endpoint."
+ },
+ {
+  "id": "security",
+  "name": "Security scanners",
+  "cat": "Security",
+  "state": "Connected",
+  "sync": "27m ago",
+  "instances": 2,
+  "desc": "SAST and dependency findings. Presence and status only — finding content stays in the source tool.",
+  "auth": [
+   "Service account token per scanner"
+  ],
+  "fields": [
+   [
+    "Scanners",
+    "CodeQL (via GitHub), Snyk",
+    "Each scanner is a separate instance."
+   ],
+   [
+    "Snyk org ID",
+    "bb-platform",
+    "From Snyk organisation settings."
+   ],
+   [
+    "Token",
+    "secret",
+    "Read-only service account."
+   ],
+   [
+    "Severity floor",
+    "High",
+    "Findings below this are not surfaced here."
+   ],
+   [
+    "Content policy",
+    "status only",
+    "Titles and payloads are never stored by the platform."
+   ]
+  ],
+  "scopes": "security_events:read (GitHub) · org.read, project.read (Snyk)",
+  "rate": "Polled every 30 min."
+ }
+]

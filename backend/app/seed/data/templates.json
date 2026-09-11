@@ -1,0 +1,170 @@
+[
+ {
+  "id": "discipline",
+  "name": "Engineering Discipline & Feature Readiness",
+  "perspective": "Evidence of record",
+  "widgets": [
+   {
+    "w": "Evidence checklist",
+    "c": "Jira",
+    "q": "project = ENT AND labels = shiftleft-tracked AND fixVersion = \"2026.3\"",
+    "i": "5 min"
+   },
+   {
+    "w": "Artifact pages",
+    "c": "Confluence",
+    "q": "label in (sl-requirements, sl-testplan, sl-hld, sl-lld, sl-threatmodel) AND ancestor = 4915231",
+    "i": "15 min"
+   },
+   {
+    "w": "Test evidence",
+    "c": "Xray",
+    "q": "getTestExecutions(jira: {jql: \"fixVersion = '2026.3'\"}, limit: 100) { total results { status } }",
+    "i": "10 min"
+   },
+   {
+    "w": "Accessibility & perf artifacts",
+    "c": "CI (GitHub Actions)",
+    "q": "workflow:verify · artifacts: accessibility-report, performance-report",
+    "i": "10 min"
+   },
+   {
+    "w": "Design evidence",
+    "c": "Figma",
+    "q": "file:BB-Entitlements · frames named with the Jira key",
+    "i": "60 min"
+   }
+  ]
+ },
+ {
+  "id": "execution",
+  "name": "Developer & SDET Flow",
+  "perspective": "Execution health",
+  "widgets": [
+   {
+    "w": "Defect detection stage",
+    "c": "Jira",
+    "q": "project = ENT AND issuetype = Bug AND created >= startOfRelease() ORDER BY created DESC",
+    "i": "5 min"
+   },
+   {
+    "w": "PR feedback latency",
+    "c": "GitHub",
+    "q": "GET /repos/backbase/entitlements/actions/runs?status=completed&created=>=2026-07-01",
+    "i": "5 min"
+   },
+   {
+    "w": "Test layer mix",
+    "c": "Allure",
+    "q": "suites tagged @L1 @L2 @L3 @L4, last 7 days",
+    "i": "15 min"
+   },
+   {
+    "w": "Static analysis",
+    "c": "SonarQube",
+    "q": "component_keys=bb:entitlements&metricKeys=coverage,new_violations",
+    "i": "30 min"
+   }
+  ]
+ },
+ {
+  "id": "delivery",
+  "name": "Engineering Delivery Health (incl. Operational Indicators)",
+  "perspective": "Delivery control",
+  "widgets": [
+   {
+    "w": "Cycle time & throughput",
+    "c": "Jira",
+    "q": "project = ENT AND status changed to Done during (\"2026-07-01\",\"2026-08-30\")",
+    "i": "60 min"
+   },
+   {
+    "w": "Epic rollup",
+    "c": "Jira",
+    "q": "GET /rest/agile/1.0/epic/{id}/issue — story points summed across children",
+    "i": "60 min"
+   },
+   {
+    "w": "MAINT defect flow",
+    "c": "Jira",
+    "q": "project = MAINT AND \"Team\" = Entitlements AND resolutiondate >= startOfQuarter()",
+    "i": "30 min"
+   },
+   {
+    "w": "PR size & latency",
+    "c": "LinearB",
+    "q": "teamIds=418 · repos: APPR, LIM, AC, AG, LE-LEGALENTITY",
+    "i": "60 min"
+   }
+  ]
+ },
+ {
+  "id": "release",
+  "name": "Release & Quality Confidence",
+  "perspective": "Release confidence",
+  "widgets": [
+   {
+    "w": "Execution & pass rate",
+    "c": "Xray",
+    "q": "getTestExecutions(jira: {jql: \"fixVersion = '2026.3'\"}, limit: 100)",
+    "i": "10 min"
+   },
+   {
+    "w": "Flaky classification",
+    "c": "CI (GitHub Actions)",
+    "q": "reruns where attempt > 1 AND head_sha unchanged",
+    "i": "10 min"
+   },
+   {
+    "w": "Release blockers",
+    "c": "Jira",
+    "q": "fixVersion = \"2026.3\" AND labels = release-blocker AND resolution = Unresolved",
+    "i": "5 min"
+   },
+   {
+    "w": "NFR verification",
+    "c": "CI (GitHub Actions)",
+    "q": "artifacts: accessibility-report, performance-report on the candidate run",
+    "i": "10 min"
+   }
+  ]
+ },
+ {
+  "id": "portfolio",
+  "name": "Portfolio & Programme Overview",
+  "perspective": "Portfolio quality",
+  "widgets": [
+   {
+    "w": "Team rollup grid",
+    "c": "Platform (snapshots)",
+    "q": "metrics_snapshots WHERE period = 'Q3-2026' GROUP BY team",
+    "i": "nightly"
+   },
+   {
+    "w": "Escaped defects by team",
+    "c": "Jira",
+    "q": "issuetype = Bug AND environment = Production AND resolutiondate >= startOfQuarter()",
+    "i": "nightly"
+   }
+  ]
+ },
+ {
+  "id": "signal",
+  "name": "Executive Stakeholder Perspective",
+  "perspective": "Executive signal",
+  "widgets": [
+   {
+    "w": "Quality trajectory",
+    "c": "Platform (snapshots)",
+    "q": "metrics_snapshots WHERE metric IN ('evidence_completeness','escaped_defects') ORDER BY period",
+    "i": "nightly"
+   },
+   {
+    "w": "DORA four keys",
+    "c": "GitHub Deployments",
+    "q": "GET /repos/{owner}/{repo}/deployments + JSM incidents with Caused-by deployment",
+    "i": "nightly"
+   }
+  ]
+ }
+]

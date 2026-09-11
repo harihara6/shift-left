@@ -1,0 +1,76 @@
+@if (data(); as insights) {
+  <div class="page">
+    <sl-flow-banner [link]="insights.evidence_link" (openEvidence)="openEvidence.emit()" />
+    <sl-freshness [freshness]="insights.freshness" />
+
+    @if (insights.notes.length) {
+      <ul class="notes" role="status">
+        @for (note of insights.notes; track note) { <li>{{ note }}</li> }
+      </ul>
+    }
+
+    <section class="card">
+      <header class="card-head">
+        <div class="card-title">
+          {{ insights.comparison.current.label }} vs {{ insights.comparison.baseline.label }} at a glance
+        </div>
+        <div class="meta">{{ insights.window }}</div>
+      </header>
+      <div class="grid-row grid-head glance-row">
+        <div>Indicator</div>
+        <div>{{ insights.comparison.baseline.label }}</div>
+        <div>{{ insights.comparison.current.label }}</div>
+        <div>Status</div>
+      </div>
+      @for (row of insights.glance; track row.row) {
+        <div class="grid-row glance-row">
+          <div class="glance-indicator">{{ row.row }}</div>
+          <div class="glance-baseline mono">{{ row.baseline }}</div>
+          <div class="glance-current mono">{{ row.current }}</div>
+          <div>
+            <sl-rag [state]="row.status" />
+            @if (row.drill; as drill) {
+              <a class="glance-drill" [href]="drill.url" target="_blank" rel="noopener">source ↗</a>
+            }
+          </div>
+        </div>
+      }
+      <p class="glance-note" [class.glance-note-warn]="!insights.comparison.comparable_lengths">
+        {{ insights.glance_note }}
+      </p>
+    </section>
+
+    @for (section of insights.sections; track section.key) {
+      <section class="section">
+        <header class="section-head">
+          <h3 class="section-title">{{ section.title }}</h3>
+          <span class="scope">{{ section.scope }}</span>
+        </header>
+        <div class="tiles">
+          @for (tile of section.tiles; track tile.label) {
+            <sl-tile [tile]="tile" />
+          }
+        </div>
+        <div class="charts">
+          @for (chart of section.charts; track chart.key) {
+            <div class="card chart-card">
+              <h4>{{ chart.title }}</h4>
+              <sl-chart [spec]="chart" />
+            </div>
+          }
+        </div>
+      </section>
+    }
+  </div>
+} @else if (error(); as message) {
+  <div class="card empty">
+    <strong>Nothing to show, and that is the finding</strong>
+    {{ message }}
+  </div>
+} @else {
+  <div class="card empty">Loading the delivery snapshot…</div>
+}
+
+@if (openGuide() && guide()) {
+  <sl-guide-modal [guide]="guide()!" (closed)="openGuide.set(false)" />
+}

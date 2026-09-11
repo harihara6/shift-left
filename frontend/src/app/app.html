@@ -1,0 +1,92 @@
+<div class="app">
+  <nav class="rail" aria-label="Perspectives">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">SL</span>
+      <span class="brand-text">
+        <span class="brand-name">ShiftLeft</span>
+        <span class="brand-sub">Quality observability</span>
+      </span>
+    </div>
+
+    <div class="rail-field">
+      <label class="rail-label" for="project">Project</label>
+      <select id="project" [ngModel]="projectId()" (ngModelChange)="projectId.set($event)">
+        @for (project of projects(); track project.id) {
+          <option [value]="project.id">{{ project.name }}</option>
+        }
+      </select>
+    </div>
+
+    <div class="rail-nav">
+      @for (group of nav; track group.group) {
+        <div class="nav-group">
+          <div class="rail-label">{{ group.group }}</div>
+          @for (item of group.items; track item.key) {
+            <button class="nav-item" [class.active]="item.key === screen()" [class.pending]="!item.built"
+                    [attr.aria-current]="item.key === screen() ? 'page' : null"
+                    [attr.title]="item.built ? null : 'Not built yet — later phase'"
+                    (click)="go(item.key, item.built)">
+              <span>{{ item.label }}</span>
+              @if (!item.built) { <span class="soon">soon</span> }
+            </button>
+          }
+        </div>
+      }
+    </div>
+
+    <div class="rail-foot">
+      @if (session.canSwitch) {
+        <label class="rail-label" for="identity">Signed in as</label>
+        <select id="identity" [ngModel]="session.current().email" (ngModelChange)="switchIdentity($event)">
+          @for (identity of session.identities; track identity.email) {
+            <option [value]="identity.email">{{ identity.label }}</option>
+          }
+        </select>
+        <p class="rail-note">
+          Development build: SSO stands in. Authorization is decided by the API on every call, so
+          switching identity changes what comes back.
+        </p>
+      } @else {
+        <div class="rail-label">Signed in as</div>
+        <p class="rail-identity mono">{{ me()?.email ?? '—' }}</p>
+      }
+    </div>
+  </nav>
+
+  <div class="main">
+    <header class="header">
+      <div class="header-text">
+        <div class="label-caps">{{ currentProject()?.name ?? 'No project' }}</div>
+        <h1>{{ perspectiveLabel() }}</h1>
+      </div>
+      @if (showPeriodFilter()) {
+        <!-- One filter, top right, governing every widget on the page below it. -->
+        <sl-period-filter [options]="filterOptions()" [comparison]="comparison()" />
+      }
+    </header>
+
+    <div class="body">
+      @if (loadError(); as message) {
+        <p class="card empty-state" role="alert">{{ message }}</p>
+      } @else if (!projectId() && screen() !== 'settings') {
+        <p class="card empty-state">
+          No project is visible to you. Access is project-scoped — ask an admin for a grant.
+        </p>
+      } @else {
+        @switch (screen()) {
+          @case ('discipline') {
+            <sl-feature-readiness [projectId]="projectId()" (openFlow)="go('delivery', true)" />
+          }
+          @case ('rollout') {
+            <sl-rollout [projectId]="projectId()" (openEvidence)="go('discipline', true)" />
+          }
+          @case ('delivery') {
+            <sl-team-insights [projectId]="projectId()" (comparisonChange)="comparison.set($event)"
+                              (openEvidence)="go('discipline', true)" />
+          }
+          @case ('settings') { <sl-settings /> }
+        }
+      }
+    </div>
+  </div>
+</div>

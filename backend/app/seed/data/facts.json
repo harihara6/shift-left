@@ -1,0 +1,3968 @@
+{
+ "data_through": "2026-08-30",
+ "teams": {
+  "entitlements": {
+   "label": "Entitlements",
+   "pr_scope": "LinearB · APPR / LIM / AC / AG / LE-LEGALENTITY",
+   "periods": {
+    "Q3-2026": {
+     "provenance": "prototype",
+     "epics": {
+      "avg_cycle_days": 54.5,
+      "median_days": 50.0,
+      "p85_days": 83.0,
+      "sample": 4,
+      "throughput": 6,
+      "size": {
+       "labels": [
+        "0–8 SP",
+        "9–20 SP",
+        "21–40 SP",
+        "40+ SP"
+       ],
+       "count": [
+        1,
+        2,
+        2,
+        1
+       ],
+       "cycle": [
+        21,
+        38,
+        62,
+        104
+       ]
+      }
+     },
+     "stories": {
+      "avg_cycle_days": 8.1,
+      "median_days": 1.0,
+      "p85_days": 8.0,
+      "sample": 48,
+      "throughput": 52,
+      "weekly": {
+       "labels": [
+        "W27",
+        "W28",
+        "W29",
+        "W30",
+        "W31",
+        "W32",
+        "W33",
+        "W34",
+        "W35"
+       ],
+       "done": [
+        7,
+        5,
+        8,
+        4,
+        6,
+        5,
+        7,
+        6,
+        4
+       ]
+      },
+      "size": {
+       "labels": [
+        "1–2 SP",
+        "3–5 SP",
+        "8 SP",
+        "13+ SP"
+       ],
+       "count": [
+        24,
+        18,
+        7,
+        3
+       ],
+       "cycle": [
+        2,
+        6,
+        13,
+        24
+       ]
+      }
+     },
+     "maint": {
+      "avg_cycle_days": 21.3,
+      "median_days": 12.0,
+      "sample": 105,
+      "opened": 79,
+      "resolved": 105,
+      "backlog_end": 29,
+      "priority": {
+       "labels": [
+        "Blocker",
+        "Critical",
+        "Major",
+        "Minor"
+       ],
+       "count": [
+        4,
+        18,
+        61,
+        22
+       ],
+       "cycle": [
+        6,
+        11,
+        22,
+        34
+       ]
+      }
+     },
+     "prs": {
+      "median_cycle_days": 0.02,
+      "avg_cycle_days": 0.17,
+      "merged": 234,
+      "small_pct": 53.0,
+      "huge_count": 75,
+      "buckets": {
+       "labels": [
+        "<100",
+        "100–499",
+        "500–999",
+        "1000+"
+       ],
+       "cycle": [
+        0.01,
+        0.04,
+        0.21,
+        0.63
+       ]
+      },
+      "cadence": {
+       "labels": [
+        "Jul 1",
+        "Jul 15",
+        "Jul 29",
+        "Aug 12",
+        "Aug 26"
+       ],
+       "merged": [
+        52,
+        47,
+        44,
+        51,
+        40
+       ]
+      }
+     },
+     "detection": {
+      "labels": [
+       "W27",
+       "W29",
+       "W31",
+       "W33",
+       "W35"
+      ],
+      "pr": [
+       41,
+       48,
+       52,
+       57,
+       61
+      ],
+      "nightly": [
+       22,
+       19,
+       17,
+       15,
+       14
+      ],
+      "prod": [
+       7,
+       6,
+       5,
+       5,
+       4
+      ]
+     }
+    },
+    "Q2-2026": {
+     "provenance": "prototype",
+     "derived_fields": [
+      "epics.size",
+      "stories.weekly",
+      "stories.size",
+      "maint.priority",
+      "maint.opened",
+      "prs.huge_count",
+      "prs.buckets",
+      "prs.cadence",
+      "detection"
+     ],
+     "epics": {
+      "avg_cycle_days": 69.6,
+      "median_days": 66.0,
+      "p85_days": 119.0,
+      "sample": 8,
+      "throughput": 10,
+      "size": {
+       "labels": [
+        "0–8 SP",
+        "9–20 SP",
+        "21–40 SP",
+        "40+ SP"
+       ],
+       "count": [
+        2,
+        3,
+        3,
+        2
+       ],
+       "cycle": [
+        27.0,
+        49.0,
+        79.0,
+        133.0
+       ]
+      }
+     },
+     "stories": {
+      "avg_cycle_days": 8.7,
+      "median_days": 3.0,
+      "p85_days": 12.0,
+      "sample": 83,
+      "throughput": 89,
+      "weekly": {
+       "labels": [
+        "W14",
+        "W15",
+        "W16",
+        "W17",
+        "W18",
+        "W19",
+        "W20",
+        "W21",
+        "W22",
+        "W23",
+        "W24",
+        "W25",
+        "W26"
+       ],
+       "done": [
+        8,
+        6,
+        6,
+        6,
+        7,
+        6,
+        7,
+        8,
+        8,
+        5,
+        7,
+        8,
+        7
+       ]
+      },
+      "size": {
+       "labels": [
+        "1–2 SP",
+        "3–5 SP",
+        "8 SP",
+        "13+ SP"
+       ],
+       "count": [
+        41,
+        31,
+        12,
+        5
+       ],
+       "cycle": [
+        2.0,
+        6.0,
+        14.0,
+        26.0
+       ]
+      }
+     },
+     "maint": {
+      "avg_cycle_days": 13.1,
+      "median_days": 9.0,
+      "sample": 30,
+      "opened": 35,
+      "resolved": 46,
+      "backlog_end": 55,
+      "priority": {
+       "labels": [
+        "Blocker",
+        "Critical",
+        "Major",
+        "Minor"
+       ],
+       "count": [
+        2,
+        8,
+        27,
+        9
+       ],
+       "cycle": [
+        4.0,
+        7.0,
+        14.0,
+        21.0
+       ]
+      }
+     },
+     "prs": {
+      "median_cycle_days": 0.02,
+      "avg_cycle_days": 0.34,
+      "merged": 329,
+      "small_pct": 59.0,
+      "huge_count": 74,
+      "buckets": {
+       "labels": [
+        "<100",
+        "100–499",
+        "500–999",
+        "1000+"
+       ],
+       "cycle": [
+        0.02,
+        0.06,
+        0.33,
+        0.99
+       ]
+      },
+      "cadence": {
+       "labels": [
+        "Apr 1",
+        "Apr 15",
+        "Apr 29",
+        "May 13",
+        "May 27",
+        "Jun 10",
+        "Jun 24"
+       ],
+       "merged": [
+        50,
+        54,
+        51,
+        38,
+        43,
+        39,
+        54
+       ]
+      }
+     },
+     "detection": {
+      "labels": [
+       "W27",
+       "W29",
+       "W31",
+       "W33",
+       "W35"
+      ],
+      "pr": [
+       35,
+       42,
+       46,
+       51,
+       55
+      ],
+      "nightly": [
+       25,
+       22,
+       20,
+       18,
+       17
+      ],
+      "prod": [
+       8,
+       7,
+       6,
+       6,
+       5
+      ]
+     }
+    },
+    "Q1-2026": {
+     "provenance": "generated",
+     "epics": {
+      "avg_cycle_days": 64.8,
+      "median_days": 76.0,
+      "p85_days": 126.0,
+      "sample": 7,
+      "throughput": 11,
+      "size": {
+       "labels": [
+        "0–8 SP",
+        "9–20 SP",
+        "21–40 SP",
+        "40+ SP"
+       ],
+       "count": [
+        2,
+        4,
+        3,
+        2
+       ],
+       "cycle": [
+        24.0,
+        44.0,
+        71.0,
+        119.0
+       ]
+      }
+     },
+     "stories": {
+      "avg_cycle_days": 9.4,
+      "median_days": 3.0,
+      "p85_days": 14.0,
+      "sample": 79,
+      "throughput": 86,
+      "weekly": {
+       "labels": [
+        "W1",
+        "W2",
+        "W3",
+        "W4",
+        "W5",
+        "W6",
+        "W7",
+        "W8",
+        "W9",
+        "W10",
+        "W11",
+        "W12",
+        "W13"
+       ],
+       "done": [
+        7,
+        7,
+        5,
+        8,
+        4,
+        7,
+        5,
+        7,
+        7,
+        7,
+        8,
+        7,
+        7
+       ]
+      },
+      "size": {
+       "labels": [
+        "1–2 SP",
+        "3–5 SP",
+        "8 SP",
+        "13+ SP"
+       ],
+       "count": [
+        40,
+        30,
+        11,
+        5
+       ],
+       "cycle": [
+        2.0,
+        7.0,
+        17.0,
+        32.0
+       ]
+      }
+     },
+     "maint": {
+      "avg_cycle_days": 12.4,
+      "median_days": 10.0,
+      "sample": 38,
+      "opened": 40,
+      "resolved": 38,
+      "backlog_end": 53,
+      "priority": {
+       "labels": [
+        "Blocker",
+        "Critical",
+        "Major",
+        "Minor"
+       ],
+       "count": [
+        2,
+        7,
+        22,
+        7
+       ],
+       "cycle": [
+        4.0,
+        6.0,
+        12.0,
+        18.0
+       ]
+      }
+     },
+     "prs": {
+      "median_cycle_days": 0.02,
+      "avg_cycle_days": 0.29,
+      "merged": 269,
+      "small_pct": 56,
+      "huge_count": 65,
+      "buckets": {
+       "labels": [
+        "<100",
+        "100–499",
+        "500–999",
+        "1000+"
+       ],
+       "cycle": [
+        0.02,
+        0.07,
+        0.4,
+        1.2
+       ]
+      },
+      "cadence": {
+       "labels": [
+        "Wk 1",
+        "Wk 3",
+        "Wk 5",
+        "Wk 7",
+        "Wk 9",
+        "Wk 11",
+        "Wk 13"
+       ],
+       "merged": [
+        36,
+        45,
+        34,
+        39,
+        32,
+        41,
+        42
+       ]
+      }
+     },
+     "detection": {
+      "labels": [
+       "W27",
+       "W29",
+       "W31",
+       "W33",
+       "W35"
+      ],
+      "pr": [
+       28,
+       35,
+       39,
+       44,
+       48
+      ],
+      "nightly": [
+       29,
+       26,
+       24,
+       22,
+       21
+      ],
+      "prod": [
+       10,
+       9,
+       8,
+       8,
+       7
+      ]
+     }
+    },
+    "Q4-2025": {
+     "provenance": "generated",
+     "epics": {
+      "avg_cycle_days": 66.5,
+      "median_days": 93.0,
+      "p85_days": 129.0,
+      "sample": 6,
+      "throughput": 8,
+      "size": {
+       "labels": [
+        "0–8 SP",
+        "9–20 SP",
+        "21–40 SP",
+        "40+ SP"
+       ],
+       "count": [
+        2,
+        3,
+        2,
+        1
+       ],
+       "cycle": [
+        31.0,
+        56.0,
+        91.0,
+        152.0
+       ]
+      }
+     },
+     "stories": {
+      "avg_cycle_days": 11.5,
+      "median_days": 3.0,
+      "p85_days": 17.0,
+      "sample": 100,
+      "throughput": 108,
+      "weekly": {
+       "labels": [
+        "W1",
+        "W2",
+        "W3",
+        "W4",
+        "W5",
+        "W6",
+        "W7",
+        "W8",
+        "W9",
+        "W10",
+        "W11",
+        "W12",
+        "W13"
+       ],
+       "done": [
+        9,
+        6,
+        9,
+        6,
+        7,
+        10,
+        9,
+        8,
+        11,
+        7,
+        6,
+        9,
+        11
+       ]
+      },
+      "size": {
+       "labels": [
+        "1–2 SP",
+        "3–5 SP",
+        "8 SP",
+        "13+ SP"
+       ],
+       "count": [
+        50,
+        38,
+        14,
+        6
+       ],
+       "cycle": [
+        2.0,
+        8.0,
+        20.0,
+        38.0
+       ]
+      }
+     },
+     "maint": {
+      "avg_cycle_days": 13.9,
+      "median_days": 12.0,
+      "sample": 44,
+      "opened": 57,
+      "resolved": 44,
+      "backlog_end": 40,
+      "priority": {
+       "labels": [
+        "Blocker",
+        "Critical",
+        "Major",
+        "Minor"
+       ],
+       "count": [
+        2,
+        8,
+        26,
+        8
+       ],
+       "cycle": [
+        5.0,
+        7.0,
+        14.0,
+        21.0
+       ]
+      }
+     },
+     "prs": {
+      "median_cycle_days": 0.02,
+      "avg_cycle_days": 0.4,
+      "merged": 263,
+      "small_pct": 51,
+      "huge_count": 56,
+      "buckets": {
+       "labels": [
+        "<100",
+        "100–499",
+        "500–999",
+        "1000+"
+       ],
+       "cycle": [
+        0.02,
+        0.08,
+        0.46,
+        1.38
+       ]
+      },
+      "cadence": {
+       "labels": [
+        "Wk 1",
+        "Wk 3",
+        "Wk 5",
+        "Wk 7",
+        "Wk 9",
+        "Wk 11",
+        "Wk 13"
+       ],
+       "merged": [
+        31,
+        33,
+        53,
+        33,
+        36,
+        33,
+        44
+       ]
+      }
+     },
+     "detection": {
+      "labels": [
+       "W27",
+       "W29",
+       "W31",
+       "W33",
+       "W35"
+      ],
+      "pr": [
+       21,
+       28,
+       32,
+       37,
+       41
+      ],
+      "nightly": [
+       33,
+       30,
+       28,
+       26,
+       25
+      ],
+      "prod": [
+       12,
+       11,
+       10,
+       10,
+       9
+      ]
+     }
+    },
+    "Q3-2025": {
+     "provenance": "generated",
+     "epics": {
+      "avg_cycle_days": 74.5,
+      "median_days": 113.0,
+      "p85_days": 150.0,
+      "sample": 6,
+      "throughput": 9,
+      "size": {
+       "labels": [
+        "0–8 SP",
+        "9–20 SP",
+        "21–40 SP",
+        "40+ SP"
+       ],
+       "count": [
+        2,
+        4,
+        2,
+        1
+       ],
+       "cycle": [
+        39.0,
+        71.0,
+        115.0,
+        192.0
+       ]
+      }
+     },
+     "stories": {
+      "avg_cycle_days": 13.6,
+      "median_days": 3.0,
+      "p85_days": 16.0,
+      "sample": 83,
+      "throughput": 86,
+      "weekly": {
+       "labels": [
+        "W1",
+        "W2",
+        "W3",
+        "W4",
+        "W5",
+        "W6",
+        "W7",
+        "W8",
+        "W9",
+        "W10",
+        "W11",
+        "W12",
+        "W13"
+       ],
+       "done": [
+        7,
+        8,
+        5,
+        8,
+        8,
+        8,
+        6,
+        6,
+        5,
+        6,
+        5,
+        6,
+        8
+       ]
+      },
+      "size": {
+       "labels": [
+        "1–2 SP",
+        "3–5 SP",
+        "8 SP",
+        "13+ SP"
+       ],
+       "count": [
+        40,
+        30,
+        11,
+        5
+       ],
+       "cycle": [
+        2.0,
+        7.0,
+        17.0,
+        33.0
+       ]
+      }
+     },
+     "maint": {
+      "avg_cycle_days": 15.7,
+      "median_days": 13.0,
+      "sample": 49,
+      "opened": 55,
+      "resolved": 49,
+      "backlog_end": 34,
+      "priority": {
+       "labels": [
+        "Blocker",
+        "Critical",
+        "Major",
+        "Minor"
+       ],
+       "count": [
+        2,
+        9,
+        29,
+        9
+       ],
+       "cycle": [
+        6.0,
+        9.0,
+        18.0,
+        26.0
+       ]
+      }
+     },
+     "prs": {
+      "median_cycle_days": 0.02,
+      "avg_cycle_days": 0.55,
+      "merged": 263,
+      "small_pct": 50,
+      "huge_count": 68,
+      "buckets": {
+       "labels": [
+        "<100",
+        "100–499",
+        "500–999",
+        "1000+"
+       ],
+       "cycle": [
+        0.02,
+        0.09,
+        0.5,
+        1.5
+       ]
+      },
+      "cadence": {
+       "labels": [
+        "Wk 1",
+        "Wk 3",
+        "Wk 5",
+        "Wk 7",
+        "Wk 9",
+        "Wk 11",
+        "Wk 13"
+       ],
+       "merged": [
+        49,
+        29,
+        33,
+        43,
+        29,
+        45,
+        35
+       ]
+      }
+     },
+     "detection": {
+      "labels": [
+       "W27",
+       "W29",
+       "W31",
+       "W33",
+       "W35"
+      ],
+      "pr": [
+       16,
+       23,
+       27,
+       32,
+       36
+      ],
+      "nightly": [
+       35,
+       32,
+       30,
+       28,
+       27
+      ],
+      "prod": [
+       13,
+       12,
+       11,
+       11,
+       10
+      ]
+     }
+    },
+    "Q2-2025": {
+     "provenance": "generated",
+     "epics": {
+      "avg_cycle_days": 68.4,
+      "median_days": 119.0,
+      "p85_days": 163.0,
+      "sample": 11,
+      "throughput": 12,
+      "size": {
+       "labels": [
+        "0–8 SP",
+        "9–20 SP",
+        "21–40 SP",
+        "40+ SP"
+       ],
+       "count": [
+        3,
+        5,
+        3,
+        1
+       ],
+       "cycle": [
+        38.0,
+        70.0,
+        113.0,
+        189.0
+       ]
+      }
+     },
+     "stories": {
+      "avg_cycle_days": 16.4,
+      "median_days": 3.0,
+      "p85_days": 15.0,
+      "sample": 85,
+      "throughput": 105,
+      "weekly": {
+       "labels": [
+        "W1",
+        "W2",
+        "W3",
+        "W4",
+        "W5",
+        "W6",
+        "W7",
+        "W8",
+        "W9",
+        "W10",
+        "W11",
+        "W12",
+        "W13"
+       ],
+       "done": [
+        9,
+        9,
+        8,
+        9,
+        9,
+        6,
+        8,
+        10,
+        7,
+        6,
+        8,
+        8,
+        8
+       ]
+      },
+      "size": {
+       "labels": [
+        "1–2 SP",
+        "3–5 SP",
+        "8 SP",
+        "13+ SP"
+       ],
+       "count": [
+        49,
+        37,
+        13,
+        6
+       ],
+       "cycle": [
+        2.0,
+        7.0,
+        17.0,
+        33.0
+       ]
+      }
+     },
+     "maint": {
+      "avg_cycle_days": 18.2,
+      "median_days": 12.0,
+      "sample": 60,
+      "opened": 55,
+      "resolved": 60,
+      "backlog_end": 39,
+      "priority": {
+       "labels": [
+        "Blocker",
+        "Critical",
+        "Major",
+        "Minor"
+       ],
+       "count": [
+        2,
+        11,
+        36,
+        11
+       ],
+       "cycle": [
+        6.0,
+        9.0,
+        18.0,
+        26.0
+       ]
+      }
+     },
+     "prs": {
+      "median_cycle_days": 0.02,
+      "avg_cycle_days": 0.52,
+      "merged": 299,
+      "small_pct": 47,
+      "huge_count": 76,
+      "buckets": {
+       "labels": [
+        "<100",
+        "100–499",
+        "500–999",
+        "1000+"
+       ],
+       "cycle": [
+        0.02,
+        0.09,
+        0.48,
+        1.45
+       ]
+      },
+      "cadence": {
+       "labels": [
+        "Wk 1",
+        "Wk 3",
+        "Wk 5",
+        "Wk 7",
+        "Wk 9",
+        "Wk 11",
+        "Wk 13"
+       ],
+       "merged": [
+        49,
+        37,
+        48,
+        46,
+        32,
+        48,
+        39
+       ]
+      }
+     },
+     "detection": {
+      "labels": [
+       "W27",
+       "W29",
+       "W31",
+       "W33",
+       "W35"
+      ],
+      "pr": [
+       8,
+       15,
+       19,
+       24,
+       28
+      ],
+      "nightly": [
+       39,
+       36,
+       34,
+       32,
+       31
+      ],
+      "prod": [
+       15,
+       14,
+       13,
+       13,
+       12
+      ]
+     }
+    },
+    "Q1-2025": {
+     "provenance": "generated",
+     "epics": {
+      "avg_cycle_days": 63.3,
+      "median_days": 102.0,
+      "p85_days": 201.0,
+      "sample": 10,
+      "throughput": 13,
+      "size": {
+       "labels": [
+        "0–8 SP",
+        "9–20 SP",
+        "21–40 SP",
+        "40+ SP"
+       ],
+       "count": [
+        3,
+        6,
+        3,
+        1
+       ],
+       "cycle": [
+        48.0,
+        89.0,
+        143.0,
+        240.0
+       ]
+      }
+     },
+     "stories": {
+      "avg_cycle_days": 17.9,
+      "median_days": 4.0,
+      "p85_days": 16.0,
+      "sample": 73,
+      "throughput": 84,
+      "weekly": {
+       "labels": [
+        "W1",
+        "W2",
+        "W3",
+        "W4",
+        "W5",
+        "W6",
+        "W7",
+        "W8",
+        "W9",
+        "W10",
+        "W11",
+        "W12",
+        "W13"
+       ],
+       "done": [
+        7,
+        7,
+        7,
+        7,
+        6,
+        7,
+        5,
+        7,
+        8,
+        5,
+        7,
+        5,
+        6
+       ]
+      },
+      "size": {
+       "labels": [
+        "1–2 SP",
+        "3–5 SP",
+        "8 SP",
+        "13+ SP"
+       ],
+       "count": [
+        39,
+        30,
+        10,
+        5
+       ],
+       "cycle": [
+        2.0,
+        7.0,
+        17.0,
+        33.0
+       ]
+      }
+     },
+     "maint": {
+      "avg_cycle_days": 15.9,
+      "median_days": 14.0,
+      "sample": 73,
+      "opened": 92,
+      "resolved": 73,
+      "backlog_end": 20,
+      "priority": {
+       "labels": [
+        "Blocker",
+        "Critical",
+        "Major",
+        "Minor"
+       ],
+       "count": [
+        3,
+        13,
+        44,
+        13
+       ],
+       "cycle": [
+        6.0,
+        9.0,
+        17.0,
+        25.0
+       ]
+      }
+     },
+     "prs": {
+      "median_cycle_days": 0.03,
+      "avg_cycle_days": 0.49,
+      "merged": 267,
+      "small_pct": 50,
+      "huge_count": 69,
+      "buckets": {
+       "labels": [
+        "<100",
+        "100–499",
+        "500–999",
+        "1000+"
+       ],
+       "cycle": [
+        0.03,
+        0.11,
+        0.6,
+        1.81
+       ]
+      },
+      "cadence": {
+       "labels": [
+        "Wk 1",
+        "Wk 3",
+        "Wk 5",
+        "Wk 7",
+        "Wk 9",
+        "Wk 11",
+        "Wk 13"
+       ],
+       "merged": [
+        31,
+        47,
+        50,
+        34,
+        28,
+        28,
+        49
+       ]
+      }
+     },
+     "detection": {
+      "labels": [
+       "W27",
+       "W29",
+       "W31",
+       "W33",
+       "W35"
+      ],
+      "pr": [
+       5,
+       9,
+       13,
+       18,
+       22
+      ],
+      "nightly": [
+       42,
+       39,
+       37,
+       35,
+       34
+      ],
+      "prod": [
+       17,
+       16,
+       15,
+       15,
+       14
+      ]
+     }
+    }
+   }
+  },
+  "payments": {
+   "label": "DB Payments",
+   "pr_scope": "LinearB · BUS contacts, manage and omni payments journeys, Android and iOS",
+   "periods": {
+    "Q3-2026": {
+     "provenance": "prototype",
+     "epics": {
+      "avg_cycle_days": 10.8,
+      "median_days": 6.0,
+      "p85_days": 20.0,
+      "sample": 4,
+      "throughput": 6,
+      "size": {
+       "labels": [
+        "0–8 SP",
+        "9–20 SP",
+        "21–40 SP",
+        "40+ SP"
+       ],
+       "count": [
+        2,
+        1,
+        1,
+        0
+       ],
+       "cycle": [
+        5,
+        9,
+        18,
+        0
+       ]
+      }
+     },
+     "stories": {
+      "avg_cycle_days": 7.7,
+      "median_days": 5.0,
+      "p85_days": 13.0,
+      "sample": 39,
+      "throughput": 47,
+      "weekly": {
+       "labels": [
+        "W27",
+        "W28",
+        "W29",
+        "W30",
+        "W31",
+        "W32",
+        "W33",
+        "W34",
+        "W35"
+       ],
+       "done": [
+        4,
+        6,
+        5,
+        7,
+        5,
+        6,
+        4,
+        6,
+        4
+       ]
+      },
+      "size": {
+       "labels": [
+        "1–2 SP",
+        "3–5 SP",
+        "8 SP",
+        "13+ SP"
+       ],
+       "count": [
+        19,
+        17,
+        8,
+        3
+       ],
+       "cycle": [
+        3,
+        6,
+        11,
+        19
+       ]
+      }
+     },
+     "maint": {
+      "avg_cycle_days": 13.0,
+      "median_days": 6.0,
+      "sample": 84,
+      "opened": 69,
+      "resolved": 84,
+      "backlog_end": 36,
+      "priority": {
+       "labels": [
+        "Blocker",
+        "Critical",
+        "Major",
+        "Minor"
+       ],
+       "count": [
+        3,
+        14,
+        49,
+        18
+       ],
+       "cycle": [
+        4,
+        8,
+        14,
+        21
+       ]
+      }
+     },
+     "prs": {
+      "median_cycle_days": 0.01,
+      "avg_cycle_days": 0.96,
+      "merged": 263,
+      "small_pct": 77.0,
+      "huge_count": 40,
+      "buckets": {
+       "labels": [
+        "<100",
+        "100–499",
+        "500–999",
+        "1000+"
+       ],
+       "cycle": [
+        0.01,
+        0.06,
+        0.42,
+        1.84
+       ]
+      },
+      "cadence": {
+       "labels": [
+        "Jul 1",
+        "Jul 15",
+        "Jul 29",
+        "Aug 12",
+        "Aug 26"
+       ],
+       "merged": [
+        46,
+        58,
+        51,
+        62,
+        46
+       ]
+      }
+     },
+     "detection": {
+      "labels": [
+       "W27",
+       "W29",
+       "W31",
+       "W33",
+       "W35"
+      ],
+      "pr": [
+       58,
+       63,
+       70,
+       74,
+       79
+      ],
+      "nightly": [
+       18,
+       16,
+       13,
+       11,
+       9
+      ],
+      "prod": [
+       6,
+       5,
+       4,
+       3,
+       2
+      ]
+     }
+    },
+    "Q2-2026": {
+     "provenance": "prototype",
+     "derived_fields": [
+      "epics.size",
+      "stories.weekly",
+      "stories.size",
+      "maint.priority",
+      "maint.opened",
+      "prs.huge_count",
+      "prs.buckets",
+      "prs.cadence",
+      "detection"
+     ],
+     "epics": {
+      "avg_cycle_days": 103.0,
+      "median_days": 22.0,
+      "p85_days": 197.0,
+      "sample": 9,
+      "throughput": 21,
+      "size": {
+       "labels": [
+        "0–8 SP",
+        "9–20 SP",
+        "21–40 SP",
+        "40+ SP"
+       ],
+       "count": [
+        11,
+        5,
+        5,
+        0
+       ],
+       "cycle": [
+        48.0,
+        86.0,
+        172.0,
+        0.0
+       ]
+      }
+     },
+     "stories": {
+      "avg_cycle_days": 16.5,
+      "median_days": 7.0,
+      "p85_days": 45.0,
+      "sample": 19,
+      "throughput": 21,
+      "weekly": {
+       "labels": [
+        "W14",
+        "W15",
+        "W16",
+        "W17",
+        "W18",
+        "W19",
+        "W20",
+        "W21",
+        "W22",
+        "W23",
+        "W24",
+        "W25",
+        "W26"
+       ],
+       "done": [
+        2,
+        2,
+        2,
+        2,
+        2,
+        1,
+        1,
+        2,
+        1,
+        1,
+        1,
+        2,
+        2
+       ]
+      },
+      "size": {
+       "labels": [
+        "1–2 SP",
+        "3–5 SP",
+        "8 SP",
+        "13+ SP"
+       ],
+       "count": [
+        8,
+        8,
+        4,
+        1
+       ],
+       "cycle": [
+        6.0,
+        13.0,
+        24.0,
+        41.0
+       ]
+      }
+     },
+     "maint": {
+      "avg_cycle_days": 14.5,
+      "median_days": 4.0,
+      "sample": 91,
+      "opened": 146,
+      "resolved": 178,
+      "backlog_end": 51,
+      "priority": {
+       "labels": [
+        "Blocker",
+        "Critical",
+        "Major",
+        "Minor"
+       ],
+       "count": [
+        6,
+        30,
+        104,
+        38
+       ],
+       "cycle": [
+        4.0,
+        9.0,
+        16.0,
+        23.0
+       ]
+      }
+     },
+     "prs": {
+      "median_cycle_days": 0.0,
+      "avg_cycle_days": 0.0,
+      "merged": 0,
+      "small_pct": 0.0,
+      "huge_count": 0,
+      "buckets": {
+       "labels": [
+        "<100",
+        "100–499",
+        "500–999",
+        "1000+"
+       ],
+       "cycle": [
+        0.01,
+        0.07,
+        0.51,
+        2.23
+       ]
+      },
+      "cadence": {
+       "labels": [
+        "Apr 1",
+        "Apr 15",
+        "Apr 29",
+        "May 13",
+        "May 27",
+        "Jun 10",
+        "Jun 24"
+       ],
+       "merged": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+       ]
+      }
+     },
+     "detection": {
+      "labels": [
+       "W27",
+       "W29",
+       "W31",
+       "W33",
+       "W35"
+      ],
+      "pr": [
+       51,
+       56,
+       63,
+       67,
+       72
+      ],
+      "nightly": [
+       21,
+       19,
+       16,
+       14,
+       12
+      ],
+      "prod": [
+       8,
+       7,
+       6,
+       5,
+       4
+      ]
+     }
+    },
+    "Q1-2026": {
+     "provenance": "generated",
+     "epics": {
+      "avg_cycle_days": 124.5,
+      "median_days": 19.0,
+      "p85_days": 236.0,
+      "sample": 26,
+      "throughput": 27,
+      "size": {
+       "labels": [
+        "0–8 SP",
+        "9–20 SP",
+        "21–40 SP",
+        "40+ SP"
+       ],
+       "count": [
+        14,
+        7,
+        6,
+        0
+       ],
+       "cycle": [
+        58.0,
+        104.0,
+        208.0,
+        0.0
+       ]
+      }
+     },
+     "stories": {
+      "avg_cycle_days": 16.7,
+      "median_days": 8.0,
+      "p85_days": 42.0,
+      "sample": 23,
+      "throughput": 25,
+      "weekly": {
+       "labels": [
+        "W1",
+        "W2",
+        "W3",
+        "W4",
+        "W5",
+        "W6",
+        "W7",
+        "W8",
+        "W9",
+        "W10",
+        "W11",
+        "W12",
+        "W13"
+       ],
+       "done": [
+        1,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2
+       ]
+      },
+      "size": {
+       "labels": [
+        "1–2 SP",
+        "3–5 SP",
+        "8 SP",
+        "13+ SP"
+       ],
+       "count": [
+        10,
+        9,
+        5,
+        1
+       ],
+       "cycle": [
+        7.0,
+        15.0,
+        29.0,
+        49.0
+       ]
+      }
+     },
+     "maint": {
+      "avg_cycle_days": 17.6,
+      "median_days": 5.0,
+      "sample": 200,
+      "opened": 181,
+      "resolved": 200,
+      "backlog_end": 70,
+      "priority": {
+       "labels": [
+        "Blocker",
+        "Critical",
+        "Major",
+        "Minor"
+       ],
+       "count": [
+        7,
+        34,
+        117,
+        42
+       ],
+       "cycle": [
+        4.0,
+        10.0,
+        18.0,
+        26.0
+       ]
+      }
+     },
+     "prs": {
+      "median_cycle_days": 0.0,
+      "avg_cycle_days": 0.0,
+      "merged": 5,
+      "small_pct": 25,
+      "huge_count": 2,
+      "buckets": {
+       "labels": [
+        "<100",
+        "100–499",
+        "500–999",
+        "1000+"
+       ],
+       "cycle": [
+        0.01,
+        0.08,
+        0.6,
+        2.6
+       ]
+      },
+      "cadence": {
+       "labels": [
+        "Wk 1",
+        "Wk 3",
+        "Wk 5",
+        "Wk 7",
+        "Wk 9",
+        "Wk 11",
+        "Wk 13"
+       ],
+       "merged": [
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0
+       ]
+      }
+     },
+     "detection": {
+      "labels": [
+       "W27",
+       "W29",
+       "W31",
+       "W33",
+       "W35"
+      ],
+      "pr": [
+       46,
+       51,
+       58,
+       62,
+       67
+      ],
+      "nightly": [
+       23,
+       21,
+       18,
+       16,
+       14
+      ],
+      "prod": [
+       9,
+       8,
+       7,
+       6,
+       5
+      ]
+     }
+    },
+    "Q4-2025": {
+     "provenance": "generated",
+     "epics": {
+      "avg_cycle_days": 121.5,
+      "median_days": 20.0,
+      "p85_days": 202.0,
+      "sample": 29,
+      "throughput": 30,
+      "size": {
+       "labels": [
+        "0–8 SP",
+        "9–20 SP",
+        "21–40 SP",
+        "40+ SP"
+       ],
+       "count": [
+        15,
+        8,
+        7,
+        0
+       ],
+       "cycle": [
+        67.0,
+        121.0,
+        242.0,
+        0.0
+       ]
+      }
+     },
+     "stories": {
+      "avg_cycle_days": 18.7,
+      "median_days": 8.0,
+      "p85_days": 46.0,
+      "sample": 23,
+      "throughput": 23,
+      "weekly": {
+       "labels": [
+        "W1",
+        "W2",
+        "W3",
+        "W4",
+        "W5",
+        "W6",
+        "W7",
+        "W8",
+        "W9",
+        "W10",
+        "W11",
+        "W12",
+        "W13"
+       ],
+       "done": [
+        2,
+        1,
+        2,
+        2,
+        1,
+        2,
+        2,
+        1,
+        2,
+        2,
+        2,
+        2,
+        2
+       ]
+      },
+      "size": {
+       "labels": [
+        "1–2 SP",
+        "3–5 SP",
+        "8 SP",
+        "13+ SP"
+       ],
+       "count": [
+        9,
+        8,
+        5,
+        1
+       ],
+       "cycle": [
+        8.0,
+        18.0,
+        35.0,
+        59.0
+       ]
+      }
+     },
+     "maint": {
+      "avg_cycle_days": 16.8,
+      "median_days": 4.0,
+      "sample": 160,
+      "opened": 211,
+      "resolved": 160,
+      "backlog_end": 19,
+      "priority": {
+       "labels": [
+        "Blocker",
+        "Critical",
+        "Major",
+        "Minor"
+       ],
+       "count": [
+        6,
+        27,
+        93,
+        34
+       ],
+       "cycle": [
+        4.0,
+        9.0,
+        17.0,
+        24.0
+       ]
+      }
+     },
+     "prs": {
+      "median_cycle_days": 0.0,
+      "avg_cycle_days": 0.0,
+      "merged": 5,
+      "small_pct": 25,
+      "huge_count": 2,
+      "buckets": {
+       "labels": [
+        "<100",
+        "100–499",
+        "500–999",
+        "1000+"
+       ],
+       "cycle": [
+        0.01,
+        0.08,
+        0.57,
+        2.49
+       ]
+      },
+      "cadence": {
+       "labels": [
+        "Wk 1",
+        "Wk 3",
+        "Wk 5",
+        "Wk 7",
+        "Wk 9",
+        "Wk 11",
+        "Wk 13"
+       ],
+       "merged": [
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0
+       ]
+      }
+     },
+     "detection": {
+      "labels": [
+       "W27",
+       "W29",
+       "W31",
+       "W33",
+       "W35"
+      ],
+      "pr": [
+       39,
+       44,
+       51,
+       55,
+       60
+      ],
+      "nightly": [
+       27,
+       25,
+       22,
+       20,
+       18
+      ],
+      "prod": [
+       11,
+       10,
+       9,
+       8,
+       7
+      ]
+     }
+    },
+    "Q3-2025": {
+     "provenance": "generated",
+     "epics": {
+      "avg_cycle_days": 107.8,
+      "median_days": 24.0,
+      "p85_days": 232.0,
+      "sample": 14,
+      "throughput": 21,
+      "size": {
+       "labels": [
+        "0–8 SP",
+        "9–20 SP",
+        "21–40 SP",
+        "40+ SP"
+       ],
+       "count": [
+        10,
+        6,
+        5,
+        0
+       ],
+       "cycle": [
+        64.0,
+        115.0,
+        230.0,
+        0.0
+       ]
+      }
+     },
+     "stories": {
+      "avg_cycle_days": 16.8,
+      "median_days": 8.0,
+      "p85_days": 55.0,
+      "sample": 26,
+      "throughput": 28,
+      "weekly": {
+       "labels": [
+        "W1",
+        "W2",
+        "W3",
+        "W4",
+        "W5",
+        "W6",
+        "W7",
+        "W8",
+        "W9",
+        "W10",
+        "W11",
+        "W12",
+        "W13"
+       ],
+       "done": [
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        3,
+        2,
+        3,
+        2,
+        2,
+        2
+       ]
+      },
+      "size": {
+       "labels": [
+        "1–2 SP",
+        "3–5 SP",
+        "8 SP",
+        "13+ SP"
+       ],
+       "count": [
+        11,
+        10,
+        6,
+        1
+       ],
+       "cycle": [
+        8.0,
+        18.0,
+        35.0,
+        58.0
+       ]
+      }
+     },
+     "maint": {
+      "avg_cycle_days": 19.8,
+      "median_days": 4.0,
+      "sample": 193,
+      "opened": 178,
+      "resolved": 193,
+      "backlog_end": 34,
+      "priority": {
+       "labels": [
+        "Blocker",
+        "Critical",
+        "Major",
+        "Minor"
+       ],
+       "count": [
+        7,
+        33,
+        112,
+        41
+       ],
+       "cycle": [
+        5.0,
+        10.0,
+        20.0,
+        28.0
+       ]
+      }
+     },
+     "prs": {
+      "median_cycle_days": 0.0,
+      "avg_cycle_days": 0.0,
+      "merged": 5,
+      "small_pct": 25,
+      "huge_count": 2,
+      "buckets": {
+       "labels": [
+        "<100",
+        "100–499",
+        "500–999",
+        "1000+"
+       ],
+       "cycle": [
+        0.01,
+        0.08,
+        0.54,
+        2.34
+       ]
+      },
+      "cadence": {
+       "labels": [
+        "Wk 1",
+        "Wk 3",
+        "Wk 5",
+        "Wk 7",
+        "Wk 9",
+        "Wk 11",
+        "Wk 13"
+       ],
+       "merged": [
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0
+       ]
+      }
+     },
+     "detection": {
+      "labels": [
+       "W27",
+       "W29",
+       "W31",
+       "W33",
+       "W35"
+      ],
+      "pr": [
+       35,
+       40,
+       47,
+       51,
+       56
+      ],
+      "nightly": [
+       29,
+       27,
+       24,
+       22,
+       20
+      ],
+      "prod": [
+       12,
+       11,
+       10,
+       9,
+       8
+      ]
+     }
+    },
+    "Q2-2025": {
+     "provenance": "generated",
+     "epics": {
+      "avg_cycle_days": 129.7,
+      "median_days": 24.0,
+      "p85_days": 206.0,
+      "sample": 15,
+      "throughput": 22,
+      "size": {
+       "labels": [
+        "0–8 SP",
+        "9–20 SP",
+        "21–40 SP",
+        "40+ SP"
+       ],
+       "count": [
+        11,
+        6,
+        5,
+        0
+       ],
+       "cycle": [
+        55.0,
+        99.0,
+        198.0,
+        0.0
+       ]
+      }
+     },
+     "stories": {
+      "avg_cycle_days": 17.2,
+      "median_days": 7.0,
+      "p85_days": 47.0,
+      "sample": 24,
+      "throughput": 29,
+      "weekly": {
+       "labels": [
+        "W1",
+        "W2",
+        "W3",
+        "W4",
+        "W5",
+        "W6",
+        "W7",
+        "W8",
+        "W9",
+        "W10",
+        "W11",
+        "W12",
+        "W13"
+       ],
+       "done": [
+        3,
+        2,
+        3,
+        3,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2
+       ]
+      },
+      "size": {
+       "labels": [
+        "1–2 SP",
+        "3–5 SP",
+        "8 SP",
+        "13+ SP"
+       ],
+       "count": [
+        12,
+        10,
+        6,
+        1
+       ],
+       "cycle": [
+        10.0,
+        23.0,
+        44.0,
+        73.0
+       ]
+      }
+     },
+     "maint": {
+      "avg_cycle_days": 19.0,
+      "median_days": 4.0,
+      "sample": 248,
+      "opened": 229,
+      "resolved": 248,
+      "backlog_end": 53,
+      "priority": {
+       "labels": [
+        "Blocker",
+        "Critical",
+        "Major",
+        "Minor"
+       ],
+       "count": [
+        9,
+        42,
+        144,
+        53
+       ],
+       "cycle": [
+        5.0,
+        10.0,
+        20.0,
+        27.0
+       ]
+      }
+     },
+     "prs": {
+      "median_cycle_days": 0.0,
+      "avg_cycle_days": 0.0,
+      "merged": 6,
+      "small_pct": 25,
+      "huge_count": 2,
+      "buckets": {
+       "labels": [
+        "<100",
+        "100–499",
+        "500–999",
+        "1000+"
+       ],
+       "cycle": [
+        0.01,
+        0.1,
+        0.65,
+        2.83
+       ]
+      },
+      "cadence": {
+       "labels": [
+        "Wk 1",
+        "Wk 3",
+        "Wk 5",
+        "Wk 7",
+        "Wk 9",
+        "Wk 11",
+        "Wk 13"
+       ],
+       "merged": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0
+       ]
+      }
+     },
+     "detection": {
+      "labels": [
+       "W27",
+       "W29",
+       "W31",
+       "W33",
+       "W35"
+      ],
+      "pr": [
+       30,
+       35,
+       42,
+       46,
+       51
+      ],
+      "nightly": [
+       32,
+       30,
+       27,
+       25,
+       23
+      ],
+      "prod": [
+       13,
+       12,
+       11,
+       10,
+       9
+      ]
+     }
+    },
+    "Q1-2025": {
+     "provenance": "generated",
+     "epics": {
+      "avg_cycle_days": 146.6,
+      "median_days": 29.0,
+      "p85_days": 253.0,
+      "sample": 18,
+      "throughput": 23,
+      "size": {
+       "labels": [
+        "0–8 SP",
+        "9–20 SP",
+        "21–40 SP",
+        "40+ SP"
+       ],
+       "count": [
+        12,
+        6,
+        5,
+        0
+       ],
+       "cycle": [
+        58.0,
+        105.0,
+        210.0,
+        0.0
+       ]
+      }
+     },
+     "stories": {
+      "avg_cycle_days": 21.3,
+      "median_days": 6.0,
+      "p85_days": 56.0,
+      "sample": 27,
+      "throughput": 29,
+      "weekly": {
+       "labels": [
+        "W1",
+        "W2",
+        "W3",
+        "W4",
+        "W5",
+        "W6",
+        "W7",
+        "W8",
+        "W9",
+        "W10",
+        "W11",
+        "W12",
+        "W13"
+       ],
+       "done": [
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        3,
+        3,
+        2,
+        2,
+        2,
+        3
+       ]
+      },
+      "size": {
+       "labels": [
+        "1–2 SP",
+        "3–5 SP",
+        "8 SP",
+        "13+ SP"
+       ],
+       "count": [
+        12,
+        10,
+        6,
+        1
+       ],
+       "cycle": [
+        10.0,
+        23.0,
+        43.0,
+        71.0
+       ]
+      }
+     },
+     "maint": {
+      "avg_cycle_days": 23.4,
+      "median_days": 4.0,
+      "sample": 188,
+      "opened": 228,
+      "resolved": 188,
+      "backlog_end": 13,
+      "priority": {
+       "labels": [
+        "Blocker",
+        "Critical",
+        "Major",
+        "Minor"
+       ],
+       "count": [
+        7,
+        32,
+        109,
+        40
+       ],
+       "cycle": [
+        5.0,
+        10.0,
+        19.0,
+        26.0
+       ]
+      }
+     },
+     "prs": {
+      "median_cycle_days": 0.0,
+      "avg_cycle_days": 0.0,
+      "merged": 7,
+      "small_pct": 27,
+      "huge_count": 3,
+      "buckets": {
+       "labels": [
+        "<100",
+        "100–499",
+        "500–999",
+        "1000+"
+       ],
+       "cycle": [
+        0.01,
+        0.13,
+        0.86,
+        3.73
+       ]
+      },
+      "cadence": {
+       "labels": [
+        "Wk 1",
+        "Wk 3",
+        "Wk 5",
+        "Wk 7",
+        "Wk 9",
+        "Wk 11",
+        "Wk 13"
+       ],
+       "merged": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+       ]
+      }
+     },
+     "detection": {
+      "labels": [
+       "W27",
+       "W29",
+       "W31",
+       "W33",
+       "W35"
+      ],
+      "pr": [
+       25,
+       30,
+       37,
+       41,
+       46
+      ],
+      "nightly": [
+       35,
+       33,
+       30,
+       28,
+       26
+      ],
+      "prod": [
+       14,
+       13,
+       12,
+       11,
+       10
+      ]
+     }
+    }
+   }
+  },
+  "nucleus": {
+   "label": "Nucleus",
+   "pr_scope": "LinearB · iOS and Android banking apps, experience manager, retail journeys",
+   "periods": {
+    "Q3-2026": {
+     "provenance": "prototype",
+     "epics": {
+      "avg_cycle_days": 14.4,
+      "median_days": 8.0,
+      "p85_days": 26.0,
+      "sample": 5,
+      "throughput": 5,
+      "size": {
+       "labels": [
+        "0–8 SP",
+        "9–20 SP",
+        "21–40 SP",
+        "40+ SP"
+       ],
+       "count": [
+        2,
+        2,
+        1,
+        0
+       ],
+       "cycle": [
+        7,
+        13,
+        27,
+        0
+       ]
+      }
+     },
+     "stories": {
+      "avg_cycle_days": 3.6,
+      "median_days": 3.0,
+      "p85_days": 7.0,
+      "sample": 52,
+      "throughput": 54,
+      "weekly": {
+       "labels": [
+        "W27",
+        "W28",
+        "W29",
+        "W30",
+        "W31",
+        "W32",
+        "W33",
+        "W34",
+        "W35"
+       ],
+       "done": [
+        6,
+        7,
+        5,
+        8,
+        6,
+        5,
+        7,
+        6,
+        4
+       ]
+      },
+      "size": {
+       "labels": [
+        "1–2 SP",
+        "3–5 SP",
+        "8 SP",
+        "13+ SP"
+       ],
+       "count": [
+        28,
+        18,
+        6,
+        2
+       ],
+       "cycle": [
+        2,
+        4,
+        8,
+        15
+       ]
+      }
+     },
+     "maint": {
+      "avg_cycle_days": 16.5,
+      "median_days": 18.0,
+      "sample": 31,
+      "opened": 28,
+      "resolved": 31,
+      "backlog_end": 17,
+      "priority": {
+       "labels": [
+        "Blocker",
+        "Critical",
+        "Major",
+        "Minor"
+       ],
+       "count": [
+        1,
+        5,
+        18,
+        7
+       ],
+       "cycle": [
+        5,
+        12,
+        19,
+        26
+       ]
+      }
+     },
+     "prs": {
+      "median_cycle_days": 0.0,
+      "avg_cycle_days": 0.24,
+      "merged": 32,
+      "small_pct": 88.0,
+      "huge_count": 3,
+      "buckets": {
+       "labels": [
+        "<100",
+        "100–499",
+        "500–999",
+        "1000+"
+       ],
+       "cycle": [
+        0.01,
+        0.03,
+        0.18,
+        0.51
+       ]
+      },
+      "cadence": {
+       "labels": [
+        "Jul 1",
+        "Jul 15",
+        "Jul 29",
+        "Aug 12",
+        "Aug 26"
+       ],
+       "merged": [
+        5,
+        8,
+        6,
+        7,
+        6
+       ]
+      }
+     },
+     "detection": {
+      "labels": [
+       "W27",
+       "W29",
+       "W31",
+       "W33",
+       "W35"
+      ],
+      "pr": [
+       52,
+       57,
+       63,
+       69,
+       74
+      ],
+      "nightly": [
+       24,
+       22,
+       20,
+       17,
+       16
+      ],
+      "prod": [
+       9,
+       8,
+       7,
+       6,
+       5
+      ]
+     }
+    },
+    "Q2-2026": {
+     "provenance": "prototype",
+     "derived_fields": [
+      "epics.size",
+      "stories.weekly",
+      "stories.size",
+      "maint.priority",
+      "maint.opened",
+      "prs.huge_count",
+      "prs.buckets",
+      "prs.cadence",
+      "detection"
+     ],
+     "epics": {
+      "avg_cycle_days": 45.8,
+      "median_days": 35.0,
+      "p85_days": 68.0,
+      "sample": 5,
+      "throughput": 5,
+      "size": {
+       "labels": [
+        "0–8 SP",
+        "9–20 SP",
+        "21–40 SP",
+        "40+ SP"
+       ],
+       "count": [
+        2,
+        2,
+        1,
+        0
+       ],
+       "cycle": [
+        22.0,
+        41.0,
+        86.0,
+        0.0
+       ]
+      }
+     },
+     "stories": {
+      "avg_cycle_days": 8.3,
+      "median_days": 4.0,
+      "p85_days": 25.0,
+      "sample": 23,
+      "throughput": 25,
+      "weekly": {
+       "labels": [
+        "W14",
+        "W15",
+        "W16",
+        "W17",
+        "W18",
+        "W19",
+        "W20",
+        "W21",
+        "W22",
+        "W23",
+        "W24",
+        "W25",
+        "W26"
+       ],
+       "done": [
+        2,
+        2,
+        2,
+        2,
+        2,
+        1,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2
+       ]
+      },
+      "size": {
+       "labels": [
+        "1–2 SP",
+        "3–5 SP",
+        "8 SP",
+        "13+ SP"
+       ],
+       "count": [
+        13,
+        8,
+        3,
+        1
+       ],
+       "cycle": [
+        5.0,
+        9.0,
+        18.0,
+        35.0
+       ]
+      }
+     },
+     "maint": {
+      "avg_cycle_days": 16.3,
+      "median_days": 6.0,
+      "sample": 41,
+      "opened": 60,
+      "resolved": 66,
+      "backlog_end": 19,
+      "priority": {
+       "labels": [
+        "Blocker",
+        "Critical",
+        "Major",
+        "Minor"
+       ],
+       "count": [
+        2,
+        11,
+        38,
+        15
+       ],
+       "cycle": [
+        5.0,
+        12.0,
+        19.0,
+        26.0
+       ]
+      }
+     },
+     "prs": {
+      "median_cycle_days": 0.01,
+      "avg_cycle_days": 0.15,
+      "merged": 14,
+      "small_pct": 93.0,
+      "huge_count": 1,
+      "buckets": {
+       "labels": [
+        "<100",
+        "100–499",
+        "500–999",
+        "1000+"
+       ],
+       "cycle": [
+        0.02,
+        0.05,
+        0.3,
+        0.84
+       ]
+      },
+      "cadence": {
+       "labels": [
+        "Apr 1",
+        "Apr 15",
+        "Apr 29",
+        "May 13",
+        "May 27",
+        "Jun 10",
+        "Jun 24"
+       ],
+       "merged": [
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2
+       ]
+      }
+     },
+     "detection": {
+      "labels": [
+       "W27",
+       "W29",
+       "W31",
+       "W33",
+       "W35"
+      ],
+      "pr": [
+       43,
+       48,
+       54,
+       60,
+       65
+      ],
+      "nightly": [
+       28,
+       26,
+       24,
+       21,
+       20
+      ],
+      "prod": [
+       11,
+       10,
+       9,
+       8,
+       7
+      ]
+     }
+    },
+    "Q1-2026": {
+     "provenance": "generated",
+     "epics": {
+      "avg_cycle_days": 48.9,
+      "median_days": 38.0,
+      "p85_days": 70.0,
+      "sample": 7,
+      "throughput": 7,
+      "size": {
+       "labels": [
+        "0–8 SP",
+        "9–20 SP",
+        "21–40 SP",
+        "40+ SP"
+       ],
+       "count": [
+        3,
+        3,
+        1,
+        0
+       ],
+       "cycle": [
+        19.0,
+        35.0,
+        74.0,
+        0.0
+       ]
+      }
+     },
+     "stories": {
+      "avg_cycle_days": 9.3,
+      "median_days": 5.0,
+      "p85_days": 30.0,
+      "sample": 19,
+      "throughput": 24,
+      "weekly": {
+       "labels": [
+        "W1",
+        "W2",
+        "W3",
+        "W4",
+        "W5",
+        "W6",
+        "W7",
+        "W8",
+        "W9",
+        "W10",
+        "W11",
+        "W12",
+        "W13"
+       ],
+       "done": [
+        2,
+        2,
+        2,
+        2,
+        1,
+        2,
+        2,
+        2,
+        2,
+        2,
+        1,
+        2,
+        2
+       ]
+      },
+      "size": {
+       "labels": [
+        "1–2 SP",
+        "3–5 SP",
+        "8 SP",
+        "13+ SP"
+       ],
+       "count": [
+        12,
+        8,
+        3,
+        1
+       ],
+       "cycle": [
+        5.0,
+        9.0,
+        18.0,
+        35.0
+       ]
+      }
+     },
+     "maint": {
+      "avg_cycle_days": 13.9,
+      "median_days": 7.0,
+      "sample": 63,
+      "opened": 65,
+      "resolved": 63,
+      "backlog_end": 17,
+      "priority": {
+       "labels": [
+        "Blocker",
+        "Critical",
+        "Major",
+        "Minor"
+       ],
+       "count": [
+        2,
+        11,
+        36,
+        14
+       ],
+       "cycle": [
+        6.0,
+        14.0,
+        23.0,
+        31.0
+       ]
+      }
+     },
+     "prs": {
+      "median_cycle_days": 0.01,
+      "avg_cycle_days": 0.2,
+      "merged": 11,
+      "small_pct": 95,
+      "huge_count": 0,
+      "buckets": {
+       "labels": [
+        "<100",
+        "100–499",
+        "500–999",
+        "1000+"
+       ],
+       "cycle": [
+        0.02,
+        0.05,
+        0.3,
+        0.84
+       ]
+      },
+      "cadence": {
+       "labels": [
+        "Wk 1",
+        "Wk 3",
+        "Wk 5",
+        "Wk 7",
+        "Wk 9",
+        "Wk 11",
+        "Wk 13"
+       ],
+       "merged": [
+        2,
+        1,
+        2,
+        2,
+        1,
+        2,
+        1
+       ]
+      }
+     },
+     "detection": {
+      "labels": [
+       "W27",
+       "W29",
+       "W31",
+       "W33",
+       "W35"
+      ],
+      "pr": [
+       38,
+       43,
+       49,
+       55,
+       60
+      ],
+      "nightly": [
+       31,
+       29,
+       27,
+       24,
+       23
+      ],
+      "prod": [
+       12,
+       11,
+       10,
+       9,
+       8
+      ]
+     }
+    },
+    "Q4-2025": {
+     "provenance": "generated",
+     "epics": {
+      "avg_cycle_days": 50.5,
+      "median_days": 34.0,
+      "p85_days": 70.0,
+      "sample": 4,
+      "throughput": 5,
+      "size": {
+       "labels": [
+        "0–8 SP",
+        "9–20 SP",
+        "21–40 SP",
+        "40+ SP"
+       ],
+       "count": [
+        2,
+        2,
+        1,
+        0
+       ],
+       "cycle": [
+        19.0,
+        35.0,
+        73.0,
+        0.0
+       ]
+      }
+     },
+     "stories": {
+      "avg_cycle_days": 10.7,
+      "median_days": 5.0,
+      "p85_days": 37.0,
+      "sample": 19,
+      "throughput": 20,
+      "weekly": {
+       "labels": [
+        "W1",
+        "W2",
+        "W3",
+        "W4",
+        "W5",
+        "W6",
+        "W7",
+        "W8",
+        "W9",
+        "W10",
+        "W11",
+        "W12",
+        "W13"
+       ],
+       "done": [
+        2,
+        1,
+        1,
+        2,
+        1,
+        2,
+        1,
+        1,
+        2,
+        2,
+        2,
+        1,
+        2
+       ]
+      },
+      "size": {
+       "labels": [
+        "1–2 SP",
+        "3–5 SP",
+        "8 SP",
+        "13+ SP"
+       ],
+       "count": [
+        10,
+        7,
+        2,
+        1
+       ],
+       "cycle": [
+        5.0,
+        8.0,
+        17.0,
+        33.0
+       ]
+      }
+     },
+     "maint": {
+      "avg_cycle_days": 14.0,
+      "median_days": 8.0,
+      "sample": 71,
+      "opened": 69,
+      "resolved": 71,
+      "backlog_end": 19,
+      "priority": {
+       "labels": [
+        "Blocker",
+        "Critical",
+        "Major",
+        "Minor"
+       ],
+       "count": [
+        2,
+        12,
+        41,
+        16
+       ],
+       "cycle": [
+        7.0,
+        16.0,
+        25.0,
+        34.0
+       ]
+      }
+     },
+     "prs": {
+      "median_cycle_days": 0.01,
+      "avg_cycle_days": 0.27,
+      "merged": 13,
+      "small_pct": 86,
+      "huge_count": 1,
+      "buckets": {
+       "labels": [
+        "<100",
+        "100–499",
+        "500–999",
+        "1000+"
+       ],
+       "cycle": [
+        0.03,
+        0.06,
+        0.38,
+        1.06
+       ]
+      },
+      "cadence": {
+       "labels": [
+        "Wk 1",
+        "Wk 3",
+        "Wk 5",
+        "Wk 7",
+        "Wk 9",
+        "Wk 11",
+        "Wk 13"
+       ],
+       "merged": [
+        2,
+        1,
+        2,
+        2,
+        2,
+        2,
+        2
+       ]
+      }
+     },
+     "detection": {
+      "labels": [
+       "W27",
+       "W29",
+       "W31",
+       "W33",
+       "W35"
+      ],
+      "pr": [
+       29,
+       34,
+       40,
+       46,
+       51
+      ],
+      "nightly": [
+       35,
+       33,
+       31,
+       28,
+       27
+      ],
+      "prod": [
+       14,
+       13,
+       12,
+       11,
+       10
+      ]
+     }
+    },
+    "Q3-2025": {
+     "provenance": "generated",
+     "epics": {
+      "avg_cycle_days": 53.3,
+      "median_days": 34.0,
+      "p85_days": 76.0,
+      "sample": 3,
+      "throughput": 4,
+      "size": {
+       "labels": [
+        "0–8 SP",
+        "9–20 SP",
+        "21–40 SP",
+        "40+ SP"
+       ],
+       "count": [
+        2,
+        1,
+        1,
+        0
+       ],
+       "cycle": [
+        19.0,
+        34.0,
+        72.0,
+        0.0
+       ]
+      }
+     },
+     "stories": {
+      "avg_cycle_days": 11.8,
+      "median_days": 5.0,
+      "p85_days": 34.0,
+      "sample": 19,
+      "throughput": 19,
+      "weekly": {
+       "labels": [
+        "W1",
+        "W2",
+        "W3",
+        "W4",
+        "W5",
+        "W6",
+        "W7",
+        "W8",
+        "W9",
+        "W10",
+        "W11",
+        "W12",
+        "W13"
+       ],
+       "done": [
+        1,
+        2,
+        2,
+        2,
+        2,
+        1,
+        1,
+        1,
+        2,
+        2,
+        1,
+        1,
+        1
+       ]
+      },
+      "size": {
+       "labels": [
+        "1–2 SP",
+        "3–5 SP",
+        "8 SP",
+        "13+ SP"
+       ],
+       "count": [
+        9,
+        7,
+        2,
+        1
+       ],
+       "cycle": [
+        5.0,
+        7.0,
+        15.0,
+        30.0
+       ]
+      }
+     },
+     "maint": {
+      "avg_cycle_days": 16.1,
+      "median_days": 9.0,
+      "sample": 91,
+      "opened": 99,
+      "resolved": 91,
+      "backlog_end": 11,
+      "priority": {
+       "labels": [
+        "Blocker",
+        "Critical",
+        "Major",
+        "Minor"
+       ],
+       "count": [
+        3,
+        15,
+        53,
+        20
+       ],
+       "cycle": [
+        8.0,
+        17.0,
+        27.0,
+        37.0
+       ]
+      }
+     },
+     "prs": {
+      "median_cycle_days": 0.01,
+      "avg_cycle_days": 0.22,
+      "merged": 10,
+      "small_pct": 92,
+      "huge_count": 0,
+      "buckets": {
+       "labels": [
+        "<100",
+        "100–499",
+        "500–999",
+        "1000+"
+       ],
+       "cycle": [
+        0.03,
+        0.06,
+        0.38,
+        1.06
+       ]
+      },
+      "cadence": {
+       "labels": [
+        "Wk 1",
+        "Wk 3",
+        "Wk 5",
+        "Wk 7",
+        "Wk 9",
+        "Wk 11",
+        "Wk 13"
+       ],
+       "merged": [
+        1,
+        1,
+        2,
+        1,
+        1,
+        2,
+        2
+       ]
+      }
+     },
+     "detection": {
+      "labels": [
+       "W27",
+       "W29",
+       "W31",
+       "W33",
+       "W35"
+      ],
+      "pr": [
+       24,
+       29,
+       35,
+       41,
+       46
+      ],
+      "nightly": [
+       37,
+       35,
+       33,
+       30,
+       29
+      ],
+      "prod": [
+       15,
+       14,
+       13,
+       12,
+       11
+      ]
+     }
+    },
+    "Q2-2025": {
+     "provenance": "generated",
+     "epics": {
+      "avg_cycle_days": 60.2,
+      "median_days": 32.0,
+      "p85_days": 95.0,
+      "sample": 4,
+      "throughput": 4,
+      "size": {
+       "labels": [
+        "0–8 SP",
+        "9–20 SP",
+        "21–40 SP",
+        "40+ SP"
+       ],
+       "count": [
+        2,
+        1,
+        1,
+        0
+       ],
+       "cycle": [
+        20.0,
+        37.0,
+        78.0,
+        0.0
+       ]
+      }
+     },
+     "stories": {
+      "avg_cycle_days": 10.7,
+      "median_days": 4.0,
+      "p85_days": 36.0,
+      "sample": 12,
+      "throughput": 15,
+      "weekly": {
+       "labels": [
+        "W1",
+        "W2",
+        "W3",
+        "W4",
+        "W5",
+        "W6",
+        "W7",
+        "W8",
+        "W9",
+        "W10",
+        "W11",
+        "W12",
+        "W13"
+       ],
+       "done": [
+        1,
+        1,
+        1,
+        1,
+        2,
+        1,
+        1,
+        2,
+        1,
+        1,
+        1,
+        1,
+        1
+       ]
+      },
+      "size": {
+       "labels": [
+        "1–2 SP",
+        "3–5 SP",
+        "8 SP",
+        "13+ SP"
+       ],
+       "count": [
+        7,
+        5,
+        2,
+        1
+       ],
+       "cycle": [
+        5.0,
+        7.0,
+        15.0,
+        31.0
+       ]
+      }
+     },
+     "maint": {
+      "avg_cycle_days": 14.1,
+      "median_days": 10.0,
+      "sample": 113,
+      "opened": 123,
+      "resolved": 113,
+      "backlog_end": 1,
+      "priority": {
+       "labels": [
+        "Blocker",
+        "Critical",
+        "Major",
+        "Minor"
+       ],
+       "count": [
+        4,
+        18,
+        66,
+        25
+       ],
+       "cycle": [
+        9.0,
+        20.0,
+        32.0,
+        43.0
+       ]
+      }
+     },
+     "prs": {
+      "median_cycle_days": 0.01,
+      "avg_cycle_days": 0.28,
+      "merged": 9,
+      "small_pct": 91,
+      "huge_count": 0,
+      "buckets": {
+       "labels": [
+        "<100",
+        "100–499",
+        "500–999",
+        "1000+"
+       ],
+       "cycle": [
+        0.03,
+        0.07,
+        0.43,
+        1.2
+       ]
+      },
+      "cadence": {
+       "labels": [
+        "Wk 1",
+        "Wk 3",
+        "Wk 5",
+        "Wk 7",
+        "Wk 9",
+        "Wk 11",
+        "Wk 13"
+       ],
+       "merged": [
+        1,
+        2,
+        1,
+        1,
+        1,
+        1,
+        2
+       ]
+      }
+     },
+     "detection": {
+      "labels": [
+       "W27",
+       "W29",
+       "W31",
+       "W33",
+       "W35"
+      ],
+      "pr": [
+       15,
+       20,
+       26,
+       32,
+       37
+      ],
+      "nightly": [
+       41,
+       39,
+       37,
+       34,
+       33
+      ],
+      "prod": [
+       17,
+       16,
+       15,
+       14,
+       13
+      ]
+     }
+    },
+    "Q1-2025": {
+     "provenance": "generated",
+     "epics": {
+      "avg_cycle_days": 65.1,
+      "median_days": 35.0,
+      "p85_days": 89.0,
+      "sample": 2,
+      "throughput": 3,
+      "size": {
+       "labels": [
+        "0–8 SP",
+        "9–20 SP",
+        "21–40 SP",
+        "40+ SP"
+       ],
+       "count": [
+        1,
+        1,
+        1,
+        0
+       ],
+       "cycle": [
+        25.0,
+        46.0,
+        97.0,
+        0.0
+       ]
+      }
+     },
+     "stories": {
+      "avg_cycle_days": 13.2,
+      "median_days": 4.0,
+      "p85_days": 40.0,
+      "sample": 16,
+      "throughput": 17,
+      "weekly": {
+       "labels": [
+        "W1",
+        "W2",
+        "W3",
+        "W4",
+        "W5",
+        "W6",
+        "W7",
+        "W8",
+        "W9",
+        "W10",
+        "W11",
+        "W12",
+        "W13"
+       ],
+       "done": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        2,
+        1,
+        1,
+        2,
+        1,
+        1,
+        2,
+        2
+       ]
+      },
+      "size": {
+       "labels": [
+        "1–2 SP",
+        "3–5 SP",
+        "8 SP",
+        "13+ SP"
+       ],
+       "count": [
+        8,
+        6,
+        2,
+        1
+       ],
+       "cycle": [
+        5.0,
+        7.0,
+        15.0,
+        31.0
+       ]
+      }
+     },
+     "maint": {
+      "avg_cycle_days": 16.1,
+      "median_days": 10.0,
+      "sample": 105,
+      "opened": 97,
+      "resolved": 105,
+      "backlog_end": 9,
+      "priority": {
+       "labels": [
+        "Blocker",
+        "Critical",
+        "Major",
+        "Minor"
+       ],
+       "count": [
+        4,
+        17,
+        61,
+        23
+       ],
+       "cycle": [
+        9.0,
+        19.0,
+        31.0,
+        41.0
+       ]
+      }
+     },
+     "prs": {
+      "median_cycle_days": 0.01,
+      "avg_cycle_days": 0.39,
+      "merged": 7,
+      "small_pct": 93,
+      "huge_count": 0,
+      "buckets": {
+       "labels": [
+        "<100",
+        "100–499",
+        "500–999",
+        "1000+"
+       ],
+       "cycle": [
+        0.03,
+        0.07,
+        0.41,
+        1.16
+       ]
+      },
+      "cadence": {
+       "labels": [
+        "Wk 1",
+        "Wk 3",
+        "Wk 5",
+        "Wk 7",
+        "Wk 9",
+        "Wk 11",
+        "Wk 13"
+       ],
+       "merged": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+       ]
+      }
+     },
+     "detection": {
+      "labels": [
+       "W27",
+       "W29",
+       "W31",
+       "W33",
+       "W35"
+      ],
+      "pr": [
+       7,
+       12,
+       18,
+       24,
+       29
+      ],
+      "nightly": [
+       45,
+       43,
+       41,
+       38,
+       37
+      ],
+      "prod": [
+       19,
+       18,
+       17,
+       16,
+       15
+      ]
+     }
+    }
+   }
+  }
+ }
+}

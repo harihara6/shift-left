@@ -1,0 +1,49 @@
+[project]
+name = "shiftleft-service"
+version = "0.1.0"
+description = "ShiftLeft Quality & Delivery Observability Service"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "sqlalchemy[asyncio]>=2.0.30",
+  "alembic>=1.13",
+  "asyncpg>=0.29",
+  "aiosqlite>=0.20",
+  "pydantic>=2.7",
+  "pydantic-settings>=2.3",
+  "httpx>=0.27",
+  # 3.1 moved the formatter to pythonjsonlogger.json, which app/core/logging.py imports.
+  "python-json-logger>=3.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.5"]
+# Guided onboarding resolves discovered candidates with Claude. Optional on purpose: without
+# it the resolver falls back to name matching, so the feature degrades rather than disappears.
+ai = ["anthropic>=1.0"]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.setuptools.package-data]
+# The seed fixtures and the served access-model text are read from inside the package.
+app = ["seed/data/*.json"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "SIM", "UP", "RUF"]
+# B008 is FastAPI's Depends()/Header() idiom - the call in the default is the whole point.
+ignore = [
+  "B008",
+  # Typographic dashes and minus signs are deliberate in user-facing strings.
+  "RUF001",
+  "RUF002",
+  "RUF003",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

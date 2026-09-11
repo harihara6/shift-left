@@ -1,0 +1,98 @@
+{
+  "_provenance": "Fixture standing in for the rollout proposed in docs/PROPOSAL-ShiftLeft-Pivot.md. Entitlements is the pilot at Warn; Payments is observing; Nucleus has just enrolled and has nothing measured. Each team's latest sprint accuracy equals its audit table (Entitlements 101 of 110, Payments 74 of 88).",
+  "teams": {
+    "entitlements": {
+      "stage": 1,
+      "stage_since": "2026-08-03",
+      "policy_version": "evidence-policy v1.3",
+      "policy_ref": "https://github.com/backbase/shiftleft-policy/tree/v1.3",
+      "waiver_review_on": null,
+      "audit": {
+        "audited_on": "2026-08-28",
+        "auditor": "M. Okonjo (ETL)",
+        "features": "ENT-412, ENT-420, ENT-388, ENT-401, ENT-377, ENT-395, ENT-403, ENT-409, ENT-415, ENT-418",
+        "rows": [
+          {"artifact": "requirements", "audited": 10, "false_missing": 0, "false_present": 0, "method": "Confluence page linked from the epic with page property 'Jira key'", "note": ""},
+          {"artifact": "acceptance_criteria", "audited": 10, "false_missing": 0, "false_present": 0, "method": "Jira field 'Acceptance criteria' holds at least one Given/When/Then", "note": ""},
+          {"artifact": "test_plan", "audited": 10, "false_missing": 0, "false_present": 0, "method": "Confluence page from the test-plan template, page property 'Jira key'", "note": ""},
+          {"artifact": "hld", "audited": 10, "false_missing": 0, "false_present": 0, "method": "Confluence page under ARCH with page property 'Jira key'", "note": ""},
+          {"artifact": "lld", "audited": 10, "false_missing": 0, "false_present": 1, "method": "Confluence page per platform, page property 'Jira key'", "note": "One LLD was a template stub with no content; presence alone passed it."},
+          {"artifact": "threat_model", "audited": 10, "false_missing": 2, "false_present": 0, "method": "Threat-catalogue record linked by Jira key (status only)", "note": "Two refreshers were recorded in the catalogue without the Jira key."},
+          {"artifact": "traceability", "audited": 10, "false_missing": 1, "false_present": 0, "method": "Xray requirement coverage status on the story", "note": "One story was covered by a test set linked to its epic instead."},
+          {"artifact": "test_evidence", "audited": 10, "false_missing": 0, "false_present": 0, "method": "Xray executions plus CI junit-results on the release build", "note": ""},
+          {"artifact": "performance", "audited": 10, "false_missing": 2, "false_present": 0, "method": "Confluence sign-off page with label sl-performance", "note": "Load profiles were run but the sign-off page wasn't linked to the issue."},
+          {"artifact": "accessibility", "audited": 10, "false_missing": 0, "false_present": 1, "method": "CI artifact accessibility-report from verify.yml", "note": "One report came from a run on a stale branch."},
+          {"artifact": "ai_evidence", "audited": 10, "false_missing": 2, "false_present": 0, "method": "Jira field 'Human validation' naming a person", "note": "Validation was written in PR descriptions, not on the issue."}
+        ]
+      },
+      "sprints": [
+        {"ends": "2026-06-21", "accuracy": 78.0},
+        {"ends": "2026-07-05", "accuracy": 83.0},
+        {"ends": "2026-07-19", "accuracy": 88.0},
+        {"ends": "2026-08-02", "accuracy": 91.0},
+        {"ends": "2026-08-16", "accuracy": 92.0, "warnings": 21, "evidence_added": 9, "waived": 4, "ignored": 7, "false_red": 1},
+        {"ends": "2026-08-30", "accuracy": 91.8, "warnings": 29, "evidence_added": 18, "waived": 5, "ignored": 5, "false_red": 1}
+      ],
+      "surfaces": [
+        {"key": "jira_panel", "name": "Jira evidence panel", "connector": "jira", "gating": false, "from_stage": 0, "mode": "live", "coverage": [10, 10, "pilot features"], "gap_note": "", "last_event_minutes": 12, "expected_every_minutes": 2880, "events": [214, "panel opens"], "ref": "issues/?jql=project%20%3D%20ENT%20AND%20labels%20%3D%20shiftleft-tracked"},
+        {"key": "transition_validator", "name": "Ready / Done transition check", "connector": "jira", "gating": true, "from_stage": 1, "mode": "warn", "coverage": [3, 5, "workflows"], "gap_note": "Story and Sub-task workflows aren't wired yet.", "last_event_minutes": 130, "expected_every_minutes": 4320, "events": [29, "warnings"], "ref": "plugins/servlet/project-config/ENT/workflows"},
+        {"key": "pr_check", "name": "GitHub PR check", "connector": "github", "gating": true, "from_stage": 1, "mode": "warn", "coverage": [1, 1, "repositories"], "gap_note": "", "last_event_minutes": 25, "expected_every_minutes": 1440, "events": [63, "check runs"], "ref": "entitlements/pulls"},
+        {"key": "slack_digest", "name": "Weekly Slack digest", "connector": "slack", "gating": false, "from_stage": 1, "mode": "live", "coverage": [1, 1, "team channels"], "gap_note": "", "last_event_minutes": 5760, "expected_every_minutes": 11520, "events": [2, "digests"], "ref": "archives/C07ENTDELIV"},
+        {"key": "confluence_templates", "name": "Confluence evidence templates", "connector": "confluence", "gating": false, "from_stage": 0, "mode": "live", "coverage": [2, 3, "spaces"], "gap_note": "ARCH still uses the old HLD template.", "last_event_minutes": 4320, "expected_every_minutes": 20160, "events": [14, "pages from template"], "ref": "spaces/ENG/overview"}
+      ]
+    },
+    "payments": {
+      "stage": 0,
+      "stage_since": "2026-07-06",
+      "policy_version": "evidence-policy v1.3",
+      "policy_ref": "https://github.com/backbase/shiftleft-policy/tree/v1.3",
+      "waiver_review_on": null,
+      "audit": {
+        "audited_on": "2026-08-27",
+        "auditor": "R. Diallo (ETL)",
+        "features": "PAY-233, PAY-241, PAY-218, PAY-250, PAY-226, PAY-238, PAY-244, PAY-247",
+        "rows": [
+          {"artifact": "requirements", "audited": 8, "false_missing": 0, "false_present": 0, "method": "Confluence page linked from the epic with page property 'Jira key'", "note": ""},
+          {"artifact": "acceptance_criteria", "audited": 8, "false_missing": 0, "false_present": 0, "method": "Jira field 'Acceptance criteria' holds at least one Given/When/Then", "note": ""},
+          {"artifact": "test_plan", "audited": 8, "false_missing": 2, "false_present": 0, "method": "Confluence page from the test-plan template, page property 'Jira key'", "note": "Two test plans live in the PAYQA space, outside the template."},
+          {"artifact": "hld", "audited": 8, "false_missing": 0, "false_present": 2, "method": "Confluence page under ARCH with page property 'Jira key'", "note": "Two HLDs matched on title only; both described a different service."},
+          {"artifact": "lld", "audited": 8, "false_missing": 0, "false_present": 1, "method": "Confluence page per platform, page property 'Jira key'", "note": "One LLD was a template stub with no content."},
+          {"artifact": "threat_model", "audited": 8, "false_missing": 3, "false_present": 0, "method": "Threat-catalogue record linked by Jira key (status only)", "note": "Payments keeps threat models in a SEC space the detector doesn't read yet."},
+          {"artifact": "traceability", "audited": 8, "false_missing": 0, "false_present": 0, "method": "Xray requirement coverage status on the story", "note": ""},
+          {"artifact": "test_evidence", "audited": 8, "false_missing": 1, "false_present": 0, "method": "Xray executions plus CI junit-results on the release build", "note": "One execution ran against the wrong fixVersion."},
+          {"artifact": "performance", "audited": 8, "false_missing": 3, "false_present": 0, "method": "Confluence sign-off page with label sl-performance", "note": "Performance evidence is kept as Grafana snapshots, not in Confluence."},
+          {"artifact": "accessibility", "audited": 8, "false_missing": 1, "false_present": 0, "method": "CI artifact accessibility-report from verify.yml", "note": "One web change ran axe-core outside verify.yml."},
+          {"artifact": "ai_evidence", "audited": 8, "false_missing": 1, "false_present": 0, "method": "Jira field 'Human validation' naming a person", "note": ""}
+        ]
+      },
+      "sprints": [
+        {"ends": "2026-08-02", "accuracy": 76.0},
+        {"ends": "2026-08-16", "accuracy": 81.0},
+        {"ends": "2026-08-30", "accuracy": 84.1}
+      ],
+      "surfaces": [
+        {"key": "jira_panel", "name": "Jira evidence panel", "connector": "jira", "gating": false, "from_stage": 0, "mode": "live", "coverage": [8, 8, "pilot features"], "gap_note": "", "last_event_minutes": 95, "expected_every_minutes": 2880, "events": [88, "panel opens"], "ref": "issues/?jql=project%20%3D%20PAY%20AND%20labels%20%3D%20shiftleft-tracked"},
+        {"key": "transition_validator", "name": "Ready / Done transition check", "connector": "jira", "gating": true, "from_stage": 1, "mode": "off", "coverage": [0, 4, "workflows"], "gap_note": "", "last_event_minutes": null, "expected_every_minutes": 4320, "events": [0, "warnings"], "ref": "plugins/servlet/project-config/PAY/workflows"},
+        {"key": "pr_check", "name": "GitHub PR check", "connector": "github", "gating": true, "from_stage": 1, "mode": "off", "coverage": [0, 1, "repositories"], "gap_note": "", "last_event_minutes": null, "expected_every_minutes": 1440, "events": [0, "check runs"], "ref": "payments-web/pulls"},
+        {"key": "slack_digest", "name": "Weekly Slack digest", "connector": "slack", "gating": false, "from_stage": 1, "mode": "off", "coverage": [0, 1, "team channels"], "gap_note": "", "last_event_minutes": null, "expected_every_minutes": 11520, "events": [0, "digests"], "ref": "archives/C07PAYDELIV"},
+        {"key": "confluence_templates", "name": "Confluence evidence templates", "connector": "confluence", "gating": false, "from_stage": 0, "mode": "live", "coverage": [1, 4, "spaces"], "gap_note": "PAYQA, SEC and ARCH aren't on the templates yet.", "last_event_minutes": 8640, "expected_every_minutes": 20160, "events": [5, "pages from template"], "ref": "spaces/ENG/overview"}
+      ]
+    },
+    "nucleus": {
+      "stage": 0,
+      "stage_since": "2026-08-24",
+      "policy_version": "evidence-policy v1.3",
+      "policy_ref": "https://github.com/backbase/shiftleft-policy/tree/v1.3",
+      "waiver_review_on": null,
+      "audit": null,
+      "sprints": [],
+      "surfaces": [
+        {"key": "jira_panel", "name": "Jira evidence panel", "connector": "jira", "gating": false, "from_stage": 0, "mode": "off", "coverage": [0, 4, "pilot features"], "gap_note": "", "last_event_minutes": null, "expected_every_minutes": 2880, "events": [0, "panel opens"], "ref": "issues/?jql=project%20%3D%20NUC%20AND%20labels%20%3D%20shiftleft-tracked"},
+        {"key": "transition_validator", "name": "Ready / Done transition check", "connector": "jira", "gating": true, "from_stage": 1, "mode": "off", "coverage": [0, 3, "workflows"], "gap_note": "", "last_event_minutes": null, "expected_every_minutes": 4320, "events": [0, "warnings"], "ref": "plugins/servlet/project-config/NUC/workflows"},
+        {"key": "pr_check", "name": "GitHub PR check", "connector": "github", "gating": true, "from_stage": 1, "mode": "off", "coverage": [0, 2, "repositories"], "gap_note": "", "last_event_minutes": null, "expected_every_minutes": 1440, "events": [0, "check runs"], "ref": "nucleus-ios/pulls"},
+        {"key": "slack_digest", "name": "Weekly Slack digest", "connector": "slack", "gating": false, "from_stage": 1, "mode": "off", "coverage": [0, 1, "team channels"], "gap_note": "", "last_event_minutes": null, "expected_every_minutes": 11520, "events": [0, "digests"], "ref": "archives/C07NUCDELIV"},
+        {"key": "confluence_templates", "name": "Confluence evidence templates", "connector": "confluence", "gating": false, "from_stage": 0, "mode": "off", "coverage": [0, 2, "spaces"], "gap_note": "", "last_event_minutes": null, "expected_every_minutes": 20160, "events": [0, "pages from template"], "ref": "spaces/ENG/overview"}
+      ]
+    }
+  }
+}

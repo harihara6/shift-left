@@ -1,0 +1,314 @@
+{
+ "discipline": {
+  "title": "Feature Readiness — how this page works",
+  "sub": "Every widget here reads the evidence record. Nothing on this page is computed from a weighted score; each state resolves to a list of source artifacts.",
+  "who": [
+   "Someone about to say yes or no to starting a feature, who needs to see what is actually written down before development begins.",
+   "Someone preparing a sign-off conversation who needs the missing items named, so the discussion is about the gap rather than about the colour.",
+   "Someone reviewing a month of scoped-down artifacts to see whether the same rationale keeps reappearing."
+  ],
+  "sections": [
+   {
+    "widget": "Definition of Ready / Done completeness",
+    "decision": "ETL decides whether a feature may start (Ready) or be signed off (Done). A drop below the release bar of 90% is the trigger to stop the gate conversation and fix the gap.",
+    "source": "Jira (issue fields + links), Confluence (page tree + labels), Xray (test sets and executions), CI (job artifacts).",
+    "fetch": "Jira REST v3 search — project = ENT AND issuetype in (Story, Epic) AND labels = shiftleft-tracked AND fixVersion = \"2026.3\" — then per issue: remotelinks + issue links resolved to Confluence page IDs.",
+    "labels": "Tag the Jira issue with shiftleft-tracked and set fixVersion to the release (e.g. Release 2026.3). Set the Risk tier field to New capability / Major / Minor / Config-copy. Confluence pages need the page label matching the artifact: sl-requirements, sl-testplan, sl-hld, sl-lld, sl-threatmodel, sl-performance, sl-accessibility."
+   },
+   {
+    "widget": "Cleared at the Done gate",
+    "decision": "Release manager's shortlist: which features in this release actually carry complete evidence. Anything not cleared appears in the Release Readiness blocker list automatically.",
+    "source": "Derived — the checklist below, evaluated per feature. No independent data source.",
+    "fetch": "Rules engine evaluation on each connector sync; result written to rule_results and cached. Recomputed within 60s of any source change webhook.",
+    "labels": "Nothing to tag. If a feature is missing here, it was never tagged shiftleft-tracked in Jira."
+   },
+   {
+    "widget": "Feature readiness table — Ready / Done evidence bars",
+    "decision": "Where to spend the next hour. The bar shows present-vs-required artifacts for that gate; scoped-out artifacts are excluded from the denominator so the number is never inflated.",
+    "source": "Jira, Confluence, Figma (design links), Xray, CI.",
+    "fetch": "Confluence CQL — label = \"sl-hld\" AND ancestor = <space feature page> — plus Xray GraphQL getTestExecutions(jira: {jql: \"issue in linkedIssues('ENT-412')\"}) and the CI REST run artifact index.",
+    "labels": "Link the Confluence page to the Jira issue (Confluence \"Jira issue\" macro or a remote link). Name the Figma frame with the Jira key. In Xray, link the test execution to the feature issue."
+   },
+   {
+    "widget": "Status & reason (RAG with reasons)",
+    "decision": "Whether to hold the gate. Red is always accompanied by the literal list of absent artifacts, so the conversation is about the gap, not about the colour.",
+    "source": "Rule pack, evaluated over the artifact set above.",
+    "fetch": "rules table per project; each rule is artifact + gate + tier condition. Missing connector data resolves to missing, never to pass.",
+    "labels": "None. Adjust thresholds in Project settings → Rules."
+   },
+   {
+    "widget": "Scoped-out artifacts (waivers)",
+    "decision": "Platform owners review these monthly. Repeated \"capacity pressure\" rationales are a planning signal that surfaces before work starts, not an excuse recorded after.",
+    "source": "artifact_waivers — written in the product when an ETL scopes an artifact down.",
+    "fetch": "Written through the platform API, not fetched. Indexed free-text rationale, reportable by artifact, tier, owner and period.",
+    "labels": "Recorded in-product. No source-system tagging."
+   },
+   {
+    "widget": "Open actions",
+    "decision": "Owner and next action for every red. High-severity items dispatch to the owning channel rather than waiting to be noticed on next dashboard open.",
+    "source": "action_records, auto-created on red or threshold breach; owner resolved from project roles.",
+    "fetch": "Created by the rules engine; dispatched to Slack webhook or Jira Service Management per alert_routes.",
+    "labels": "Configure the destination in Project settings → Alert routes. Owners resolve from SSO group membership, so keep the team group current."
+   }
+  ]
+ },
+ "execution": {
+  "title": "Developer & SDET Flow — how this page works",
+  "sub": "Real-time execution telemetry. Useful for the daily loop; it is not evidence, and a green tile here never clears a gate.",
+  "who": [
+   "Someone running a daily stand-up who wants to know whether today's PR, build and test loop is healthy before the team commits to anything new.",
+   "Someone deciding which single improvement to make this sprint, and wanting the cheapest gap rather than the biggest number.",
+   "Someone investigating why defects keep surfacing late, who needs to see at which stage the loop is leaking."
+  ],
+  "sections": [
+   {
+    "widget": "Defects caught at PR / Found after deploy",
+    "decision": "The core shift-left signal pair. Rising PR-time detection with flat post-deploy detection means the earlier checks are running but not exercising the risky behaviour.",
+    "source": "CI check results and Xray executions, joined to Jira defects by the change that introduced them; Sentry for release regressions.",
+    "fetch": "Jira JQL — issuetype = Bug AND project = ENT AND created >= startOfRelease() — joined to CI run IDs via the commit SHA in the defect's Found-in build field.",
+    "labels": "On every defect set Found-in build (CI run ID or commit SHA) and Detection stage (pr / nightly / staging / production). Without Detection stage the defect is excluded, not assumed green."
+   },
+   {
+    "widget": "Checks at L1–L2 / Median PR feedback",
+    "decision": "Pyramid balance and feedback latency — the two levers a tech lead controls directly this week.",
+    "source": "Test runner reports collected by CI and aggregated in Allure; GitHub Actions workflow timings.",
+    "fetch": "GitHub REST — GET /repos/{owner}/{repo}/actions/runs?status=completed&created=>=2026-07-01 — plus the Allure results index per run.",
+    "labels": "Tag suites with the layer in the runner config: @L1 unit, @L2 slice/contract, @L3 integration, @L4 e2e. Untagged suites fall into L3 by default and will skew the mix."
+   },
+   {
+    "widget": "By SDLC stage panels (Plan → Maintain)",
+    "decision": "Locates the stage where the loop is leaking. Each row is one signal with an explicit target, so a lead can pick the cheapest gap to close.",
+    "source": "Jira (Plan), design coverage map + Xray (Design), SonarQube + GitHub (Build), CI + Allure (Test), CI/CD + deployment tools (Deploy), JSM + Xray (Maintain).",
+    "fetch": "Per-stage connector queries on a 15-minute schedule; results cached in metrics_snapshots. Every row drills to its source record.",
+    "labels": "Bug-fix PRs must carry the fix label for the regression-test check. Incident-derived tests must link the JSM incident key in the Xray test description for the Maintain loop to count."
+   }
+  ]
+ },
+ "delivery": {
+  "title": "Team Insights — how this page works",
+  "sub": "Flow telemetry for delivery management: pace, size and defect pressure. Compare rates rather than raw counts — the two quarters are different lengths.",
+  "who": [
+   "Someone who wants a weekly or bi-weekly update on how a single team is moving — what got finished, how long it took, and whether the pace changed.",
+   "Someone preparing a quarter-on-quarter summary and needing the comparison already normalised for window length, rather than rebuilding it in a spreadsheet.",
+   "Someone trying to explain slow delivery, who needs to know whether the cause is batching, oversized work items, or defect pressure."
+  ],
+  "sections": [
+   {
+    "widget": "Q2 vs Q3 at a glance",
+    "decision": "The opening five minutes of the bi-weekly review: what moved, and is the movement real once you normalise for window length.",
+    "source": "Jira issue changelog for cycle time and throughput; LinearB for PR counts and size mix.",
+    "fetch": "Jira JQL — project = ENT AND status changed to Done during (\"2026-07-01\", \"2026-08-30\") — with expand=changelog to derive per-issue start and done timestamps.",
+    "labels": "Use a consistent Done status category, and set the team's board so that first in-progress transition is meaningful. Items reopened and re-closed take the last transition."
+   },
+   {
+    "widget": "Epics — cycle time, throughput, size vs cycle time",
+    "decision": "Whether slow epics are genuinely large or simply held open. Large-and-slow is a slicing problem; small-and-slow is a flow problem.",
+    "source": "Jira epics with rolled-up story points from children.",
+    "fetch": "Jira Agile REST — GET /rest/agile/1.0/epic/{id}/issue — story points summed across children; P85 computed over the completed set.",
+    "labels": "Story points must be on the child issues, not the epic. Tag the epic with the release (fixVersion Release 2026.3) so it appears under the selected release filter."
+   },
+   {
+    "widget": "Stories — weekly cadence and size distribution",
+    "decision": "Shows whether the team's delivery is steady or batched. A saw-tooth cadence usually means work lands at sprint boundaries rather than continuously.",
+    "source": "Jira, including technical stories.",
+    "fetch": "Weekly buckets over the same changelog query; ISO week boundaries.",
+    "labels": "Technical work must be a Story with the tech label to be included; Tasks are counted separately."
+   },
+   {
+    "widget": "MAINT defect flow",
+    "decision": "Defect pressure and whether the team is keeping pace with inflow. Closure rate above 100% means the backlog is shrinking.",
+    "source": "Jira MAINT issue type; open backlog queried live at page load rather than period-end.",
+    "fetch": "Jira JQL — project = MAINT AND \"Team\" = Entitlements AND resolutiondate >= startOfQuarter() — plus a live unresolved count.",
+    "labels": "Set the Team field on every MAINT issue and keep Priority meaningful — if blockers and minors clear at the same speed, priority is decorative."
+   },
+   {
+    "widget": "Pull requests",
+    "decision": "Review latency and batching. Share under 500 LOC is the strongest single lever on both review quality and cycle time.",
+    "source": "LinearB, restricted to the team's configured repository or journey scope.",
+    "fetch": "LinearB API measurements endpoint, filtered by the team's repo/label scope; size is additions plus deletions.",
+    "labels": "Configure the team's repository scope in LinearB and mirror it in Project settings → Connectors, otherwise PRs from shared repos count against the wrong team."
+   }
+  ]
+ },
+ "release": {
+  "title": "Release Readiness — how this page works",
+  "sub": "One merged view for test confidence and release evidence, pulled once. The platform reports the decision; the release manager makes it.",
+  "who": [
+   "Someone chairing the go / no-go call who needs one page that holds both test confidence and release evidence, instead of two dashboards that half-agree.",
+   "Someone who has to justify a release decision afterwards and wants the blocking items and their owners recorded at the time.",
+   "Someone checking, mid-release, whether the verification that was planned has actually run and can be trusted."
+  ],
+  "sections": [
+   {
+    "widget": "Ship decision",
+    "decision": "The go / no-go summary for the release call. Reasons are the literal blocking items — remove them and the verdict recomputes.",
+    "source": "Derived from the tiles and blocker list below plus the Engineering Discipline record for every feature in the release.",
+    "fetch": "Evaluated per release on each sync; a stale connector in scope forces the verdict out of green regardless of the other inputs.",
+    "labels": "Set fixVersion = Release 2026.3 on every issue in the release. Untagged work is invisible here and will not block the release, which is the most common cause of a surprise escape."
+   },
+   {
+    "widget": "Test execution, pass rate, flaky tests, automation coverage",
+    "decision": "Whether the verification actually ran, and whether the result can be trusted. Flake above threshold devalues the pass rate on the same card.",
+    "source": "Xray test executions, CI runs, SonarQube coverage.",
+    "fetch": "Xray GraphQL getTestExecutions(jira: {jql: \"fixVersion = '2026.3'\"}) with per-test run status; flake classified as passed-on-retry with no code change between attempts.",
+    "labels": "Link every Xray test execution to the release version, and keep test repository folders aligned to the journey names used in Jira."
+   },
+   {
+    "widget": "NFR verification / Evidence completeness",
+    "decision": "The two rows that most often block a release. Both read the Engineering Discipline record — this page never computes its own evidence truth.",
+    "source": "Confluence (perf and a11y sign-off pages), CI (axe-core, perf runner), the evidence checklist.",
+    "fetch": "Cross-link to the Engineering Discipline rule results for the same feature set; CI artifacts matched by run ID.",
+    "labels": "Attach the axe-core and performance reports to the CI run with the artifact names accessibility-report and performance-report so they are auto-discovered."
+   },
+   {
+    "widget": "Release-blocking defects",
+    "decision": "The list the release call walks item by item. Unacknowledged high-severity items auto-notify rather than waiting for someone to open this page.",
+    "source": "Jira defects flagged as release-blocking.",
+    "fetch": "Jira JQL — fixVersion = \"2026.3\" AND labels = release-blocker AND resolution = Unresolved ORDER BY priority DESC.",
+    "labels": "Label the defect release-blocker and set fixVersion. Severity comes from Jira Priority (Blocker / Critical)."
+   }
+  ]
+ },
+ "portfolio": {
+  "title": "Portfolio & Programme — how this page works",
+  "sub": "A pure roll-up. Nothing here computes its own truth — every cell is the same number the owning team sees on its own dashboard.",
+  "who": [
+   "Someone deciding where to put programme attention next month, who needs to tell a bad sprint apart from a capability that is consistently struggling.",
+   "Someone running a monthly or quarterly review across several teams who wants one grid instead of a deck assembled by hand.",
+   "Someone who needs to be sure the numbers shown here are the same ones each team sees, so the conversation is not spent reconciling figures."
+  ],
+  "sections": [
+   {
+    "widget": "Systemic hotspots grid",
+    "decision": "Where to direct programme attention next month: a row that is red across DoR, DoD and escapes is a capability problem, not a bad sprint.",
+    "source": "Aggregated from each team's Engineering Discipline and Release Confidence records.",
+    "fetch": "Precomputed nightly into metrics_snapshots per team and period; the grid reads snapshots, not the source systems, so it loads fast and stays consistent with the team views.",
+    "labels": "Team identity comes from the project's SSO group mapping. A team missing from this grid has no project configured, which renders as absent rather than as zero."
+   },
+   {
+    "widget": "Cell colouring",
+    "decision": "Colour is a threshold, not a ranking — the grid deliberately does not rank teams against each other.",
+    "source": "Project-level thresholds, configurable per programme.",
+    "fetch": "Thresholds live in rules; changing them is an audited action.",
+    "labels": "Benchmarking across teams is only ever shown paired with escaped-defect and evidence-completeness signals, to avoid recreating a feature-factory incentive."
+   }
+  ]
+ },
+ "settings": {
+  "title": "Settings — how this area works",
+  "sub": "Two levels of configuration: what a project runs, and how the platform reaches the source systems. Every change on this page writes an audit entry.",
+  "who": [
+   "Someone setting up a new team on the platform who needs to choose which dashboards that team runs and point each widget at the right query.",
+   "Someone whose dashboard shows a gap and who suspects the query scope, not the team, is wrong.",
+   "Someone responsible for credentials who needs to rotate a token or check what a service account can actually reach."
+  ],
+  "sections": [
+   {
+    "widget": "Projects",
+    "decision": "A project is the unit of access, ownership and connector scope. Enabling a template here deep-copies it into a new dashboard for that project; later template edits never reach back into it.",
+    "source": "Platform's own store — projects, dashboards, templates, widgets, connector_instances.",
+    "fetch": "Written through the platform API. Deleting a project soft-deletes its dashboards and keeps the audit trail.",
+    "labels": "Keep the project key aligned with the Jira project key — several default queries are generated from it."
+   },
+   {
+    "widget": "Per-widget connector configuration",
+    "decision": "The query is the contract between a widget and its source. Narrowing it is the fastest way to fix a number that looks wrong for the team.",
+    "source": "Each widget binds to one connector instance and one query, with its own refresh interval.",
+    "fetch": "Queries are validated and previewed before saving; a failing query saves as disabled rather than silently returning nothing.",
+    "labels": "Query syntax follows the source: JQL for Jira, CQL for Confluence, GraphQL for Xray, REST paths for GitHub and CI."
+   },
+   {
+    "widget": "Connectors",
+    "decision": "Which systems the platform may reach, with what credentials, and how often. A stale or disabled connector degrades every widget bound to it rather than hiding it.",
+    "source": "connector_types and connector_instances; secrets held in the vault.",
+    "fetch": "Each connector declares its own auth model — an OAuth app, an API key pair, an installation ID and private key, or a service token — so the form changes per connector.",
+    "labels": "Rotate credentials on the schedule shown per connector. Tokens are write-only in this UI and can be replaced but never read back."
+   },
+   {
+    "widget": "Access & SSO",
+    "decision": "Who can see a project's data. Authorisation is evaluated on every API call, so removing a group here removes the data, not just the menu item.",
+    "source": "project_access, seeded from SSO group membership.",
+    "fetch": "Group membership resolves at sign-in; explicit grants layer on top for cross-team reviewers.",
+    "labels": "Name SSO groups consistently per team; the group-to-project mapping is the thing most often out of date after a reorg."
+   }
+  ]
+ },
+ "signal": {
+  "title": "Quality Trajectory — how this page works",
+  "sub": "Quarterly executive view. DORA's four keys are used as shared vocabulary so a new leader can read this without onboarding.",
+  "who": [
+   "Someone reporting quarterly on whether quality is genuinely improving, who needs an outcome measure rather than an activity count.",
+   "Someone new to the organisation who needs a widely-recognised frame — DORA's four keys — to read the numbers without a briefing first.",
+   "Someone accountable for the programme itself, checking that the practice moved and not just the reporting."
+  ],
+  "sections": [
+   {
+    "widget": "Evidence completeness / Escaped defects",
+    "decision": "Is the organisation's quality trajectory improving. These are the two outcome measures the programme is accountable for.",
+    "source": "Rolled up from project dashboards; no independent query.",
+    "fetch": "Quarterly aggregation over metrics_snapshots; each point drills to the contributing projects.",
+    "labels": "Nothing to tag — accuracy here depends entirely on shiftleft-tracked and fixVersion discipline in the underlying projects."
+   },
+   {
+    "widget": "Change failure rate / Lead time (DORA)",
+    "decision": "Externally comparable framing for board and CTO conversations, sitting alongside the Backbase-specific evidence measures.",
+    "source": "CI/CD deployment records, incident records in JSM, Jira changelog.",
+    "fetch": "Deployments from GitHub Deployments API and the CD tool; failures matched to deployments by the incident's Caused-by deployment field.",
+    "labels": "Set Caused-by deployment on incidents, and mark rollbacks as deployments of type rollback so change failure rate is not undercounted."
+   },
+   {
+    "widget": "Reporting without behaviour change (counter-metric)",
+    "decision": "Guards against the failure mode of this whole platform: adoption rising while practice stays still. If adoption moves and the behaviour metrics do not, the programme is not working.",
+    "source": "Platform usage analytics paired with the behaviour metrics above.",
+    "fetch": "Dashboard opens and action-record acknowledge/resolve times from the platform's own store, plotted against evidence completeness and escaped defects.",
+    "labels": "None. This widget is intentionally not configurable."
+   }
+  ]
+ },
+ "rollout": {
+  "title": "Shift-left Rollout — how this page works",
+  "sub": "Tracks the move from reporting on evidence to enforcing it where work happens. Each stage is earned against criteria listed on the page; nothing here is a score.",
+  "who": [
+   "Someone deciding whether a team's evidence warnings are trustworthy enough to turn from a warning into a block.",
+   "An ETL checking which detectors produce unfair warnings, so the fix goes to the source convention rather than to the team.",
+   "Someone asking whether the warnings change what people do, or only get waived and ignored."
+  ],
+  "sections": [
+   {
+    "widget": "Gating path",
+    "decision": "Whether a project may move from Observe to Warn, Warn to Soft gate, or Soft gate to Hard gate. An admin can advance only when every exit criterion on the current stage is met; a rollback is always allowed and must say why.",
+    "source": "This service: rollout_states, detection_audits, rollout_sprints, artifact_waivers. Criteria thresholds live in services/rollout_rules.py.",
+    "fetch": "Computed on every read. The stage is a recorded decision; whether it may change is evaluated from the rows behind it, never stored.",
+    "labels": "No source tagging. Team sign-off is recorded on this board by a contributor; stage changes are audited with the actor and the note."
+   },
+   {
+    "widget": "Detection accuracy, false-red, resolved with evidence, next stage",
+    "decision": "Detection accuracy below 90% keeps a project at Observe. False-red at or above 5% means warnings are unfair and teams will learn to ignore them. Fewer than 60% of warnings ending with evidence added means the warnings aren't changing behaviour.",
+    "source": "Accuracy: the ETL's manual audit against engine detection. False-red and outcomes: Jira transition validator and GitHub check runs, outcome read from the issue within 5 working days.",
+    "fetch": "Accuracy = audited artifacts where engine and audit agree ÷ audited. False-red = warnings disputed and confirmed wrong ÷ warnings fired, latest sprint. Resolved = warnings followed by the missing evidence being added ÷ warnings fired.",
+    "labels": "Disputed warnings carry the Jira label shiftleft-disputed; warned issues carry shiftleft-warned. Proposed, not observed — confirm with the pilot team."
+   },
+   {
+    "widget": "Surfaces",
+    "decision": "Whether each place the engine shows up is doing what the stage says: gating surfaces off at Observe, warning at Warn, blocking only from Soft gate. A surface blocking ahead of its stage is red.",
+    "source": "Jira (Forge issue panel and workflow validator), GitHub (check runs), Slack (digest), Confluence (evidence templates).",
+    "fetch": "Mode and coverage from the Forge app's and GitHub app's installation state; last event from each surface's own event stream; silence is judged against each surface's expected cadence.",
+    "labels": "Workflows are wired per project by a Jira admin. Repositories come from the GitHub connector's repository list. Confluence spaces adopt the templates by moving to the sl- page templates."
+   },
+   {
+    "widget": "Detection by artifact",
+    "decision": "Which detector to fix first. False missing produces warnings nobody deserved; false present lets a gap through. Both point at a source convention, not at a team.",
+    "source": "Manual audit by the team's ETL, one row per checklist artifact, against what the engine detected for the same features.",
+    "fetch": "Per artifact: audited, false missing, false present; accuracy = agreeing ÷ audited. Drill opens the audited features in Jira. Threat-model rows are status only — content stays in the source system.",
+    "labels": "Detection methods are listed per row (page property 'Jira key', label sl-*, CI artifact names, Xray coverage). Proposed, not observed — each is confirmed during the audit."
+   },
+   {
+    "widget": "Accuracy and warning-outcome charts",
+    "decision": "Whether detection is improving sprint over sprint towards the 90% go bar, and whether warnings end with evidence added rather than waived or ignored.",
+    "source": "rollout_sprints: audit accuracy per sprint; warning outcomes from the Jira validator and GitHub check runs.",
+    "fetch": "One row per sprint. Warning outcomes are absent before the project reached Warn and the chart says so rather than drawing zeros.",
+    "labels": "Sprint end dates come from the Jira board's sprint field. No period is named in code."
+   }
+  ]
+ }
+}

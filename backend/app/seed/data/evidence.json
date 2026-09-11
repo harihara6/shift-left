@@ -1,0 +1,1145 @@
+{
+ "artifacts": [
+  {
+   "key": "requirements",
+   "position": 0,
+   "name": "Requirements incl. visual design",
+   "accountable": "PM + Design",
+   "gate": "Ready",
+   "source": "Jira · Confluence · Figma"
+  },
+  {
+   "key": "acceptance_criteria",
+   "position": 1,
+   "name": "Acceptance criteria incl. NFRs",
+   "accountable": "PM",
+   "gate": "Ready",
+   "source": "Jira"
+  },
+  {
+   "key": "test_plan",
+   "position": 2,
+   "name": "Test plan incl. NFR testing",
+   "accountable": "ETL / SDET",
+   "gate": "Ready",
+   "source": "Confluence"
+  },
+  {
+   "key": "hld",
+   "position": 3,
+   "name": "High-level design",
+   "accountable": "ETL",
+   "gate": "Ready",
+   "source": "Confluence"
+  },
+  {
+   "key": "lld",
+   "position": 4,
+   "name": "Low-level design, per platform",
+   "accountable": "ETL + platform engineers",
+   "gate": "Both",
+   "source": "Confluence"
+  },
+  {
+   "key": "threat_model",
+   "position": 5,
+   "name": "Threat model",
+   "accountable": "ETL + Security Engineer",
+   "gate": "Both",
+   "source": "Confluence · threat catalog"
+  },
+  {
+   "key": "traceability",
+   "position": 6,
+   "name": "Traceability matrix",
+   "accountable": "ETL / SDET",
+   "gate": "Done",
+   "source": "Xray"
+  },
+  {
+   "key": "test_evidence",
+   "position": 7,
+   "name": "Test evidence",
+   "accountable": "ETL / SDET / engineers",
+   "gate": "Done",
+   "source": "Xray · CI"
+  },
+  {
+   "key": "performance",
+   "position": 8,
+   "name": "Performance verification",
+   "accountable": "ETL / engineers / SDET",
+   "gate": "Done",
+   "source": "Confluence"
+  },
+  {
+   "key": "accessibility",
+   "position": 9,
+   "name": "Accessibility, WCAG 2.2 AA",
+   "accountable": "ETL + Web / Mobile engineers",
+   "gate": "Done",
+   "source": "CI · Confluence"
+  },
+  {
+   "key": "ai_evidence",
+   "position": 10,
+   "name": "AI-first / T-shaped evidence",
+   "accountable": "ETL assures, every engineer",
+   "gate": "Both",
+   "source": "Recorded human validation"
+  }
+ ],
+ "teams": {
+  "entitlements": {
+   "features": [
+    {
+     "key": "ENT-412",
+     "name": "Bulk entitlement assignment",
+     "tier": "New capability",
+     "gate": "Done gate",
+     "seed_rag": "poor",
+     "owner": "M. Okonjo (ETL)",
+     "next_action": "Book pre-release threat-model refresh and attach the axe-core CI report before the 2026.3 candidate build.",
+     "action_age": "4d",
+     "artifacts": [
+      {
+       "artifact_key": "requirements",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "acceptance_criteria",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "test_plan",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "hld",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "lld",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "threat_model",
+       "status": "missing",
+       "note": "Design-stage session held, no pre-release refresh"
+      },
+      {
+       "artifact_key": "traceability",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "test_evidence",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "performance",
+       "status": "drafted",
+       "note": "Load profile run, sign-off page not linked"
+      },
+      {
+       "artifact_key": "accessibility",
+       "status": "missing",
+       "note": ""
+      },
+      {
+       "artifact_key": "ai_evidence",
+       "status": "present",
+       "note": ""
+      }
+     ],
+     "ai": {
+      "text": "Six NFR scenarios drafted from the acceptance criteria, three of them accessibility checks that would close the WCAG gap.",
+      "drawn_from": "ENT-412 AC v4 · Xray test set QA-118"
+     }
+    },
+    {
+     "key": "ENT-420",
+     "name": "Delegated approvals",
+     "tier": "New capability",
+     "gate": "Ready gate",
+     "seed_rag": "poor",
+     "owner": "S. Bhatt (ETL)",
+     "next_action": "No scoping down is offered at this tier. Complete test plan and LLD before development starts.",
+     "action_age": "9d",
+     "artifacts": [
+      {
+       "artifact_key": "requirements",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "acceptance_criteria",
+       "status": "drafted",
+       "note": "NFRs absent — performance and a11y not stated"
+      },
+      {
+       "artifact_key": "test_plan",
+       "status": "missing",
+       "note": ""
+      },
+      {
+       "artifact_key": "hld",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "lld",
+       "status": "missing",
+       "note": "Not drafted for iOS"
+      },
+      {
+       "artifact_key": "threat_model",
+       "status": "drafted",
+       "note": ""
+      },
+      {
+       "artifact_key": "traceability",
+       "status": "missing",
+       "note": ""
+      },
+      {
+       "artifact_key": "test_evidence",
+       "status": "missing",
+       "note": ""
+      },
+      {
+       "artifact_key": "performance",
+       "status": "missing",
+       "note": ""
+      },
+      {
+       "artifact_key": "accessibility",
+       "status": "missing",
+       "note": ""
+      },
+      {
+       "artifact_key": "ai_evidence",
+       "status": "drafted",
+       "note": ""
+      }
+     ],
+     "ai": {
+      "text": "Draft acceptance criteria proposed for the four approval states found in the Confluence intent page.",
+      "drawn_from": "Confluence ENT/Delegated-approvals · Jira ENT-420"
+     }
+    },
+    {
+     "key": "ENT-388",
+     "name": "Permission cache invalidation",
+     "tier": "Major change",
+     "gate": "Done gate",
+     "seed_rag": "watch",
+     "owner": "L. Ferreira (SDET)",
+     "next_action": "Re-run the Xray sync; the panel stays amber until evidence is verified fresh.",
+     "action_age": "1d",
+     "artifacts": [
+      {
+       "artifact_key": "requirements",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "acceptance_criteria",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "test_plan",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "hld",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "lld",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "threat_model",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "traceability",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "test_evidence",
+       "status": "stale",
+       "note": "Xray connector last synced 4h 12m ago"
+      },
+      {
+       "artifact_key": "performance",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "accessibility",
+       "status": "waived",
+       "note": "No UI surface changed"
+      },
+      {
+       "artifact_key": "ai_evidence",
+       "status": "present",
+       "note": ""
+      }
+     ],
+     "ai": {
+      "text": "Clustered 14 recent cache-related incidents into 3 themes; two map to untested invalidation paths.",
+      "drawn_from": "JSM incidents Jun–Aug · Xray QA-204"
+     }
+    },
+    {
+     "key": "ENT-401",
+     "name": "Audit export, CSV",
+     "tier": "Minor change",
+     "gate": "Done gate",
+     "seed_rag": "good",
+     "owner": "L. Ferreira (SDET)",
+     "next_action": "Clear to sign off. Three artifacts scoped down with recorded rationale.",
+     "action_age": "—",
+     "artifacts": [
+      {
+       "artifact_key": "requirements",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "acceptance_criteria",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "test_plan",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "hld",
+       "status": "waived",
+       "note": "Delta only, covered by existing HLD"
+      },
+      {
+       "artifact_key": "lld",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "threat_model",
+       "status": "waived",
+       "note": "Recently modelled capability, refresher recorded"
+      },
+      {
+       "artifact_key": "traceability",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "test_evidence",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "performance",
+       "status": "waived",
+       "note": ""
+      },
+      {
+       "artifact_key": "accessibility",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "ai_evidence",
+       "status": "present",
+       "note": ""
+      }
+     ],
+     "ai": {
+      "text": "Coverage suggestion: one edge case for exports over 50k rows is untested.",
+      "drawn_from": "Xray QA-141 · CI coverage report"
+     }
+    },
+    {
+     "key": "ENT-377",
+     "name": "Consent screen copy update",
+     "tier": "Config / copy",
+     "gate": "Done gate",
+     "seed_rag": "good",
+     "owner": "A. Nowak (PM)",
+     "next_action": "Clear to sign off. AC and test evidence present; the rest scoped out with rationale.",
+     "action_age": "—",
+     "artifacts": [
+      {
+       "artifact_key": "requirements",
+       "status": "waived",
+       "note": ""
+      },
+      {
+       "artifact_key": "acceptance_criteria",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "test_plan",
+       "status": "waived",
+       "note": ""
+      },
+      {
+       "artifact_key": "hld",
+       "status": "waived",
+       "note": ""
+      },
+      {
+       "artifact_key": "lld",
+       "status": "waived",
+       "note": ""
+      },
+      {
+       "artifact_key": "threat_model",
+       "status": "waived",
+       "note": ""
+      },
+      {
+       "artifact_key": "traceability",
+       "status": "waived",
+       "note": ""
+      },
+      {
+       "artifact_key": "test_evidence",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "performance",
+       "status": "waived",
+       "note": ""
+      },
+      {
+       "artifact_key": "accessibility",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "ai_evidence",
+       "status": "present",
+       "note": ""
+      }
+     ],
+     "ai": {
+      "text": "No gaps detected against the config/copy tier requirements.",
+      "drawn_from": "Jira ENT-377 · CI run 4821"
+     }
+    }
+   ],
+   "waivers": [
+    {
+     "artifact": "High-level design",
+     "feature": "ENT-401",
+     "tier": "Minor",
+     "owner": "M. Okonjo",
+     "at": "12 Aug 2026",
+     "rationale": "Change is a delta inside a capability modelled in the ENT-2026-04 HLD; no new interfaces."
+    },
+    {
+     "artifact": "Threat model",
+     "feature": "ENT-401",
+     "tier": "Minor",
+     "owner": "M. Okonjo",
+     "at": "12 Aug 2026",
+     "rationale": "Recorded refresher against the entitlements model from May; no trust-boundary change."
+    },
+    {
+     "artifact": "Performance verification",
+     "feature": "ENT-377",
+     "tier": "Config / copy",
+     "owner": "A. Nowak",
+     "at": "19 Aug 2026",
+     "rationale": "Capacity pressure this sprint, will revisit next release."
+    }
+   ],
+   "actions": [
+    {
+     "signal": "Threat model absent at Done gate",
+     "next_action": "Book pre-release refresh session with Security before candidate build.",
+     "owner": "M. Okonjo",
+     "age": "open 4d",
+     "status": "open",
+     "severity": "poor"
+    },
+    {
+     "signal": "WCAG 2.2 AA evidence missing",
+     "next_action": "Attach axe-core CI report for the bulk-assignment journey.",
+     "owner": "Web guild",
+     "age": "open 4d",
+     "status": "open",
+     "severity": "poor"
+    },
+    {
+     "signal": "Xray connector stale, 4h 12m",
+     "next_action": "Platform team re-authorising the Xray service account.",
+     "owner": "Platform",
+     "age": "ack 1h",
+     "status": "acknowledged",
+     "severity": "watch"
+    }
+   ]
+  },
+  "payments": {
+   "features": [
+    {
+     "key": "PAY-233",
+     "name": "Omni payment scheduling",
+     "tier": "New capability",
+     "gate": "Done gate",
+     "seed_rag": "watch",
+     "owner": "R. Diallo (ETL)",
+     "next_action": "Perf run queued for tonight; sign-off blocked only on that result.",
+     "action_age": "2d",
+     "artifacts": [
+      {
+       "artifact_key": "requirements",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "acceptance_criteria",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "test_plan",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "hld",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "lld",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "threat_model",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "traceability",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "test_evidence",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "performance",
+       "status": "drafted",
+       "note": "Perf gate pending, run scheduled"
+      },
+      {
+       "artifact_key": "accessibility",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "ai_evidence",
+       "status": "present",
+       "note": ""
+      }
+     ],
+     "ai": {
+      "text": "Two scheme-timeout scenarios suggested from the performance NFR.",
+      "drawn_from": "Confluence PAY/NFR · Xray QA-330"
+     }
+    },
+    {
+     "key": "PAY-241",
+     "name": "Business contact bulk import",
+     "tier": "Major change",
+     "gate": "Ready gate",
+     "seed_rag": "poor",
+     "owner": "R. Diallo (ETL)",
+     "next_action": "New trust boundary introduced. Threat model must be complete before Ready is granted.",
+     "action_age": "6d",
+     "artifacts": [
+      {
+       "artifact_key": "requirements",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "acceptance_criteria",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "test_plan",
+       "status": "drafted",
+       "note": ""
+      },
+      {
+       "artifact_key": "hld",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "lld",
+       "status": "drafted",
+       "note": ""
+      },
+      {
+       "artifact_key": "threat_model",
+       "status": "missing",
+       "note": "New trust boundary — full session required, not a refresher"
+      },
+      {
+       "artifact_key": "traceability",
+       "status": "missing",
+       "note": ""
+      },
+      {
+       "artifact_key": "test_evidence",
+       "status": "missing",
+       "note": ""
+      },
+      {
+       "artifact_key": "performance",
+       "status": "missing",
+       "note": ""
+      },
+      {
+       "artifact_key": "accessibility",
+       "status": "missing",
+       "note": ""
+      },
+      {
+       "artifact_key": "ai_evidence",
+       "status": "present",
+       "note": ""
+      }
+     ],
+     "ai": {
+      "text": "Import path crosses a new data boundary; six controls suggested for the model session.",
+      "drawn_from": "PAY-241 HLD · threat catalog TC-19"
+     }
+    },
+    {
+     "key": "PAY-218",
+     "name": "Payment status webhook",
+     "tier": "Minor change",
+     "gate": "Done gate",
+     "seed_rag": "good",
+     "owner": "K. Lindqvist (SDET)",
+     "next_action": "Clear to sign off.",
+     "action_age": "—",
+     "artifacts": [
+      {
+       "artifact_key": "requirements",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "acceptance_criteria",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "test_plan",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "hld",
+       "status": "waived",
+       "note": "Existing HLD covers it"
+      },
+      {
+       "artifact_key": "lld",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "threat_model",
+       "status": "waived",
+       "note": ""
+      },
+      {
+       "artifact_key": "traceability",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "test_evidence",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "performance",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "accessibility",
+       "status": "waived",
+       "note": "No UI surface"
+      },
+      {
+       "artifact_key": "ai_evidence",
+       "status": "present",
+       "note": ""
+      }
+     ],
+     "ai": {
+      "text": "No gaps detected.",
+      "drawn_from": "Xray QA-311"
+     }
+    },
+    {
+     "key": "PAY-250",
+     "name": "Fee display rounding",
+     "tier": "Config / copy",
+     "gate": "Done gate",
+     "seed_rag": "good",
+     "owner": "A. Nowak (PM)",
+     "next_action": "Clear to sign off.",
+     "action_age": "—",
+     "artifacts": [
+      {
+       "artifact_key": "requirements",
+       "status": "waived",
+       "note": ""
+      },
+      {
+       "artifact_key": "acceptance_criteria",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "test_plan",
+       "status": "waived",
+       "note": ""
+      },
+      {
+       "artifact_key": "hld",
+       "status": "waived",
+       "note": ""
+      },
+      {
+       "artifact_key": "lld",
+       "status": "waived",
+       "note": ""
+      },
+      {
+       "artifact_key": "threat_model",
+       "status": "waived",
+       "note": ""
+      },
+      {
+       "artifact_key": "traceability",
+       "status": "waived",
+       "note": ""
+      },
+      {
+       "artifact_key": "test_evidence",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "performance",
+       "status": "waived",
+       "note": ""
+      },
+      {
+       "artifact_key": "accessibility",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "ai_evidence",
+       "status": "present",
+       "note": ""
+      }
+     ],
+     "ai": {
+      "text": "No gaps detected.",
+      "drawn_from": "Jira PAY-250"
+     }
+    }
+   ],
+   "waivers": [
+    {
+     "artifact": "High-level design",
+     "feature": "PAY-218",
+     "tier": "Minor",
+     "owner": "R. Diallo",
+     "at": "05 Aug 2026",
+     "rationale": "Covered by the payments status HLD; webhook is an additional transport only."
+    },
+    {
+     "artifact": "Accessibility",
+     "feature": "PAY-218",
+     "tier": "Minor",
+     "owner": "R. Diallo",
+     "at": "05 Aug 2026",
+     "rationale": "Server-to-server change with no user-facing surface."
+    }
+   ],
+   "actions": [
+    {
+     "signal": "Threat model absent at Ready gate",
+     "next_action": "New trust boundary — full session required before development starts.",
+     "owner": "R. Diallo",
+     "age": "open 6d",
+     "status": "open",
+     "severity": "poor"
+    },
+    {
+     "signal": "Performance sign-off pending",
+     "next_action": "Perf run scheduled tonight; result attaches automatically.",
+     "owner": "K. Lindqvist",
+     "age": "ack 2d",
+     "status": "acknowledged",
+     "severity": "watch"
+    }
+   ]
+  },
+  "nucleus": {
+   "features": [
+    {
+     "key": "NUC-118",
+     "name": "App shell navigation rewrite",
+     "tier": "New capability",
+     "gate": "Done gate",
+     "seed_rag": "poor",
+     "owner": "T. Verhoeven (ETL)",
+     "next_action": "Two WCAG 2.2 AA violations open on the accounts journey. Fix before the candidate build.",
+     "action_age": "3d",
+     "artifacts": [
+      {
+       "artifact_key": "requirements",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "acceptance_criteria",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "test_plan",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "hld",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "lld",
+       "status": "drafted",
+       "note": "Android complete, iOS drafted"
+      },
+      {
+       "artifact_key": "threat_model",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "traceability",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "test_evidence",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "performance",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "accessibility",
+       "status": "missing",
+       "note": "Axe-core run failing on two journeys"
+      },
+      {
+       "artifact_key": "ai_evidence",
+       "status": "drafted",
+       "note": ""
+      }
+     ],
+     "ai": {
+      "text": "Both violations map to focus order in the same component; one fix likely closes both.",
+      "drawn_from": "CI axe-core run 2210 · NUC-118 designs"
+     }
+    },
+    {
+     "key": "NUC-124",
+     "name": "Offline balance cache",
+     "tier": "Major change",
+     "gate": "Ready gate",
+     "seed_rag": "watch",
+     "owner": "T. Verhoeven (ETL)",
+     "next_action": "Test plan and LLD in draft; complete both to grant Ready.",
+     "action_age": "5d",
+     "artifacts": [
+      {
+       "artifact_key": "requirements",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "acceptance_criteria",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "test_plan",
+       "status": "drafted",
+       "note": ""
+      },
+      {
+       "artifact_key": "hld",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "lld",
+       "status": "drafted",
+       "note": ""
+      },
+      {
+       "artifact_key": "threat_model",
+       "status": "drafted",
+       "note": "Recorded refresher accepted for this tier"
+      },
+      {
+       "artifact_key": "traceability",
+       "status": "missing",
+       "note": ""
+      },
+      {
+       "artifact_key": "test_evidence",
+       "status": "missing",
+       "note": ""
+      },
+      {
+       "artifact_key": "performance",
+       "status": "missing",
+       "note": ""
+      },
+      {
+       "artifact_key": "accessibility",
+       "status": "missing",
+       "note": ""
+      },
+      {
+       "artifact_key": "ai_evidence",
+       "status": "present",
+       "note": ""
+      }
+     ],
+     "ai": {
+      "text": "Suggested three staleness scenarios for the cache eviction path.",
+      "drawn_from": "NUC-124 HLD"
+     }
+    },
+    {
+     "key": "NUC-109",
+     "name": "Crash reporting opt-in",
+     "tier": "Minor change",
+     "gate": "Done gate",
+     "seed_rag": "good",
+     "owner": "D. Farah (SDET)",
+     "next_action": "Clear to sign off.",
+     "action_age": "—",
+     "artifacts": [
+      {
+       "artifact_key": "requirements",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "acceptance_criteria",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "test_plan",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "hld",
+       "status": "waived",
+       "note": "Delta only"
+      },
+      {
+       "artifact_key": "lld",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "threat_model",
+       "status": "waived",
+       "note": ""
+      },
+      {
+       "artifact_key": "traceability",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "test_evidence",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "performance",
+       "status": "waived",
+       "note": ""
+      },
+      {
+       "artifact_key": "accessibility",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "ai_evidence",
+       "status": "present",
+       "note": ""
+      }
+     ],
+     "ai": {
+      "text": "No gaps detected.",
+      "drawn_from": "Xray QA-402"
+     }
+    },
+    {
+     "key": "NUC-131",
+     "name": "Retail journey label refresh",
+     "tier": "Config / copy",
+     "gate": "Done gate",
+     "seed_rag": "good",
+     "owner": "A. Nowak (PM)",
+     "next_action": "Clear to sign off.",
+     "action_age": "—",
+     "artifacts": [
+      {
+       "artifact_key": "requirements",
+       "status": "waived",
+       "note": ""
+      },
+      {
+       "artifact_key": "acceptance_criteria",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "test_plan",
+       "status": "waived",
+       "note": ""
+      },
+      {
+       "artifact_key": "hld",
+       "status": "waived",
+       "note": ""
+      },
+      {
+       "artifact_key": "lld",
+       "status": "waived",
+       "note": ""
+      },
+      {
+       "artifact_key": "threat_model",
+       "status": "waived",
+       "note": ""
+      },
+      {
+       "artifact_key": "traceability",
+       "status": "waived",
+       "note": ""
+      },
+      {
+       "artifact_key": "test_evidence",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "performance",
+       "status": "waived",
+       "note": ""
+      },
+      {
+       "artifact_key": "accessibility",
+       "status": "present",
+       "note": ""
+      },
+      {
+       "artifact_key": "ai_evidence",
+       "status": "present",
+       "note": ""
+      }
+     ],
+     "ai": {
+      "text": "No gaps detected.",
+      "drawn_from": "Jira NUC-131"
+     }
+    }
+   ],
+   "waivers": [
+    {
+     "artifact": "Performance verification",
+     "feature": "NUC-109",
+     "tier": "Minor",
+     "owner": "D. Farah",
+     "at": "22 Aug 2026",
+     "rationale": "No change to startup or render path; covered by the standing mobile perf suite."
+    }
+   ],
+   "actions": [
+    {
+     "signal": "Two WCAG 2.2 AA violations open",
+     "next_action": "Fix focus order on the accounts journey component.",
+     "owner": "T. Verhoeven",
+     "age": "open 3d",
+     "status": "open",
+     "severity": "poor"
+    },
+    {
+     "signal": "LLD incomplete for iOS",
+     "next_action": "Complete the iOS low-level design to grant Ready.",
+     "owner": "Mobile guild",
+     "age": "ack 5d",
+     "status": "acknowledged",
+     "severity": "watch"
+    }
+   ]
+  }
+ }
+}

@@ -1,0 +1,692 @@
+{
+ "entitlements": {
+  "label": "Entitlements",
+  "window": "Q2 2026 · Apr 1 – Jun 30 (13.0 wks) → Q3 2026 · Jul 1 – Aug 30 (8.7 wks)",
+  "glance": [
+   [
+    "Epics done",
+    "10",
+    "6",
+    "watch"
+   ],
+   [
+    "Stories done, incl. tech",
+    "89 · avg CT 8.7d · median 3d",
+    "52 · avg CT 8.1d · median 1d",
+    "watch"
+   ],
+   [
+    "Tasks done",
+    "77",
+    "29",
+    "watch"
+   ],
+   [
+    "MAINT resolved",
+    "46 · avg CT 13.1d · backlog 55",
+    "105 · avg CT 21.3d · backlog 29",
+    "poor"
+   ],
+   [
+    "PRs merged",
+    "329 · avg CT 0.34d",
+    "234 · avg CT 0.17d",
+    "good"
+   ],
+   [
+    "PR size mix under 500 LOC",
+    "59%",
+    "53%",
+    "watch"
+   ]
+  ],
+  "epics": {
+   "q2avg": "69.6d",
+   "q2sub": "median 66d · P85 119d (n=8)",
+   "q3avg": "54.5d",
+   "q3sub": "median 50d · P85 83d (n=4)",
+   "q3rag": "watch",
+   "tq2": 10,
+   "tq3": 6,
+   "delta": "−40% vs Q2",
+   "trag": "watch",
+   "size": {
+    "labels": [
+     "0–8 SP",
+     "9–20 SP",
+     "21–40 SP",
+     "40+ SP"
+    ],
+    "count": [
+     1,
+     2,
+     2,
+     1
+    ],
+    "cycle": [
+     21,
+     38,
+     62,
+     104
+    ]
+   }
+  },
+  "stories": {
+   "q2avg": "8.7d",
+   "q2sub": "median 3d · P85 12d (n=83)",
+   "q3avg": "8.1d",
+   "q3sub": "median 1d · P85 8d (n=48)",
+   "q3rag": "good",
+   "tq2": 89,
+   "tq3": 52,
+   "delta": "−42% vs Q2",
+   "trag": "watch",
+   "weeks": [
+    "W27",
+    "W28",
+    "W29",
+    "W30",
+    "W31",
+    "W32",
+    "W33",
+    "W34",
+    "W35"
+   ],
+   "done": [
+    7,
+    5,
+    8,
+    4,
+    6,
+    5,
+    7,
+    6,
+    4
+   ],
+   "size": {
+    "labels": [
+     "1–2 SP",
+     "3–5 SP",
+     "8 SP",
+     "13+ SP"
+    ],
+    "count": [
+     24,
+     18,
+     7,
+     3
+    ],
+    "cycle": [
+     2,
+     6,
+     13,
+     24
+    ]
+   }
+  },
+  "maint": {
+   "q2avg": "13.1d",
+   "q2sub": "median 9d (n=30)",
+   "q3avg": "21.3d",
+   "q3sub": "+63% · median 12d",
+   "q3rag": "poor",
+   "backlog": "29",
+   "backlogSub": "was 55 · net −26",
+   "backlogRag": "good",
+   "flow": "79 / 105",
+   "flowSub": "closure rate 133%",
+   "flowRag": "good",
+   "priority": {
+    "labels": [
+     "Blocker",
+     "Critical",
+     "Major",
+     "Minor"
+    ],
+    "count": [
+     4,
+     18,
+     61,
+     22
+    ],
+    "cycle": [
+     6,
+     11,
+     22,
+     34
+    ]
+   }
+  },
+  "prs": {
+   "scope": "LinearB · APPR / LIM / AC / AG / LE-LEGALENTITY",
+   "q2median": "0.02d",
+   "q2sub": "avg 0.34d · 329 PRs",
+   "q3median": "0.02d",
+   "q3sub": "avg 0.17d · 234 PRs",
+   "small": "53%",
+   "smallSub": "Q2 59% → Q3 53%",
+   "smallRag": "watch",
+   "huge": "75",
+   "hugeSub": "32% of merged · tail driver",
+   "hugeRag": "poor",
+   "buckets": {
+    "labels": [
+     "<100",
+     "100–499",
+     "500–999",
+     "1000+"
+    ],
+    "cycle": [
+     0.01,
+     0.04,
+     0.21,
+     0.63
+    ]
+   },
+   "periods": [
+    "Jul 1",
+    "Jul 15",
+    "Jul 29",
+    "Aug 12",
+    "Aug 26"
+   ],
+   "merged": [
+    52,
+    47,
+    44,
+    51,
+    40
+   ]
+  },
+  "detection": {
+   "weeks": [
+    "W27",
+    "W29",
+    "W31",
+    "W33",
+    "W35"
+   ],
+   "pr": [
+    41,
+    48,
+    52,
+    57,
+    61
+   ],
+   "nightly": [
+    22,
+    19,
+    17,
+    15,
+    14
+   ],
+   "prod": [
+    7,
+    6,
+    5,
+    5,
+    4
+   ]
+  }
+ },
+ "payments": {
+  "label": "DB Payments",
+  "window": "Q2 2026 · Apr 1 – Jun 30 (13.0 wks) → Q3 2026 · Jul 1 – Aug 30 (8.7 wks)",
+  "glance": [
+   [
+    "Epics done",
+    "21",
+    "6",
+    "watch"
+   ],
+   [
+    "Stories done, incl. tech",
+    "21 · avg CT 16.5d · median 7d",
+    "47 · avg CT 7.7d · median 5d",
+    "good"
+   ],
+   [
+    "Tasks done",
+    "23",
+    "29",
+    "good"
+   ],
+   [
+    "MAINT resolved",
+    "178 · avg CT 14.5d · backlog 51",
+    "84 · avg CT 13d · backlog 36",
+    "good"
+   ],
+   [
+    "PRs merged",
+    "0 · no LinearB scope",
+    "263 · avg CT 0.96d",
+    "good"
+   ],
+   [
+    "PR size mix under 500 LOC",
+    "0%",
+    "77%",
+    "good"
+   ]
+  ],
+  "epics": {
+   "q2avg": "103d",
+   "q2sub": "median 22d · P85 197d (n=9)",
+   "q3avg": "10.8d",
+   "q3sub": "median 6d · P85 20d (n=4)",
+   "q3rag": "good",
+   "tq2": 21,
+   "tq3": 6,
+   "delta": "−71% vs Q2",
+   "trag": "watch",
+   "size": {
+    "labels": [
+     "0–8 SP",
+     "9–20 SP",
+     "21–40 SP",
+     "40+ SP"
+    ],
+    "count": [
+     2,
+     1,
+     1,
+     0
+    ],
+    "cycle": [
+     5,
+     9,
+     18,
+     0
+    ]
+   }
+  },
+  "stories": {
+   "q2avg": "16.5d",
+   "q2sub": "median 7d · P85 45d (n=19)",
+   "q3avg": "7.7d",
+   "q3sub": "median 5d · P85 13d (n=39)",
+   "q3rag": "good",
+   "tq2": 21,
+   "tq3": 47,
+   "delta": "+124% vs Q2",
+   "trag": "good",
+   "weeks": [
+    "W27",
+    "W28",
+    "W29",
+    "W30",
+    "W31",
+    "W32",
+    "W33",
+    "W34",
+    "W35"
+   ],
+   "done": [
+    4,
+    6,
+    5,
+    7,
+    5,
+    6,
+    4,
+    6,
+    4
+   ],
+   "size": {
+    "labels": [
+     "1–2 SP",
+     "3–5 SP",
+     "8 SP",
+     "13+ SP"
+    ],
+    "count": [
+     19,
+     17,
+     8,
+     3
+    ],
+    "cycle": [
+     3,
+     6,
+     11,
+     19
+    ]
+   }
+  },
+  "maint": {
+   "q2avg": "14.5d",
+   "q2sub": "median 4d (n=91)",
+   "q3avg": "13d",
+   "q3sub": "−10% · median 6d",
+   "q3rag": "watch",
+   "backlog": "36",
+   "backlogSub": "was 51 · net −15",
+   "backlogRag": "good",
+   "flow": "69 / 84",
+   "flowSub": "closure rate 122%",
+   "flowRag": "good",
+   "priority": {
+    "labels": [
+     "Blocker",
+     "Critical",
+     "Major",
+     "Minor"
+    ],
+    "count": [
+     3,
+     14,
+     49,
+     18
+    ],
+    "cycle": [
+     4,
+     8,
+     14,
+     21
+    ]
+   }
+  },
+  "prs": {
+   "scope": "LinearB · BUS contacts, manage and omni payments journeys, Android and iOS",
+   "q2median": "0d",
+   "q2sub": "no scoped repositories in Q2",
+   "q3median": "0.01d",
+   "q3sub": "avg 0.96d · 263 PRs",
+   "small": "77%",
+   "smallSub": "Q2 0% → Q3 77%",
+   "smallRag": "good",
+   "huge": "40",
+   "hugeSub": "15% of merged · tail driver",
+   "hugeRag": "watch",
+   "buckets": {
+    "labels": [
+     "<100",
+     "100–499",
+     "500–999",
+     "1000+"
+    ],
+    "cycle": [
+     0.01,
+     0.06,
+     0.42,
+     1.84
+    ]
+   },
+   "periods": [
+    "Jul 1",
+    "Jul 15",
+    "Jul 29",
+    "Aug 12",
+    "Aug 26"
+   ],
+   "merged": [
+    46,
+    58,
+    51,
+    62,
+    46
+   ]
+  },
+  "detection": {
+   "weeks": [
+    "W27",
+    "W29",
+    "W31",
+    "W33",
+    "W35"
+   ],
+   "pr": [
+    58,
+    63,
+    70,
+    74,
+    79
+   ],
+   "nightly": [
+    18,
+    16,
+    13,
+    11,
+    9
+   ],
+   "prod": [
+    6,
+    5,
+    4,
+    3,
+    2
+   ]
+  }
+ },
+ "nucleus": {
+  "label": "Nucleus",
+  "window": "Q2 2026 · Apr 1 – Jun 30 (13.0 wks) → Q3 2026 · Jul 1 – Aug 30 (8.7 wks)",
+  "glance": [
+   [
+    "Epics done",
+    "5",
+    "5",
+    "good"
+   ],
+   [
+    "Stories done, incl. tech",
+    "25 · avg CT 8.3d · median 4d",
+    "54 · avg CT 3.6d · median 3d",
+    "good"
+   ],
+   [
+    "Tasks done",
+    "3",
+    "2",
+    "watch"
+   ],
+   [
+    "MAINT resolved",
+    "66 · avg CT 16.3d · backlog 19",
+    "31 · avg CT 16.5d · backlog 17",
+    "watch"
+   ],
+   [
+    "PRs merged",
+    "14 · avg CT 0.15d",
+    "32 · avg CT 0.24d",
+    "good"
+   ],
+   [
+    "PR size mix under 500 LOC",
+    "93%",
+    "88%",
+    "good"
+   ]
+  ],
+  "epics": {
+   "q2avg": "45.8d",
+   "q2sub": "median 35d · P85 68d (n=5)",
+   "q3avg": "14.4d",
+   "q3sub": "median 8d · P85 26d (n=5)",
+   "q3rag": "good",
+   "tq2": 5,
+   "tq3": 5,
+   "delta": "+0% vs Q2",
+   "trag": "good",
+   "size": {
+    "labels": [
+     "0–8 SP",
+     "9–20 SP",
+     "21–40 SP",
+     "40+ SP"
+    ],
+    "count": [
+     2,
+     2,
+     1,
+     0
+    ],
+    "cycle": [
+     7,
+     13,
+     27,
+     0
+    ]
+   }
+  },
+  "stories": {
+   "q2avg": "8.3d",
+   "q2sub": "median 4d · P85 25d (n=23)",
+   "q3avg": "3.6d",
+   "q3sub": "median 3d · P85 7d (n=52)",
+   "q3rag": "good",
+   "tq2": 25,
+   "tq3": 54,
+   "delta": "+116% vs Q2",
+   "trag": "good",
+   "weeks": [
+    "W27",
+    "W28",
+    "W29",
+    "W30",
+    "W31",
+    "W32",
+    "W33",
+    "W34",
+    "W35"
+   ],
+   "done": [
+    6,
+    7,
+    5,
+    8,
+    6,
+    5,
+    7,
+    6,
+    4
+   ],
+   "size": {
+    "labels": [
+     "1–2 SP",
+     "3–5 SP",
+     "8 SP",
+     "13+ SP"
+    ],
+    "count": [
+     28,
+     18,
+     6,
+     2
+    ],
+    "cycle": [
+     2,
+     4,
+     8,
+     15
+    ]
+   }
+  },
+  "maint": {
+   "q2avg": "16.3d",
+   "q2sub": "median 6d (n=41)",
+   "q3avg": "16.5d",
+   "q3sub": "+1% · median 18d",
+   "q3rag": "poor",
+   "backlog": "17",
+   "backlogSub": "was 19 · net −2",
+   "backlogRag": "good",
+   "flow": "28 / 31",
+   "flowSub": "closure rate 111%",
+   "flowRag": "good",
+   "priority": {
+    "labels": [
+     "Blocker",
+     "Critical",
+     "Major",
+     "Minor"
+    ],
+    "count": [
+     1,
+     5,
+     18,
+     7
+    ],
+    "cycle": [
+     5,
+     12,
+     19,
+     26
+    ]
+   }
+  },
+  "prs": {
+   "scope": "LinearB · iOS and Android banking apps, experience manager, retail journeys",
+   "q2median": "0.01d",
+   "q2sub": "avg 0.15d · 14 PRs",
+   "q3median": "0d",
+   "q3sub": "avg 0.24d · 32 PRs",
+   "small": "88%",
+   "smallSub": "Q2 93% → Q3 88%",
+   "smallRag": "good",
+   "huge": "3",
+   "hugeSub": "9% of merged · tail driver",
+   "hugeRag": "good",
+   "buckets": {
+    "labels": [
+     "<100",
+     "100–499",
+     "500–999",
+     "1000+"
+    ],
+    "cycle": [
+     0.01,
+     0.03,
+     0.18,
+     0.51
+    ]
+   },
+   "periods": [
+    "Jul 1",
+    "Jul 15",
+    "Jul 29",
+    "Aug 12",
+    "Aug 26"
+   ],
+   "merged": [
+    5,
+    8,
+    6,
+    7,
+    6
+   ]
+  },
+  "detection": {
+   "weeks": [
+    "W27",
+    "W29",
+    "W31",
+    "W33",
+    "W35"
+   ],
+   "pr": [
+    52,
+    57,
+    63,
+    69,
+    74
+   ],
+   "nightly": [
+    24,
+    22,
+    20,
+    17,
+    16
+   ],
+   "prod": [
+    9,
+    8,
+    7,
+    6,
+    5
+   ]
+  }
+ }
+}

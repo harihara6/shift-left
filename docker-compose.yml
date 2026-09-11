@@ -1,0 +1,23 @@
+# Postgres is the production store (TDD §10). The service also runs on SQLite for local dev,
+# so this is opt-in: start it, point SHIFTLEFT_DATABASE_URL at it, and the app behaves the same.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: shiftleft
+      POSTGRES_PASSWORD: shiftleft
+      POSTGRES_DB: shiftleft
+    ports: ['5432:5432']
+    volumes: ['pgdata:/var/lib/postgresql/data']
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U shiftleft']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    ports: ['6379:6379']
+
+volumes:
+  pgdata:

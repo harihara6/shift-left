@@ -1,0 +1,211 @@
+<div class="split">
+  <aside class="rail-col">
+    <div class="rail-head">
+      <div class="rail-title">Projects</div>
+      <button class="btn btn-dark" (click)="creating.set(!creating())">
+        {{ creating() ? 'Cancel' : 'New project' }}
+      </button>
+    </div>
+
+    <button class="btn guided" (click)="guiding.set(true)">
+      Set up from Jira &amp; Confluence…
+    </button>
+    <p class="rail-note guided-note">
+      Finds the team's sources by the name they already use and proposes the bindings. Nothing is
+      created until you accept it, and anything it cannot find is left for you to fill in.
+    </p>
+
+    @if (creating()) {
+      <form class="card new-project" (ngSubmit)="createProject()">
+        <label>
+          <span class="label-caps">Key</span>
+          <input type="text" [ngModel]="draft().key" name="key" placeholder="ENT"
+                 (ngModelChange)="draft.set({ ...draft(), key: $event.toUpperCase() })" />
+        </label>
+        <label>
+          <span class="label-caps">Name</span>
+          <input type="text" [ngModel]="draft().name" name="name" placeholder="Entitlements"
+                 (ngModelChange)="draft.set({ ...draft(), name: $event })" />
+        </label>
+        <label>
+          <span class="label-caps">Owner</span>
+          <input type="text" [ngModel]="draft().owner" name="owner" placeholder="M. Okonjo"
+                 (ngModelChange)="draft.set({ ...draft(), owner: $event })" />
+        </label>
+        <button class="btn btn-primary" type="submit" [disabled]="busy()">Create</button>
+      </form>
+    }
+
+    @for (project of projects(); track project.id) {
+      <button class="project-row" [class.active]="project.id === selected()?.id" (click)="select(project.id)">
+        <span class="project-name">{{ project.name }}</span>
+        <span class="project-meta mono">{{ project.key }} · {{ project.dashboards }} dashboards</span>
+      </button>
+    } @empty {
+      <p class="meta">No projects are visible to you. Access is project-scoped — ask an admin for a grant.</p>
+    }
+
+    <p class="rail-note">
+      A project is the unit of access, ownership and connector scope. Archiving one soft-deletes its
+      dashboards and keeps the audit trail.
+    </p>
+  </aside>
+
+  <div class="detail">
+    @if (notice(); as message) {
+      <p class="notice" role="status">{{ message }}</p>
+    }
+
+    @if (selected(); as project) {
+      <section class="card head-card">
+        <div class="head-text">
+          <h3>{{ project.name }}</h3>
+          <p class="mono meta">
+            key {{ project.key }} · owner {{ project.owner }} · created {{ project.created_on }} ·
+            {{ enabledCount() }} dashboards
+          </p>
+        </div>
+        <div class="actions">
+          @if (renaming()) {
+            <input type="text" class="rename-input" name="rename" [ngModel]="renameDraft()"
+                   aria-label="New project name" (ngModelChange)="renameDraft.set($event)" />
+            <button class="btn btn-primary" (click)="rename(project, renameDraft())">Save</button>
+            <button class="btn" (click)="renaming.set(false)">Cancel</button>
+          } @else {
+            <button class="btn" (click)="renaming.set(true); renameDraft.set(project.name)">Rename</button>
+          }
+          <button class="btn" (click)="duplicate(project)">Duplicate</button>
+          <button class="btn btn-danger" (click)="archive(project)">Archive</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <header class="card-head">
+          <div class="card-title">Templates &amp; widget bindings</div>
+          <div class="meta">Enabling deep-copies the template — later template edits never reach this project</div>
+        </header>
+        @for (template of templates(); track template.template_key) {
+          <div class="template">
+            <div class="template-row">
+              <button class="switch" role="switch" [attr.aria-checked]="template.enabled"
+                      [class.on]="template.enabled"
+                      [attr.aria-label]="template.name"
+                      (click)="toggleTemplate(template, !template.enabled)">
+                <span class="knob"></span>
+              </button>
+              <button class="template-name" (click)="expand(template.template_key)"
+                      [attr.aria-expanded]="expanded() === template.template_key">
+                <span class="name">{{ template.name }}</span>
+                <span class="perspective">{{ template.perspective }}</span>
+              </button>
+              <span class="state" [class.state-on]="template.enabled">
+                @if (template.enabled) {
+                  Copied v{{ template.copied_from_version }}
+                } @else {
+                  Not enabled
+                }
+              </span>
+              <button class="chevron" (click)="expand(template.template_key)"
+                      [attr.aria-label]="'Show widgets for ' + template.name">
+                {{ expanded() === template.template_key ? '−' : '+' }}
+              </button>
+            </div>
+
+            @if (expanded() === template.template_key) {
+              <div class="widgets">
+                @for (widget of template.widgets; track widget.id) {
+                  <div class="widget">
+                    <div class="widget-head">
+                      <div class="widget-name">{{ widget.name }}</div>
+                      <div class="widget-meta">
+                        <span class="pill">{{ widget.connector_name }}</span>
+                        <span class="meta">refresh {{ widget.refresh_interval }}</span>
+                        @if (widget.stale) { <span class="pill pill-warn">source stale</span> }
+                      </div>
+                    </div>
+                    <textarea rows="2" spellcheck="false" [value]="widget.query"
+                              [attr.aria-label]="widget.name + ' query'"
+                              (change)="saveQuery(widget.id, $any($event.target).value)"></textarea>
+                    <div class="widget-actions">
+                      <button class="btn" (click)="preview(widget.id)">Preview result</button>
+                      <span class="meta mono">drill: {{ widget.drill_template }}</span>
+                    </div>
+                    @if (previewFor(widget.id); as preview) {
+                      <div class="preview" [class.preview-empty]="!preview.row_count">
+                        <div class="meta">{{ preview.note }}</div>
+                        @if (preview.row_count) {
+                          <table class="mono">
+                            <thead>
+                              <tr>@for (key of keysOf(preview.rows[0]); track key) { <th>{{ key }}</th> }</tr>
+                            </thead>
+                            <tbody>
+                              @for (row of preview.rows; track $index) {
+                                <tr>@for (key of keysOf(preview.rows[0]); track key) { <td>{{ row[key] }}</td> }</tr>
+                              }
+                            </tbody>
+                          </table>
+                        }
+                      </div>
+                    }
+                  </div>
+                } @empty {
+                  <p class="meta">Enable the template to copy its widget bindings into this project.</p>
+                }
+              </div>
+            }
+          </div>
+        }
+      </section>
+
+      <section class="card">
+        <header class="card-head">
+          <div class="card-title">Who can see this project</div>
+          <button class="btn" (click)="addingGrant.set(!addingGrant())">
+            {{ addingGrant() ? 'Cancel' : 'Add grant' }}
+          </button>
+        </header>
+
+        @if (addingGrant()) {
+          <form class="grant-form" (ngSubmit)="addGrant()">
+            <input type="text" name="principal" placeholder="bb-eng-entitlements or name@backbase.com"
+                   [ngModel]="grantDraft().principal"
+                   (ngModelChange)="grantDraft.set({ ...grantDraft(), principal: $event })" />
+            <select name="role" [ngModel]="grantDraft().role"
+                    (ngModelChange)="grantDraft.set({ ...grantDraft(), role: $event })">
+              @for (role of roles; track role) { <option [value]="role">{{ role }}</option> }
+            </select>
+            <select name="via" [ngModel]="grantDraft().via"
+                    (ngModelChange)="grantDraft.set({ ...grantDraft(), via: $event })">
+              @for (source of sources; track source) { <option [value]="source">{{ source }}</option> }
+            </select>
+            <button class="btn btn-primary" type="submit">Grant</button>
+          </form>
+        }
+
+        <div class="grid-row grid-head access-row">
+          <div>Principal</div><div>Role</div><div>Granted via</div><div></div>
+        </div>
+        @for (grant of grants(); track grant.id) {
+          <div class="grid-row access-row">
+            <div class="mono">{{ grant.principal }}</div>
+            <div>{{ grant.role }}</div>
+            <div class="meta">{{ grant.via }}</div>
+            <div class="right">
+              <button class="btn btn-danger" (click)="revoke(grant)">Revoke</button>
+            </div>
+          </div>
+        }
+        <p class="rail-note">
+          Access is not configurable per widget by design — a widget is only ever as visible as the
+          project it lives in. Every grant and revoke is an immutable audit entry.
+        </p>
+      </section>
+    } @else {
+      <p class="card empty">Select a project, or create one.</p>
+    }
+  </div>
+</div>
+
+@if (guiding()) {
+  <sl-onboarding-wizard (closed)="guiding.set(false)" (created)="onGuidedCreate($event)" />
+}

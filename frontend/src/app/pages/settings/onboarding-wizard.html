@@ -1,0 +1,270 @@
+<div class="scrim" (click)="closed.emit()">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Guided project setup"
+       (click)="$event.stopPropagation()">
+    <header class="head">
+      <div class="head-text">
+        <div class="label-caps">Guided setup</div>
+        <h2>Set a project up from what the sources already know</h2>
+        <p class="sub">
+          Type the name the team uses in Jira and Confluence. Nothing is created until you accept
+          it on the last step — and anything the sources cannot answer for stays empty rather than
+          being guessed.
+        </p>
+      </div>
+      <button class="btn" (click)="closed.emit()">Close</button>
+    </header>
+
+    <nav class="steps" aria-label="Setup steps">
+      @for (item of steps; track item.id; let i = $index) {
+        <button class="step" [class.active]="step() === item.id"
+                [attr.aria-current]="step() === item.id ? 'step' : null"
+                [disabled]="item.id !== 'name' && !draft()" (click)="go(item.id)">
+          <span class="mono num">{{ i + 1 }}</span>{{ item.label }}
+        </button>
+      }
+    </nav>
+
+    <div class="body">
+      @if (error(); as message) {
+        <p class="notice notice-poor" role="alert">
+          <span aria-hidden="true">✕</span> {{ message }}
+        </p>
+      }
+
+      <!-- 1. Name ------------------------------------------------------------------------ -->
+      @if (step() === 'name') {
+        <form class="card panel" (ngSubmit)="search()">
+          <label>
+            <span class="label-caps">What is this team called?</span>
+            <input type="text" name="hint" [ngModel]="hint()" (ngModelChange)="hint.set($event)"
+                   placeholder="Retail Onboarding" autocomplete="off"
+                   aria-describedby="hint-help" />
+          </label>
+          <p class="meta" id="hint-help">
+            Whatever people actually call it — the Jira project name, the Confluence space title,
+            the squad name. Every source that can search by name is asked, each with your own
+            permissions, so you will only ever see things you can already open.
+          </p>
+          <button class="btn btn-primary" type="submit" [disabled]="busy() || hint().trim().length < 2">
+            {{ busy() ? 'Searching the sources…' : 'Search the sources' }}
+          </button>
+        </form>
+      }
+
+      <!-- 2. Evidence -------------------------------------------------------------------- -->
+      @if (step() === 'evidence' && draft(); as d) {
+        <p class="notice" role="status" aria-live="polite">{{ d.note }}</p>
+
+        <section class="card">
+          <header class="card-head">
+            <div class="card-title">What was found</div>
+            <span class="pill" [class.pill-warn]="d.mode !== 'claude'">
+              {{ d.mode === 'claude' ? 'Drafted by Claude' : 'Matched on name only' }}
+            </span>
+          </header>
+
+          @for (slot of d.slots; track slot.slot) {
+            <div class="slot">
+              <button class="check" role="checkbox" [attr.aria-checked]="acceptedSlots().has(slot.slot)"
+                      [class.on]="acceptedSlots().has(slot.slot)"
+                      [attr.aria-label]="'Use this ' + slotLabel(slot.slot)"
+                      (click)="toggleSlot(slot.slot)">
+                <span aria-hidden="true">{{ acceptedSlots().has(slot.slot) ? '✓' : '' }}</span>
+              </button>
+              <div class="slot-text">
+                <div class="slot-head">
+                  <span class="label-caps">{{ slotLabel(slot.slot) }}</span>
+                  <span class="pill">{{ confidenceLabel(slot) }}</span>
+                </div>
+                @if (slot.candidate; as candidate) {
+                  <div class="slot-name">
+                    {{ candidate.title }} <span class="mono ref">{{ candidate.ref }}</span>
+                  </div>
+                  <div class="meta">{{ slot.rationale }}</div>
+                  <!-- Every proposal resolves to the thing it is about. A number with no link
+                       back to its source is a claim, not a signal. -->
+                  <a [href]="candidate.url" target="_blank" rel="noreferrer" class="drill mono">
+                    Check in {{ candidate.connector_key }} →
+                  </a>
+                }
+              </div>
+            </div>
+          } @empty {
+            <p class="empty">
+              Nothing matched that name. Try it as it is written in Jira, or close this and use the
+              manual form — it does everything this would have.
+            </p>
+          }
+        </section>
+
+        @if (d.caveats.length) {
+          <section class="card panel">
+            <div class="card-title">Check these before you accept</div>
+            @for (caveat of d.caveats; track caveat) {
+              <div class="caveat"><span class="glyph" aria-hidden="true">!</span>{{ caveat }}</div>
+            }
+          </section>
+        }
+
+        <section class="card">
+          <header class="card-head">
+            <div class="card-title">Sources searched</div>
+            <div class="meta">A source that could not answer says why — it is never silently skipped</div>
+          </header>
+          @for (source of searchableSources(); track source.connector_key) {
+            <div class="source">
+              <span class="glyph good" aria-hidden="true">✓</span>
+              <div class="source-text">
+                <div class="source-name">{{ source.connector_name }}</div>
+                <div class="meta">{{ source.note }}</div>
+              </div>
+            </div>
+          }
+          @for (source of blockedSources(); track source.connector_key) {
+            <div class="source">
+              <span class="glyph missing" aria-hidden="true">—</span>
+              <div class="source-text">
+                <div class="source-name">{{ source.connector_name }}</div>
+                <div class="meta">{{ source.note }}</div>
+              </div>
+            </div>
+          }
+        </section>
+
+        <div class="foot">
+          <button class="btn" (click)="go('name')">Back</button>
+          <button class="btn btn-primary" (click)="go('bindings')">Review the bindings</button>
+        </div>
+      }
+
+      <!-- 3. Bindings -------------------------------------------------------------------- -->
+      @if (step() === 'bindings' && draft(); as d) {
+        <p class="notice" role="status" aria-live="polite">
+          {{ boundCount() }} widget(s) bound, {{ emptyCount() }} left empty. An empty widget renders
+          Missing — which is the honest outcome, and never a silent zero.
+        </p>
+
+        @for (template of proposedTemplates(); track template.template_key) {
+          <section class="card">
+            <header class="card-head">
+              <button class="switch" role="switch"
+                      [attr.aria-checked]="enabledTemplates().has(template.template_key)"
+                      [class.on]="enabledTemplates().has(template.template_key)"
+                      [attr.aria-label]="template.name"
+                      (click)="toggleTemplate(template.template_key)">
+                <span class="knob"></span>
+              </button>
+              <div class="card-title">{{ template.name }}</div>
+              <div class="meta">{{ template.reason }}</div>
+            </header>
+
+            @if (enabledTemplates().has(template.template_key)) {
+              <div class="widgets">
+                @for (binding of template.bindings; track binding.widget_name) {
+                  <div class="widget">
+                    <div class="widget-head">
+                      <div class="widget-name">{{ binding.widget_name }}</div>
+                      <div class="widget-meta">
+                        <span class="pill">{{ binding.connector_key }}</span>
+                        <span class="state-pill" [class]="'state-pill tone-' + stateOf(binding).tone">
+                          <span class="glyph" aria-hidden="true">{{ stateOf(binding).glyph }}</span>
+                          {{ stateOf(binding).label }}
+                        </span>
+                      </div>
+                    </div>
+                    <textarea rows="2" spellcheck="false" [value]="queryFor(binding)"
+                              [attr.aria-label]="binding.widget_name + ' query'"
+                              [attr.placeholder]="'Empty — this widget will render Missing'"
+                              (change)="editQuery(binding, $any($event.target).value)"></textarea>
+                    @if (binding.note) { <div class="meta">{{ binding.note }}</div> }
+                    @if (binding.leftovers.length) {
+                      <div class="meta warn-text">
+                        Still names {{ binding.leftovers.join(', ') }} from the template — discovery
+                        has no slot for that value, so edit it or clear it.
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </section>
+        } @empty {
+          <p class="card empty">
+            Discovery could not bind a single widget, so there is nothing to review. Close this and
+            use the manual form.
+          </p>
+        }
+
+        @if (unproposedTemplates().length) {
+          <section class="card panel">
+            <div class="card-title">Not proposed</div>
+            @for (template of unproposedTemplates(); track template.template_key) {
+              <div class="skip">
+                <span class="skip-name">{{ template.name }}</span>
+                <span class="meta">{{ template.reason }}</span>
+              </div>
+            }
+          </section>
+        }
+
+        <div class="foot">
+          <button class="btn" (click)="go('evidence')">Back</button>
+          <button class="btn btn-primary" (click)="go('create')">Name the project</button>
+        </div>
+      }
+
+      <!-- 4. Create ---------------------------------------------------------------------- -->
+      @if (step() === 'create' && draft(); as d) {
+        <form class="card panel" (ngSubmit)="create()">
+          <label>
+            <span class="label-caps">Key</span>
+            <input type="text" name="key" [ngModel]="identity().key"
+                   (ngModelChange)="identity.set({ ...identity(), key: $event.toUpperCase() })" />
+          </label>
+          <label>
+            <span class="label-caps">Name</span>
+            <input type="text" name="name" [ngModel]="identity().name"
+                   (ngModelChange)="identity.set({ ...identity(), name: $event })" />
+          </label>
+          <label>
+            <span class="label-caps">Owner</span>
+            <input type="text" name="owner" [ngModel]="identity().owner"
+                   placeholder="Who answers for this project"
+                   (ngModelChange)="identity.set({ ...identity(), owner: $event })" />
+          </label>
+
+          <div class="summary">
+            <div class="summary-row">
+              <span class="label-caps">Dashboards</span>
+              <span>{{ enabledTemplates().size }} template(s), deep-copied on create</span>
+            </div>
+            <div class="summary-row">
+              <span class="label-caps">Widgets bound</span>
+              <span class="mono">{{ boundCount() }}</span>
+            </div>
+            <div class="summary-row">
+              <span class="label-caps">Left empty</span>
+              <span class="mono">{{ emptyCount() }}</span>
+            </div>
+            <div class="summary-row">
+              <span class="label-caps">Drafted by</span>
+              <span>{{ d.mode === 'claude' ? 'Claude, from the evidence above' : 'Name matching' }}</span>
+            </div>
+          </div>
+
+          <p class="meta">
+            Creating records you as having accepted this draft, and makes you its admin. Nobody
+            else can see the project until you grant them access.
+          </p>
+          <button class="btn btn-primary" type="submit" [disabled]="busy()">
+            {{ busy() ? 'Creating…' : 'Accept and create project' }}
+          </button>
+        </form>
+
+        <div class="foot">
+          <button class="btn" (click)="go('bindings')">Back</button>
+        </div>
+      }
+    </div>
+  </div>
+</div>

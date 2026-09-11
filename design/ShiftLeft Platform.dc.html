@@ -1,0 +1,1534 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    html, body { margin: 0; padding: 0; background: #F6F6F4; }
+    body { font-family: "Instrument Sans", system-ui, sans-serif; -webkit-font-smoothing: antialiased; color: #16171B; }
+    a { color: #3355FF; text-decoration: none; }
+    a:hover { color: #1E3BD8; text-decoration: underline; }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-thumb { background: #DDDCD7; border-radius: 8px; border: 3px solid #F6F6F4; }
+  </style>
+</helmet>
+<div style="display:flex;height:100vh;min-height:640px;overflow:hidden;background:#F6F6F4">
+
+  <div style="width:256px;flex-shrink:0;background:#121316;color:#9DA0A8;display:flex;flex-direction:column;overflow:hidden">
+    <div style="padding:20px 18px 16px;display:flex;align-items:center;gap:10px">
+      <div style="width:26px;height:26px;border-radius:7px;background:#3355FF;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700">SL</div>
+      <div style="display:flex;flex-direction:column;gap:1px">
+        <div style="color:#FFFFFF;font-size:13px;font-weight:600;letter-spacing:0.02em">ShiftLeft</div>
+        <div style="font-size:10px;color:#6E717A;letter-spacing:0.06em;text-transform:uppercase">Quality observability</div>
+      </div>
+    </div>
+
+    <div style="padding:0 12px 14px">
+      <div style="font-size:10px;color:#5F626A;letter-spacing:0.08em;text-transform:uppercase;padding:0 6px 6px">Project</div>
+      <select value="{{ project }}" onChange="{{ onProject }}" style="width:100%;appearance:none;background:#1C1E23;color:#E8E9EC;border:1px solid #2A2D33;border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;cursor:pointer">
+        <sc-for list="{{ projectOptions }}" as="o" hint-placeholder-count="3">
+          <option value="{{ o.value }}">{{ o.label }}</option>
+        </sc-for>
+      </select>
+    </div>
+
+    <div style="flex:1;overflow-y:auto;padding:0 12px 12px;display:flex;flex-direction:column;gap:14px">
+      <sc-for list="{{ nav }}" as="group" hint-placeholder-count="3">
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <div style="font-size:10px;color:#5F626A;letter-spacing:0.08em;text-transform:uppercase;padding:4px 6px 4px">{{ group.label }}</div>
+          <sc-for list="{{ group.items }}" as="item" hint-placeholder-count="2">
+            <button onClick="{{ item.onClick }}" style="{{ item.style }}">
+              <span style="font-size:13px;font-weight:500;min-width:0">{{ item.label }}</span>
+              <span style="{{ item.dot }}"></span>
+            </button>
+          </sc-for>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="padding:12px;border-top:1px solid #212328;display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:{{ syncColor }}">
+        <span style="width:6px;height:6px;border-radius:99px;display:inline-block;background:{{ syncColor }}"></span>
+        <span>{{ syncLabel }}</span>
+      </div>
+      <div style="font-size:11px;color:#5F626A;line-height:1.45">Signed in as Hari Nuti · Shared Services</div>
+    </div>
+  </div>
+
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden">
+    <div style="flex-shrink:0;background:#FFFFFF;border-bottom:1px solid #E7E6E1;padding:18px 28px 16px;display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap">
+      <div style="display:flex;flex-direction:column;gap:5px;min-width:0">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div style="font-size:10px;letter-spacing:0.09em;text-transform:uppercase;color:#9A9CA3">{{ perspective }}</div>
+          <sc-if value="{{ isPrimary }}" hint-placeholder-val="{{ true }}">
+            <div style="font-size:10px;letter-spacing:0.05em;text-transform:uppercase;color:#3355FF;background:#EDF0FF;border-radius:99px;padding:2px 8px;font-weight:600">Evidence of record</div>
+          </sc-if>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="font-size:22px;font-weight:600;letter-spacing:-0.015em;color:#16171B">{{ title }}</div>
+          <button onClick="{{ openGuide }}" title="How this page works" style="width:22px;height:22px;border-radius:99px;border:1px solid #DFDED9;background:#FFFFFF;color:#6B6E76;font-family:Georgia,serif;font-style:italic;font-weight:700;font-size:12px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0" style-hover="border-color:#3355FF;color:#3355FF">i</button>
+        </div>
+        <div style="font-size:13px;color:#6B6E76;max-width:70ch;line-height:1.5">{{ subtitle }}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <sc-if value="{{ isSettings }}">
+          <button style="background:#FFFFFF;border:1px solid #DFDED9;border-radius:8px;padding:8px 13px;font-size:12.5px;font-family:inherit;cursor:pointer;color:#33353B" style-hover="border-color:#3355FF;color:#3355FF">Audit log</button>
+        </sc-if>
+        <select value="{{ release }}" onChange="{{ onRelease }}" style="appearance:none;background:#FFFFFF;color:#33353B;border:1px solid #DFDED9;border-radius:8px;padding:8px 12px;font-size:12.5px;font-family:inherit;cursor:pointer">
+          <sc-for list="{{ releaseOptions }}" as="o" hint-placeholder-count="2">
+            <option value="{{ o.value }}">{{ o.label }}</option>
+          </sc-for>
+        </select>
+        <button onClick="{{ openReview }}" style="background:#121316;color:#fff;border:none;border-radius:8px;padding:9px 14px;font-size:12.5px;font-weight:500;font-family:inherit;cursor:pointer" style-hover="background:#2A2D33">Open review</button>
+      </div>
+    </div>
+
+    <div style="flex:1;overflow-y:auto;padding:22px 28px 72px">
+
+      <sc-if value="{{ stale }}">
+        <div style="display:flex;align-items:flex-start;gap:12px;background:#FBF1DE;border:1px solid #EBD9AF;border-radius:10px;padding:12px 14px;margin-bottom:18px">
+          <div style="width:6px;height:6px;border-radius:99px;background:#A66A00;margin-top:7px;flex-shrink:0"></div>
+          <div style="font-size:12.5px;color:#6B5312;line-height:1.5"><b style="font-weight:600">Xray connector last synced 4h 12m ago.</b> Widgets bound to it are shown in a warning state and cannot contribute to a green status. Missing data is a gap, never a pass.</div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isFlow }}">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;background:#FFFFFF;border:1px solid #E7E6E1;border-left:3px solid #3355FF;border-radius:10px;padding:12px 16px;margin-bottom:18px;flex-wrap:wrap">
+          <div style="font-size:12.5px;color:#4A4D55;line-height:1.5;max-width:82ch">This is <b style="font-weight:600;color:#16171B">flow telemetry</b> — pace, size and defect pressure. A green row here does not mean a feature has release evidence. Where the two disagree, the evidence view governs.</div>
+          <button onClick="{{ goDiscipline }}" style="background:#EDF0FF;color:#2A45CC;border:1px solid #D5DCFF;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:500;font-family:inherit;cursor:pointer;white-space:nowrap" style-hover="background:#E1E7FF">Open evidence record →</button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isDiscipline }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:22px">
+          <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px">
+            <sc-for list="{{ disciplineTiles }}" as="t" hint-placeholder-count="4">
+              <div style="background:#FFFFFF;border:1px solid #E7E6E1;border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:6px">
+                <div style="font-size:11.5px;color:#6B6E76">{{ t.label }}</div>
+                <div style="font-size:26px;font-weight:600;letter-spacing:-0.02em;font-family:'JetBrains Mono',monospace;color:{{ t.color }}">{{ t.value }}</div>
+                <div style="font-size:11.5px;color:#9A9CA3;line-height:1.45">{{ t.note }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="background:#FFFFFF;border:1px solid #E7E6E1;border-radius:12px;overflow:hidden">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;border-bottom:1px solid #EFEEEA">
+              <div style="font-size:13px;font-weight:600">Feature readiness</div>
+              <div style="font-size:11px;color:#9A9CA3">Jira · Confluence · Xray · CI · synced 6m ago</div>
+            </div>
+            <div style="display:grid;grid-template-columns:minmax(0,2.1fr) minmax(0,0.9fr) minmax(0,0.8fr) minmax(0,0.8fr) minmax(0,1.6fr) 16px;gap:12px;padding:9px 16px;border-bottom:1px solid #EFEEEA;background:#FBFBF9;font-size:10.5px;letter-spacing:0.06em;text-transform:uppercase;color:#9A9CA3">
+              <div>Feature</div><div>Risk tier</div><div>Ready evidence</div><div>Done evidence</div><div>Status &amp; reason</div><div></div>
+            </div>
+            <sc-for list="{{ features }}" as="f" hint-placeholder-count="5">
+              <div onClick="{{ f.open }}" style="display:grid;grid-template-columns:minmax(0,2.1fr) minmax(0,0.9fr) minmax(0,0.8fr) minmax(0,0.8fr) minmax(0,1.6fr) 16px;gap:12px;padding:14px 16px;border-bottom:1px solid #F2F1ED;cursor:pointer;align-items:center" style-hover="background:#FBFBF9">
+                <div style="display:flex;flex-direction:column;gap:3px;min-width:0">
+                  <div style="font-size:13px;font-weight:500;color:#16171B">{{ f.name }}</div>
+                  <div style="font-size:11px;color:#9A9CA3;font-family:'JetBrains Mono',monospace">{{ f.id }} · {{ f.gate }}</div>
+                </div>
+                <div><span style="font-size:11px;padding:3px 8px;border-radius:6px;background:{{ f.tierBg }};color:{{ f.tierColor }};font-weight:500">{{ f.tier }}</span></div>
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <div style="font-size:12px;font-family:'JetBrains Mono',monospace;color:#4A4D55">{{ f.readyText }}</div>
+                  <div style="height:4px;border-radius:99px;background:#EDECE8;overflow:hidden"><div style="height:4px;border-radius:99px;width:{{ f.readyPct }}%;background:{{ f.readyColor }}"></div></div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <div style="font-size:12px;font-family:'JetBrains Mono',monospace;color:#4A4D55">{{ f.doneText }}</div>
+                  <div style="height:4px;border-radius:99px;background:#EDECE8;overflow:hidden"><div style="height:4px;border-radius:99px;width:{{ f.donePct }}%;background:{{ f.doneColor }}"></div></div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:4px;min-width:0">
+                  <div style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:{{ f.ragColor }}"><span style="width:7px;height:7px;border-radius:99px;background:{{ f.ragColor }}"></span>{{ f.ragLabel }}</div>
+                  <div style="font-size:11.5px;color:#9A9CA3;line-height:1.4">{{ f.reason }}</div>
+                </div>
+                <div style="color:#C7C6C1;font-size:15px;text-align:right">›</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1.35fr 1fr;gap:16px">
+            <div style="background:#FFFFFF;border:1px solid #E7E6E1;border-radius:12px;overflow:hidden">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;border-bottom:1px solid #EFEEEA">
+                <div style="font-size:13px;font-weight:600">Scoped-out artifacts</div>
+                <div style="font-size:11px;color:#9A9CA3">artifact_waivers · reportable</div>
+              </div>
+              <sc-for list="{{ waivers }}" as="w" hint-placeholder-count="3">
+                <div style="display:flex;align-items:flex-start;gap:12px;padding:13px 16px;border-bottom:1px solid #F2F1ED">
+                  <div style="width:4px;align-self:stretch;border-radius:99px;flex-shrink:0;background:{{ w.bar }}"></div>
+                  <div style="display:flex;flex-direction:column;gap:3px;min-width:0">
+                    <div style="font-size:12.5px;font-weight:500">{{ w.artifact }} <span style="color:#9A9CA3;font-weight:400">· {{ w.feature }}</span></div>
+                    <div style="font-size:12px;color:#6B6E76;line-height:1.5">“{{ w.rationale }}”</div>
+                    <div style="font-size:11px;color:#9A9CA3;font-family:'JetBrains Mono',monospace">{{ w.owner }} · {{ w.at }} · tier {{ w.tier }}</div>
+                    <sc-if value="{{ w.flagged }}">
+                      <div style="font-size:11.5px;color:#C2352B;margin-top:2px">Not an acceptable rationale — surfaced to platform owners as a planning signal.</div>
+                    </sc-if>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="background:#FFFFFF;border:1px solid #E7E6E1;border-radius:12px;overflow:hidden">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;border-bottom:1px solid #EFEEEA">
+                <div style="font-size:13px;font-weight:600">Open actions</div>
+                <div style="font-size:11px;color:#9A9CA3">auto-created on red</div>
+              </div>
+              <sc-for list="{{ actions }}" as="a" hint-placeholder-count="3">
+                <div style="display:flex;flex-direction:column;gap:6px;padding:13px 16px;border-bottom:1px solid #F2F1ED">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+                    <div style="font-size:12.5px;font-weight:500;color:#16171B">{{ a.signal }}</div>
+                    <span style="font-size:10.5px;padding:2px 7px;border-radius:6px;background:{{ a.bg }};color:{{ a.color }};font-weight:500;white-space:nowrap">{{ a.status }}</span>
+                  </div>
+                  <div style="font-size:12px;color:#6B6E76;line-height:1.5">{{ a.next }}</div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+                    <div style="font-size:11px;color:#9A9CA3;font-family:'JetBrains Mono',monospace">{{ a.owner }} · {{ a.age }}</div>
+                    <button onClick="{{ a.ack }}" style="background:#FFFFFF;border:1px solid #DFDED9;border-radius:7px;padding:4px 10px;font-size:11.5px;font-family:inherit;cursor:pointer;color:#33353B" style-hover="border-color:#3355FF;color:#3355FF">{{ a.cta }}</button>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isExecution }}">
+        <div style="display:flex;flex-direction:column;gap:22px">
+          <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px">
+            <sc-for list="{{ headline }}" as="t" hint-placeholder-count="4">
+              <div style="background:#FFFFFF;border:1px solid #E7E6E1;border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:6px">
+                <div style="font-size:11.5px;color:#6B6E76">{{ t.label }}</div>
+                <div style="font-size:26px;font-weight:600;letter-spacing:-0.02em;font-family:'JetBrains Mono',monospace;color:{{ t.color }}">{{ t.value }}</div>
+                <div style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#9A9CA3"><span style="width:6px;height:6px;border-radius:99px;background:{{ t.color }}"></span>{{ t.note }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="background:#FFFFFF;border:1px solid #E7E6E1;border-radius:12px;padding:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px">
+              <div style="font-size:13px;font-weight:600">Where defects are being found</div>
+              <div style="font-size:11px;color:#9A9CA3">CI · Xray · Jira</div>
+            </div>
+            <dc-import name="Chart" spec="{{ detectionChart }}" hint-size="100%,260px"></dc-import>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px">
+            <sc-for list="{{ stages }}" as="s" hint-placeholder-count="6">
+              <div style="background:#FFFFFF;border:1px solid #E7E6E1;border-radius:12px;overflow:hidden">
+                <div style="padding:13px 16px;border-bottom:1px solid #EFEEEA;display:flex;flex-direction:column;gap:3px">
+                  <div style="font-size:13px;font-weight:600">{{ s.stage }}</div>
+                  <div style="font-size:11.5px;color:#9A9CA3;line-height:1.45">{{ s.intent }}</div>
+                </div>
+                <sc-for list="{{ s.metrics }}" as="m" hint-placeholder-count="3">
+                  <div style="display:grid;grid-template-columns:1fr auto;gap:10px;padding:11px 16px;border-bottom:1px solid #F4F3EF">
+                    <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
+                      <div style="font-size:12.5px;color:#33353B">{{ m.name }}</div>
+                      <div style="font-size:11px;color:#9A9CA3">{{ m.note }}</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <span style="font-size:13px;font-family:'JetBrains Mono',monospace;font-weight:500;color:{{ m.color }}">{{ m.value }}</span>
+                      <span style="width:7px;height:7px;border-radius:99px;background:{{ m.color }}"></span>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isDelivery }}">
+        <div style="display:flex;flex-direction:column;gap:22px">
+          <div style="background:#FFFFFF;border:1px solid #E7E6E1;border-radius:12px;overflow:hidden">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;border-bottom:1px solid #EFEEEA">
+              <div style="font-size:13px;font-weight:600">Q2 vs Q3 at a glance</div>
+              <div style="font-size:11px;color:#9A9CA3">{{ deckWindow }}</div>
+            </div>
+            <div style="display:grid;grid-template-columns:minmax(200px,1.5fr) 1fr 1fr 150px;gap:12px;padding:9px 16px;background:#FBFBF9;border-bottom:1px solid #EFEEEA;font-size:10.5px;letter-spacing:0.06em;text-transform:uppercase;color:#9A9CA3">
+              <div>Indicator</div><div>Q2 2026</div><div>Q3 2026</div><div>Status</div>
+            </div>
+            <sc-for list="{{ glance }}" as="g" hint-placeholder-count="6">
+              <div style="display:grid;grid-template-columns:minmax(200px,1.5fr) 1fr 1fr 150px;gap:12px;padding:11px 16px;border-bottom:1px solid #F4F3EF;align-items:center">
+                <div style="font-size:12.5px;color:#16171B">{{ g.row }}</div>
+                <div style="font-size:12px;color:#6B6E76;font-family:'JetBrains Mono',monospace">{{ g.q2 }}</div>
+                <div style="font-size:12px;color:#33353B;font-family:'JetBrains Mono',monospace">{{ g.q3 }}</div>
+                <div style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:{{ g.color }}"><span style="width:7px;height:7px;border-radius:99px;background:{{ g.color }}"></span>{{ g.label }}</div>
+              </div>
+            </sc-for>
+            <div style="padding:11px 16px;font-size:11.5px;color:#9A9CA3">Q3 covers 8.7 weeks against 13.0 in Q2 — compare rates, not raw counts.</div>
+          </div>
+
+          <sc-for list="{{ deckSections }}" as="sec" hint-placeholder-count="4">
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;align-items:baseline;gap:10px">
+                <div style="font-size:15px;font-weight:600;letter-spacing:-0.01em">{{ sec.title }}</div>
+                <div style="font-size:11.5px;color:#9A9CA3">{{ sec.scope }}</div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px">
+                <sc-for list="{{ sec.tiles }}" as="t" hint-placeholder-count="4">
+                  <div style="background:#FFFFFF;border:1px solid #E7E6E1;border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:5px">
+                    <div style="font-size:11.5px;color:#6B6E76">{{ t.label }}</div>
+                    <div style="font-size:22px;font-weight:600;letter-spacing:-0.02em;font-family:'JetBrains Mono',monospace;color:{{ t.color }}">{{ t.value }}</div>
+                    <div style="font-size:11px;color:#9A9CA3;line-height:1.45">{{ t.note }}</div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px">
+                <sc-for list="{{ sec.charts }}" as="c" hint-placeholder-count="2">
+                  <div style="background:#FFFFFF;border:1px solid #E7E6E1;border-radius:12px;padding:16px">
+                    <div style="font-size:13px;font-weight:600;margin-bottom:12px">{{ c.title }}</div>
+                    <dc-import name="Chart" spec="{{ c.spec }}" hint-size="100%,260px"></dc-import>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isRelease }}">
+        <div style="display:flex;flex-direction:column;gap:22px">
+          <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:16px">
+            <div style="background:#FFFFFF;border:1px solid #E7E6E1;border-left:3px solid {{ shipColor }};border-radius:12px;padding:18px 20px;display:flex;flex-direction:column;gap:10px">
+              <div style="font-size:10px;letter-spacing:0.09em;text-transform:uppercase;color:#9A9CA3">Ship decision</div>
+              <div style="font-size:20px;font-weight:600;letter-spacing:-0.015em;color:{{ shipColor }}">{{ shipVerdict }}</div>
+              <div style="font-size:12.5px;color:#6B6E76;line-height:1.55">Composed from the checklist below, never a hidden score. The platform reports this; the release manager decides it.</div>
+              <div style="display:flex;flex-direction:column;gap:6px;margin-top:2px">
+                <sc-for list="{{ shipReasons }}" as="r" hint-placeholder-count="2">
+                  <div style="display:flex;align-items:flex-start;gap:8px;font-size:12.5px;color:#33353B"><span style="color:#C2352B;line-height:1.5">•</span><span style="line-height:1.5">{{ r }}</span></div>
+                </sc-for>
+              </div>
+            </div>
+            <div style="background:#FFFFFF;border:1px solid #E7E6E1;border-radius:12px;padding:16px">
+              <div style="font-size:13px;font-weight:600;margin-bottom:12px">Test execution trend</div>
+              <dc-import name="Chart" spec="{{ releaseChart }}" hint-size="100%,260px"></dc-import>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px">
+            <sc-for list="{{ releaseTiles }}" as="t" hint-placeholder-count="8">
+              <div style="background:#FFFFFF;border:1px solid #E7E6E1;border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:5px">
+                <div style="font-size:11.5px;color:#6B6E76">{{ t.label }}</div>
+                <div style="font-size:22px;font-weight:600;letter-spacing:-0.02em;font-family:'JetBrains Mono',monospace;color:{{ t.color }}">{{ t.value }}</div>
+                <div style="font-size:11px;color:#9A9CA3;line-height:1.45">{{ t.note }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="background:#FFFFFF;border:1px solid #E7E6E1;border-radius:12px;overflow:hidden">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;border-bottom:1px solid #EFEEEA">
+              <div style="font-size:13px;font-weight:600">Release-blocking defects</div>
+              <div style="font-size:11px;color:#9A9CA3">Jira · every row drills to its issue</div>
+            </div>
+            <sc-for list="{{ blockers }}" as="b" hint-placeholder-count="3">
+              <div style="display:grid;grid-template-columns:minmax(84px,0.7fr) minmax(160px,2fr) minmax(84px,0.8fr) minmax(90px,1fr) minmax(64px,0.6fr);gap:12px;padding:12px 16px;border-bottom:1px solid #F4F3EF;align-items:center">
+                <div style="font-size:12px;font-family:'JetBrains Mono',monospace;color:#3355FF">{{ b.key }}</div>
+                <div style="font-size:12.5px;color:#16171B">{{ b.title }}</div>
+                <div><span style="font-size:11px;padding:3px 8px;border-radius:6px;background:{{ b.sevBg }};color:{{ b.sevColor }};font-weight:500">{{ b.severity }}</span></div>
+                <div style="font-size:12px;color:#6B6E76">{{ b.owner }}</div>
+                <div style="font-size:12px;color:#9A9CA3;font-family:'JetBrains Mono',monospace">{{ b.age }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isPortfolio }}">
+        <div style="display:flex;flex-direction:column;gap:22px">
+          <div style="background:#FFFFFF;border:1px solid #E7E6E1;border-radius:12px;overflow:hidden">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;border-bottom:1px solid #EFEEEA">
+              <div style="font-size:13px;font-weight:600">Systemic hotspots</div>
+              <div style="font-size:11px;color:#9A9CA3">Roll-up only — every cell traces to a team record</div>
+            </div>
+            <div style="display:grid;grid-template-columns:minmax(160px,1.4fr) repeat(5,minmax(0,1fr));gap:10px;padding:10px 16px;background:#FBFBF9;border-bottom:1px solid #EFEEEA;font-size:10.5px;letter-spacing:0.06em;text-transform:uppercase;color:#9A9CA3">
+              <div>Team</div><div>DoR</div><div>DoD</div><div>PR coverage</div><div>Escaped</div><div>Waivers</div>
+            </div>
+            <sc-for list="{{ portfolio }}" as="p" hint-placeholder-count="6">
+              <div style="display:grid;grid-template-columns:minmax(160px,1.4fr) repeat(5,minmax(0,1fr));gap:10px;padding:10px 16px;border-bottom:1px solid #F4F3EF;align-items:center">
+                <div style="font-size:12.5px;color:#16171B">{{ p.team }}</div>
+                <sc-for list="{{ p.cells }}" as="c" hint-placeholder-count="5">
+                  <div style="border-radius:7px;padding:8px 10px;font-size:12.5px;font-family:'JetBrains Mono',monospace;font-weight:500;background:{{ c.bg }};color:{{ c.color }}">{{ c.value }}</div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isSignal }}">
+        <div style="display:flex;flex-direction:column;gap:22px">
+          <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px">
+            <sc-for list="{{ execTiles }}" as="t" hint-placeholder-count="4">
+              <div style="background:#FFFFFF;border:1px solid #E7E6E1;border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:6px">
+                <div style="font-size:11.5px;color:#6B6E76">{{ t.label }}</div>
+                <div style="font-size:28px;font-weight:600;letter-spacing:-0.02em;font-family:'JetBrains Mono',monospace;color:{{ t.color }}">{{ t.value }}</div>
+                <div style="font-size:11.5px;color:#9A9CA3;line-height:1.45">{{ t.note }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:16px">
+            <div style="background:#FFFFFF;border:1px solid #E7E6E1;border-radius:12px;padding:16px">
+              <div style="font-size:13px;font-weight:600;margin-bottom:12px">Quality trajectory, last five quarters</div>
+              <dc-import name="Chart" spec="{{ execChart }}" hint-size="100%,260px"></dc-import>
+            </div>
+            <div style="background:#121316;color:#C9CBD1;border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:12px">
+              <div style="font-size:10px;letter-spacing:0.09em;text-transform:uppercase;color:#6E717A">Counter-metric</div>
+              <div style="font-size:16px;font-weight:600;color:#FFFFFF;line-height:1.4">Reporting without behaviour change</div>
+              <div style="font-size:12.5px;line-height:1.6;color:#9DA0A8">Dashboard adoption is up 41% this quarter. Evidence completeness moved 6 points and escaped defects fell 18% — the practice moved, not just the reporting.</div>
+              <div style="display:flex;gap:20px;margin-top:4px">
+                <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:20px;font-family:'JetBrains Mono',monospace;color:#FFFFFF">+41%</span><span style="font-size:11px;color:#6E717A">adoption</span></div>
+                <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:20px;font-family:'JetBrains Mono',monospace;color:#5CD69A">+6pt</span><span style="font-size:11px;color:#6E717A">evidence</span></div>
+                <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:20px;font-family:'JetBrains Mono',monospace;color:#5CD69A">−18%</span><span style="font-size:11px;color:#6E717A">escapes</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isSettings }}">
+        <div style="display:flex;flex-direction:column;gap:20px">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <sc-for list="{{ settingsTabs }}" as="t" hint-placeholder-count="3">
+              <button onClick="{{ t.onClick }}" style="{{ t.style }}">{{ t.label }}</button>
+            </sc-for>
+          </div>
+
+          <sc-if value="{{ isProjectsTab }}">
+            <div style="display:grid;grid-template-columns:minmax(0,280px) minmax(0,1fr);gap:16px;align-items:start">
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+                  <div style="font-size:12px;font-weight:600;color:#6B6E76">Projects</div>
+                  <button style="background:#121316;color:#fff;border:none;border-radius:7px;padding:5px 11px;font-size:11.5px;font-family:inherit;cursor:pointer" style-hover="background:#2A2D33">New project</button>
+                </div>
+                <sc-for list="{{ projectList }}" as="p" hint-placeholder-count="4">
+                  <button onClick="{{ p.onClick }}" style="{{ p.style }}">
+                    <span style="font-size:13px;font-weight:500;color:#16171B">{{ p.name }}</span>
+                    <span style="font-size:11px;color:#9A9CA3;font-family:'JetBrains Mono',monospace">{{ p.key }} · {{ p.meta }}</span>
+                  </button>
+                </sc-for>
+                <div style="font-size:11.5px;color:#9A9CA3;line-height:1.55">A project is the unit of access, ownership and connector scope. Deleting one soft-deletes its dashboards and keeps the audit trail.</div>
+              </div>
+
+              <div style="display:flex;flex-direction:column;gap:16px">
+                <div style="background:#FFFFFF;border:1px solid #E7E6E1;border-radius:12px;padding:16px 18px;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
+                  <div style="display:flex;flex-direction:column;gap:4px;min-width:0">
+                    <div style="font-size:16px;font-weight:600;letter-spacing:-0.01em">{{ proj.name }}</div>
+                    <div style="font-size:11.5px;color:#9A9CA3;font-family:'JetBrains Mono',monospace">key {{ proj.key }} · owner {{ proj.owner }} · created {{ proj.created }} · {{ proj.dashboards }} dashboards</div>
+                  </div>
+                  <div style="display:flex;gap:8px">
+                    <button style="background:#FFFFFF;border:1px solid #DFDED9;border-radius:7px;padding:6px 11px;font-size:11.5px;font-family:inherit;cursor:pointer;color:#33353B" style-hover="border-color:#3355FF;color:#3355FF">Rename</button>
+                    <button style="background:#FFFFFF;border:1px solid #DFDED9;border-radius:7px;padding:6px 11px;font-size:11.5px;font-family:inherit;cursor:pointer;color:#33353B" style-hover="border-color:#3355FF;color:#3355FF">Duplicate</button>
+                    <button style="background:#FFFFFF;border:1px solid #F1CFC9;border-radius:7px;padding:6px 11px;font-size:11.5px;font-family:inherit;cursor:pointer;color:#C2352B" style-hover="background:#FBEAE7">Archive</button>
+                  </div>
+                </div>
+
+                <div style="background:#FFFFFF;border:1px solid #E7E6E1;border-radius:12px;overflow:hidden">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;border-bottom:1px solid #EFEEEA">
+                    <div style="font-size:13px;font-weight:600">Templates &amp; widget bindings</div>
+                    <div style="font-size:11px;color:#9A9CA3">Enabling deep-copies the template — later template edits never reach this project</div>
+                  </div>
+                  <sc-for list="{{ templates }}" as="t" hint-placeholder-count="6">
+                    <div style="border-bottom:1px solid #F2F1ED">
+                      <div style="display:flex;align-items:center;gap:12px;padding:12px 16px">
+                        <button onClick="{{ t.toggle }}" style="{{ t.toggleStyle }}"><span style="width:18px;height:18px;border-radius:99px;background:#FFFFFF;display:block"></span></button>
+                        <button onClick="{{ t.expand }}" style="flex:1;min-width:0;text-align:left;background:transparent;border:none;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;gap:2px">
+                          <span style="font-size:12.5px;font-weight:500;color:#16171B">{{ t.name }}</span>
+                          <span style="font-size:11px;color:#9A9CA3">{{ t.perspective }}</span>
+                        </button>
+                        <span style="{{ t.stateStyle }}">{{ t.stateLabel }}</span>
+                        <button onClick="{{ t.expand }}" style="background:transparent;border:none;cursor:pointer;color:#9A9CA3;font-size:12px;font-family:inherit">{{ t.chevron }}</button>
+                      </div>
+                      <sc-if value="{{ t.open }}">
+                        <div style="padding:0 16px 14px;display:flex;flex-direction:column;gap:10px">
+                          <sc-for list="{{ t.widgets }}" as="w" hint-placeholder-count="4">
+                            <div style="border:1px solid #EFEEEA;border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;background:#FBFBF9">
+                              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+                                <div style="font-size:12.5px;font-weight:500;color:#16171B">{{ w.name }}</div>
+                                <div style="display:flex;align-items:center;gap:8px">
+                                  <span style="font-size:11px;padding:3px 8px;border-radius:6px;background:#EDF0FF;color:#2A45CC;font-weight:500">{{ w.connector }}</span>
+                                  <span style="font-size:11px;color:#9A9CA3">refresh {{ w.interval }}</span>
+                                </div>
+                              </div>
+                              <textarea value="{{ w.query }}" onChange="{{ w.onQuery }}" rows="2" spellcheck="false" style="width:100%;resize:vertical;box-sizing:border-box;font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.6;color:#33353B;background:#FFFFFF;border:1px solid #E7E6E1;border-radius:8px;padding:9px 11px"></textarea>
+                              <div style="display:flex;gap:8px">
+                                <button style="background:#FFFFFF;border:1px solid #DFDED9;border-radius:7px;padding:5px 10px;font-size:11.5px;font-family:inherit;cursor:pointer;color:#33353B" style-hover="border-color:#3355FF;color:#3355FF">Preview result</button>
+                                <button style="background:#FFFFFF;border:1px solid #DFDED9;border-radius:7px;padding:5px 10px;font-size:11.5px;font-family:inherit;cursor:pointer;color:#33353B" style-hover="border-color:#3355FF;color:#3355FF">Drill-down template</button>
+                              </div>
+                            </div>
+                          </sc-for>
+                        </div>
+                      </sc-if>
+                    </div>
+                  </sc-for>
+                </div>
+
+                <div style="background:#FFFFFF;border:1px solid #E7E6E1;border-radius:12px;overflow:hidden">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;border-bottom:1px solid #EFEEEA">
+                    <div style="font-size:13px;font-weight:600">Who can see this project</div>
+                    <button style="background:#FFFFFF;border:1px solid #DFDED9;border-radius:7px;padding:5px 11px;font-size:11.5px;font-family:inherit;cursor:pointer;color:#33353B" style-hover="border-color:#3355FF;color:#3355FF">Add grant</button>
+                  </div>
+                  <sc-for list="{{ proj.access }}" as="a" hint-placeholder-count="3">
+                    <div style="display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr);gap:12px;padding:11px 16px;border-bottom:1px solid #F4F3EF;align-items:center">
+                      <div style="font-size:12.5px;color:#16171B;font-family:'JetBrains Mono',monospace">{{ a.who }}</div>
+                      <div style="font-size:12px;color:#33353B">{{ a.role }}</div>
+                      <div style="font-size:11.5px;color:#9A9CA3">{{ a.via }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isConnectorsTab }}">
+            <div style="display:grid;grid-template-columns:minmax(0,280px) minmax(0,1fr);gap:16px;align-items:start">
+              <div style="display:flex;flex-direction:column;gap:14px">
+                <sc-for list="{{ connectorGroups }}" as="g" hint-placeholder-count="6">
+                  <div style="display:flex;flex-direction:column;gap:7px">
+                    <div style="font-size:10.5px;letter-spacing:0.07em;text-transform:uppercase;color:#9A9CA3">{{ g.cat }}</div>
+                    <sc-for list="{{ g.items }}" as="c" hint-placeholder-count="2">
+                      <button onClick="{{ c.onClick }}" style="{{ c.style }}">
+                        <span style="{{ c.dot }}"></span>
+                        <span style="display:flex;flex-direction:column;gap:2px;min-width:0;text-align:left">
+                          <span style="font-size:12.5px;font-weight:500;color:#16171B">{{ c.name }}</span>
+                          <span style="font-size:11px;color:#9A9CA3">{{ c.meta }}</span>
+                        </span>
+                      </button>
+                    </sc-for>
+                  </div>
+                </sc-for>
+              </div>
+
+              <div style="display:flex;flex-direction:column;gap:16px">
+                <div style="background:#FFFFFF;border:1px solid #E7E6E1;border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:10px">
+                  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
+                    <div style="display:flex;flex-direction:column;gap:4px;min-width:0">
+                      <div style="font-size:16px;font-weight:600;letter-spacing:-0.01em">{{ conn.name }}</div>
+                      <div style="font-size:11.5px;color:#9A9CA3">{{ conn.cat }} · last sync {{ conn.sync }}</div>
+                    </div>
+                    <span style="{{ conn.stateStyle }}">{{ conn.stateLabel }}</span>
+                  </div>
+                  <div style="font-size:12.5px;color:#6B6E76;line-height:1.6;max-width:80ch">{{ conn.desc }}</div>
+                </div>
+
+                <div style="background:#FFFFFF;border:1px solid #E7E6E1;border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:12px">
+                  <div style="font-size:13px;font-weight:600">Authentication</div>
+                  <div style="display:flex;flex-direction:column;gap:8px">
+                    <sc-for list="{{ conn.auth }}" as="a" hint-placeholder-count="2">
+                      <button onClick="{{ a.onClick }}" style="{{ a.style }}"><span style="{{ a.radio }}"></span><span>{{ a.label }}</span></button>
+                    </sc-for>
+                  </div>
+                  <div style="font-size:11.5px;color:#9A9CA3;line-height:1.6">Scopes requested: {{ conn.scopes }}</div>
+                </div>
+
+                <div style="background:#FFFFFF;border:1px solid #E7E6E1;border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:14px">
+                  <div style="font-size:13px;font-weight:600">Configuration</div>
+                  <sc-for list="{{ conn.fields }}" as="f" hint-placeholder-count="4">
+                    <div style="display:grid;grid-template-columns:minmax(0,170px) minmax(0,1fr);gap:16px;align-items:start">
+                      <div style="display:flex;flex-direction:column;gap:3px;padding-top:2px">
+                        <div style="font-size:12px;color:#16171B;font-weight:500">{{ f.label }}</div>
+                        <div style="font-size:11px;color:#9A9CA3;line-height:1.5">{{ f.help }}</div>
+                      </div>
+                      <div style="{{ f.vstyle }}">{{ f.value }}</div>
+                    </div>
+                  </sc-for>
+                  <div style="font-size:11.5px;color:#9A9CA3;line-height:1.6;border-top:1px solid #F2F1ED;padding-top:12px">{{ conn.rate }}</div>
+                  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                    <button onClick="{{ conn.test }}" style="background:#3355FF;color:#fff;border:none;border-radius:7px;padding:7px 13px;font-size:12px;font-family:inherit;cursor:pointer" style-hover="background:#2A45CC">Test connection</button>
+                    <button style="background:#FFFFFF;border:1px solid #DFDED9;border-radius:7px;padding:7px 13px;font-size:12px;font-family:inherit;cursor:pointer;color:#33353B" style-hover="border-color:#3355FF;color:#3355FF">Rotate credentials</button>
+                    <button onClick="{{ conn.toggle }}" style="background:#FFFFFF;border:1px solid #F1CFC9;border-radius:7px;padding:7px 13px;font-size:12px;font-family:inherit;cursor:pointer;color:#C2352B" style-hover="background:#FBEAE7">{{ conn.toggleLabel }}</button>
+                    <sc-if value="{{ conn.tested }}">
+                      <span style="font-size:12px;color:#147A4B">Reachable · capabilities and filters refreshed</span>
+                    </sc-if>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isAccessTab }}">
+            <div style="display:flex;flex-direction:column;gap:14px;max-width:920px">
+              <div style="background:#121316;color:#C9CBD1;border-radius:12px;padding:20px 22px;display:flex;flex-direction:column;gap:10px">
+                <div style="font-size:10px;letter-spacing:0.09em;text-transform:uppercase;color:#6E717A">The model in one line</div>
+                <div style="font-size:16px;font-weight:600;color:#FFFFFF;line-height:1.45">SSO says who you are, the project says what you may see, and the service account decides what could ever be ingested in the first place.</div>
+                <div style="font-size:12.5px;line-height:1.65;color:#9DA0A8">Access is not configurable per widget by design — a widget is only ever as visible as the project it lives in. That keeps the rule small enough to reason about during an incident.</div>
+              </div>
+              <sc-for list="{{ accessModel }}" as="a" hint-placeholder-count="7">
+                <div style="background:#FFFFFF;border:1px solid #E7E6E1;border-radius:12px;padding:15px 18px;display:flex;flex-direction:column;gap:6px">
+                  <div style="font-size:13px;font-weight:600;color:#16171B">{{ a.t }}</div>
+                  <div style="font-size:12.5px;color:#6B6E76;line-height:1.65">{{ a.d }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+    </div>
+  </div>
+
+  <sc-if value="{{ guideOpen }}">
+    <div onClick="{{ closeGuide }}" style="position:fixed;inset:0;background:rgba(18,19,22,0.5);z-index:60;display:flex;align-items:center;justify-content:center;padding:32px">
+      <div style="width:100%;max-width:920px;max-height:86vh;background:#FFFFFF;border-radius:14px;box-shadow:0 30px 80px rgba(18,19,22,0.28);display:flex;flex-direction:column;overflow:hidden">
+        <div style="padding:20px 24px 16px;border-bottom:1px solid #EFEEEA;display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+          <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+            <div style="font-size:10px;letter-spacing:0.09em;text-transform:uppercase;color:#9A9CA3">Widget guide</div>
+            <div style="font-size:18px;font-weight:600;letter-spacing:-0.015em;line-height:1.3">{{ guideTitle }}</div>
+            <div style="font-size:12.5px;color:#6B6E76;line-height:1.55;max-width:78ch">{{ guideSub }}</div>
+          </div>
+          <button onClick="{{ closeGuide }}" style="background:#F4F3EF;border:1px solid #E7E6E1;border-radius:8px;padding:6px 11px;font-size:12px;font-family:inherit;cursor:pointer;color:#4A4D55;flex-shrink:0" style-hover="background:#EDECE8">Close</button>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:18px 24px 32px;display:flex;flex-direction:column;gap:16px">
+          <div style="border:1px solid #EFEEEA;background:#FBFBF9;border-radius:12px;padding:14px 16px;flex:0 0 auto;display:flex;flex-direction:column;gap:8px">
+            <div style="font-size:11px;letter-spacing:0.05em;text-transform:uppercase;color:#9A9CA3">Useful if you are</div>
+            <sc-for list="{{ guideWho }}" as="w" hint-placeholder-count="3">
+              <div style="display:flex;align-items:flex-start;gap:9px;font-size:12.5px;color:#33353B;line-height:1.6"><span style="color:#3355FF;line-height:1.6">—</span><span>{{ w }}</span></div>
+            </sc-for>
+          </div>
+          <sc-for list="{{ guideSections }}" as="g" hint-placeholder-count="4">
+            <div style="border:1px solid #EFEEEA;border-radius:12px;overflow:hidden;flex:0 0 auto">
+              <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:#FBFBF9;border-bottom:1px solid #EFEEEA">
+                <span style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#9A9CA3">{{ g.n }}</span>
+                <span style="font-size:13px;font-weight:600;color:#16171B">{{ g.widget }}</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:12px;padding:14px 16px">
+                <sc-for list="{{ g.rows }}" as="r" hint-placeholder-count="4">
+                  <div style="display:grid;grid-template-columns:minmax(0,150px) minmax(0,1fr);gap:16px;align-items:start">
+                    <div style="font-size:11px;letter-spacing:0.05em;text-transform:uppercase;color:#9A9CA3;padding-top:2px">{{ r.k }}</div>
+                    <div style="{{ r.vstyle }}">{{ r.v }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+          <div style="font-size:11.5px;color:#9A9CA3;line-height:1.6;flex:0 0 auto">A missing connector or an untagged source record renders as a gap, never as a pass. If something you expect is absent from this page, check the tagging conventions above before assuming the metric is green.</div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ panelOpen }}">
+    <div onClick="{{ closePanel }}" style="position:fixed;inset:0;background:rgba(18,19,22,0.42);z-index:40"></div>
+  </sc-if>
+  <sc-if value="{{ panelOpen }}">
+    <div style="position:fixed;top:0;right:0;bottom:0;width:660px;max-width:94vw;background:#FFFFFF;border-left:1px solid #E7E6E1;box-shadow:-24px 0 60px rgba(18,19,22,0.14);z-index:41;display:flex;flex-direction:column;overflow:hidden">
+      <div style="padding:20px 24px 16px;border-bottom:1px solid #EFEEEA;display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+        <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+          <div style="font-size:11px;color:#9A9CA3;font-family:'JetBrains Mono',monospace">{{ sel.id }} · {{ sel.tier }}</div>
+          <div style="font-size:18px;font-weight:600;letter-spacing:-0.015em;line-height:1.3">{{ sel.name }}</div>
+          <div style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;color:{{ sel.ragColor }}"><span style="width:7px;height:7px;border-radius:99px;background:{{ sel.ragColor }}"></span>{{ sel.ragLabel }} at {{ sel.gate }}</div>
+        </div>
+        <button onClick="{{ closePanel }}" style="background:#F4F3EF;border:1px solid #E7E6E1;border-radius:8px;padding:6px 11px;font-size:12px;font-family:inherit;cursor:pointer;color:#4A4D55" style-hover="background:#EDECE8">Close</button>
+      </div>
+
+      <div style="flex:1;overflow-y:auto;padding:18px 24px 40px;display:block">
+        <sc-if value="{{ sel.hasMissing }}">
+          <div style="background:#FBEAE7;border:1px solid #F1CFC9;border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
+            <div style="font-size:12px;font-weight:600;color:#8F241C;letter-spacing:0.01em">Why this is red — {{ sel.missingCount }} required artifacts absent</div>
+            <sc-for list="{{ sel.missingList }}" as="m" hint-placeholder-count="2">
+              <div style="display:flex;align-items:flex-start;gap:8px;font-size:12.5px;color:#8F241C"><span>•</span><span style="line-height:1.5">{{ m }}</span></div>
+            </sc-for>
+            <div style="font-size:11.5px;color:#A85A50;line-height:1.5">No composite score is used. Restore the artifacts above and the status recomputes.</div>
+          </div>
+        </sc-if>
+
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px">
+            <div style="font-size:13px;font-weight:600">Evidence checklist</div>
+            <div style="font-size:11px;color:#9A9CA3">Ready {{ sel.readyText }} · Done {{ sel.doneText }}</div>
+          </div>
+          <div style="border:1px solid #EFEEEA;border-radius:10px;overflow:hidden">
+            <sc-for list="{{ sel.artifacts }}" as="a" hint-placeholder-count="11">
+              <div style="display:grid;grid-template-columns:minmax(0,1.7fr) 118px 108px;gap:12px;padding:11px 14px;border-bottom:1px solid #F4F3EF;align-items:center">
+                <div style="display:flex;flex-direction:column;gap:3px;min-width:0">
+                  <div style="font-size:12.5px;color:#16171B">{{ a.name }}</div>
+                  <div style="font-size:11px;color:#9A9CA3">{{ a.accountable }} · {{ a.source }}</div>
+                  <sc-if value="{{ a.hasNote }}">
+                    <div style="font-size:11.5px;color:#A66A00;line-height:1.45">{{ a.note }}</div>
+                  </sc-if>
+                </div>
+                <div><span style="font-size:11px;padding:3px 8px;border-radius:6px;background:{{ a.bg }};color:{{ a.color }};font-weight:500">{{ a.statusLabel }}</span></div>
+                <div style="text-align:right"><a href="#" style="font-size:11.5px;color:{{ a.linkColor }}">{{ a.link }}</a></div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="font-size:11.5px;color:#9A9CA3;line-height:1.5">Gate mapping: {{ sel.gateNote }} Threat-model and security findings show presence and status only — content stays in the source system.</div>
+        </div>
+
+        <sc-if value="{{ showAi }}">
+          <div style="border:1px solid #D5DCFF;background:#F7F8FF;border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:10px;letter-spacing:0.07em;text-transform:uppercase;color:#3355FF;background:#E4E9FF;border-radius:5px;padding:2px 7px;font-weight:600">AI draft</span>
+              <span style="font-size:11.5px;color:#6B6E76">Assistive until accepted — does not count toward any gate</span>
+            </div>
+            <div style="font-size:12.5px;color:#33353B;line-height:1.55">{{ aiText }}</div>
+            <div style="font-size:11px;color:#9A9CA3">Drawn from: {{ aiEvidence }}</div>
+            <div style="display:flex;gap:8px">
+              <button onClick="{{ acceptAi }}" style="background:#3355FF;color:#fff;border:none;border-radius:7px;padding:6px 12px;font-size:12px;font-family:inherit;cursor:pointer" style-hover="background:#2A45CC">{{ aiCta }}</button>
+              <button style="background:#FFFFFF;border:1px solid #DFDED9;border-radius:7px;padding:6px 12px;font-size:12px;font-family:inherit;cursor:pointer;color:#4A4D55" style-hover="background:#F4F3EF">Dismiss</button>
+            </div>
+          </div>
+        </sc-if>
+
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+          <div style="font-size:13px;font-weight:600">Owner &amp; next action</div>
+          <div style="border:1px solid #EFEEEA;border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:8px">
+            <div style="font-size:12.5px;color:#16171B;line-height:1.55">{{ sel.next }}</div>
+            <div style="font-size:11.5px;color:#9A9CA3;font-family:'JetBrains Mono',monospace">{{ sel.owner }} · action record open {{ sel.age }}</div>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="font-size:13px;font-weight:600">Linked flow record</div>
+          <button onClick="{{ goDelivery }}" style="text-align:left;background:#FFFFFF;border:1px solid #EFEEEA;border-radius:10px;padding:14px 16px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:space-between;gap:12px" style-hover="border-color:#3355FF">
+            <span style="display:flex;flex-direction:column;gap:3px">
+              <span style="font-size:12.5px;color:#16171B">Delivery Control · same team, same window</span>
+              <span style="font-size:11.5px;color:#9A9CA3">Flow looks healthy here. It does not change the evidence status above.</span>
+            </span>
+            <span style="color:#3355FF;font-size:15px">→</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showAiAssist&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behaviour&quot;},&quot;stalenessDemo&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behaviour&quot;}}">
+const C = {
+  good: "#147A4B", watch: "#A66A00", poor: "#C2352B", neutral: "#8A8D95", info: "#3355FF",
+  goodBg: "#E7F4ED", watchBg: "#FBF1DE", poorBg: "#FBEAE7", neutralBg: "#F1F0EC", infoBg: "#EDF0FF"
+};
+const RAGL = { good: "On track", watch: "Watch", poor: "Needs attention" };
+
+const ARTIFACTS = [
+  ["Requirements incl. visual design", "PM + Design", "Ready", "Jira · Confluence · Figma"],
+  ["Acceptance criteria incl. NFRs", "PM", "Ready", "Jira"],
+  ["Test plan incl. NFR testing", "ETL / SDET", "Ready", "Confluence"],
+  ["High-level design", "ETL", "Ready", "Confluence"],
+  ["Low-level design, per platform", "ETL + platform engineers", "Both", "Confluence"],
+  ["Threat model", "ETL + Security Engineer", "Both", "Confluence · threat catalog"],
+  ["Traceability matrix", "ETL / SDET", "Done", "Xray"],
+  ["Test evidence", "ETL / SDET / engineers", "Done", "Xray · CI"],
+  ["Performance verification", "ETL / engineers / SDET", "Done", "Confluence"],
+  ["Accessibility, WCAG 2.2 AA", "ETL + Web / Mobile engineers", "Done", "CI · Confluence"],
+  ["AI-first / T-shaped evidence", "ETL assures, every engineer", "Both", "Recorded human validation"]
+];
+const ST = {
+  p: { label: "Present", color: C.good, bg: C.goodBg },
+  d: { label: "Drafted", color: C.watch, bg: C.watchBg },
+  s: { label: "Stale", color: C.watch, bg: C.watchBg },
+  m: { label: "Missing", color: C.poor, bg: C.poorBg },
+  w: { label: "Scoped out", color: C.neutral, bg: C.neutralBg }
+};
+const TIERS = {
+  "New capability": { color: "#7A3BC4", bg: "#F2EBFB" },
+  "Major change": { color: "#3355FF", bg: "#EDF0FF" },
+  "Minor change": { color: "#4A4D55", bg: "#F1F0EC" },
+  "Config / copy": { color: "#8A8D95", bg: "#F4F3EF" }
+};
+
+const FEATURES = {
+  entitlements: [
+    { id: "ENT-412", name: "Bulk entitlement assignment", tier: "New capability", gate: "Done gate", rag: "poor",
+      st: ["p","p","p","p","p","m","p","p","d","m","p"],
+      notes: { 8: "Load profile run, sign-off page not linked", 5: "Design-stage session held, no pre-release refresh" },
+      owner: "M. Okonjo (ETL)", next: "Book pre-release threat-model refresh and attach the axe-core CI report before the 2026.3 candidate build.", age: "4d",
+      ai: { text: "Six NFR scenarios drafted from the acceptance criteria, three of them accessibility checks that would close the WCAG gap.", ev: "ENT-412 AC v4 · Xray test set QA-118" } },
+    { id: "ENT-420", name: "Delegated approvals", tier: "New capability", gate: "Ready gate", rag: "poor",
+      st: ["p","d","m","p","m","d","m","m","m","m","d"],
+      notes: { 1: "NFRs absent — performance and a11y not stated", 4: "Not drafted for iOS" },
+      owner: "S. Bhatt (ETL)", next: "No scoping down is offered at this tier. Complete test plan and LLD before development starts.", age: "9d",
+      ai: { text: "Draft acceptance criteria proposed for the four approval states found in the Confluence intent page.", ev: "Confluence ENT/Delegated-approvals · Jira ENT-420" } },
+    { id: "ENT-388", name: "Permission cache invalidation", tier: "Major change", gate: "Done gate", rag: "watch",
+      st: ["p","p","p","p","p","p","p","s","p","w","p"],
+      notes: { 7: "Xray connector last synced 4h 12m ago", 9: "No UI surface changed" },
+      owner: "L. Ferreira (SDET)", next: "Re-run the Xray sync; the panel stays amber until evidence is verified fresh.", age: "1d",
+      ai: { text: "Clustered 14 recent cache-related incidents into 3 themes; two map to untested invalidation paths.", ev: "JSM incidents Jun–Aug · Xray QA-204" } },
+    { id: "ENT-401", name: "Audit export, CSV", tier: "Minor change", gate: "Done gate", rag: "good",
+      st: ["p","p","p","w","p","w","p","p","w","p","p"],
+      notes: { 3: "Delta only, covered by existing HLD", 5: "Recently modelled capability, refresher recorded" },
+      owner: "L. Ferreira (SDET)", next: "Clear to sign off. Three artifacts scoped down with recorded rationale.", age: "—",
+      ai: { text: "Coverage suggestion: one edge case for exports over 50k rows is untested.", ev: "Xray QA-141 · CI coverage report" } },
+    { id: "ENT-377", name: "Consent screen copy update", tier: "Config / copy", gate: "Done gate", rag: "good",
+      st: ["w","p","w","w","w","w","w","p","w","p","p"],
+      notes: {},
+      owner: "A. Nowak (PM)", next: "Clear to sign off. AC and test evidence present; the rest scoped out with rationale.", age: "—",
+      ai: { text: "No gaps detected against the config/copy tier requirements.", ev: "Jira ENT-377 · CI run 4821" } }
+  ],
+  payments: [
+    { id: "PAY-233", name: "Omni payment scheduling", tier: "New capability", gate: "Done gate", rag: "watch",
+      st: ["p","p","p","p","p","p","p","p","d","p","p"],
+      notes: { 8: "Perf gate pending, run scheduled" },
+      owner: "R. Diallo (ETL)", next: "Perf run queued for tonight; sign-off blocked only on that result.", age: "2d",
+      ai: { text: "Two scheme-timeout scenarios suggested from the performance NFR.", ev: "Confluence PAY/NFR · Xray QA-330" } },
+    { id: "PAY-241", name: "Business contact bulk import", tier: "Major change", gate: "Ready gate", rag: "poor",
+      st: ["p","p","d","p","d","m","m","m","m","m","p"],
+      notes: { 5: "New trust boundary — full session required, not a refresher" },
+      owner: "R. Diallo (ETL)", next: "New trust boundary introduced. Threat model must be complete before Ready is granted.", age: "6d",
+      ai: { text: "Import path crosses a new data boundary; six controls suggested for the model session.", ev: "PAY-241 HLD · threat catalog TC-19" } },
+    { id: "PAY-218", name: "Payment status webhook", tier: "Minor change", gate: "Done gate", rag: "good",
+      st: ["p","p","p","w","p","w","p","p","p","w","p"],
+      notes: { 3: "Existing HLD covers it", 9: "No UI surface" },
+      owner: "K. Lindqvist (SDET)", next: "Clear to sign off.", age: "—",
+      ai: { text: "No gaps detected.", ev: "Xray QA-311" } },
+    { id: "PAY-250", name: "Fee display rounding", tier: "Config / copy", gate: "Done gate", rag: "good",
+      st: ["w","p","w","w","w","w","w","p","w","p","p"], notes: {},
+      owner: "A. Nowak (PM)", next: "Clear to sign off.", age: "—",
+      ai: { text: "No gaps detected.", ev: "Jira PAY-250" } }
+  ],
+  nucleus: [
+    { id: "NUC-118", name: "App shell navigation rewrite", tier: "New capability", gate: "Done gate", rag: "poor",
+      st: ["p","p","p","p","d","p","p","p","p","m","d"],
+      notes: { 4: "Android complete, iOS drafted", 9: "Axe-core run failing on two journeys" },
+      owner: "T. Verhoeven (ETL)", next: "Two WCAG 2.2 AA violations open on the accounts journey. Fix before the candidate build.", age: "3d",
+      ai: { text: "Both violations map to focus order in the same component; one fix likely closes both.", ev: "CI axe-core run 2210 · NUC-118 designs" } },
+    { id: "NUC-124", name: "Offline balance cache", tier: "Major change", gate: "Ready gate", rag: "watch",
+      st: ["p","p","d","p","d","d","m","m","m","m","p"], notes: { 5: "Recorded refresher accepted for this tier" },
+      owner: "T. Verhoeven (ETL)", next: "Test plan and LLD in draft; complete both to grant Ready.", age: "5d",
+      ai: { text: "Suggested three staleness scenarios for the cache eviction path.", ev: "NUC-124 HLD" } },
+    { id: "NUC-109", name: "Crash reporting opt-in", tier: "Minor change", gate: "Done gate", rag: "good",
+      st: ["p","p","p","w","p","w","p","p","w","p","p"], notes: { 3: "Delta only" },
+      owner: "D. Farah (SDET)", next: "Clear to sign off.", age: "—",
+      ai: { text: "No gaps detected.", ev: "Xray QA-402" } },
+    { id: "NUC-131", name: "Retail journey label refresh", tier: "Config / copy", gate: "Done gate", rag: "good",
+      st: ["w","p","w","w","w","w","w","p","w","p","p"], notes: {},
+      owner: "A. Nowak (PM)", next: "Clear to sign off.", age: "—",
+      ai: { text: "No gaps detected.", ev: "Jira NUC-131" } }
+  ]
+};
+
+const WAIVERS = {
+  entitlements: [
+    { artifact: "High-level design", feature: "ENT-401", tier: "Minor", owner: "M. Okonjo", at: "12 Aug 2026", rationale: "Change is a delta inside a capability modelled in the ENT-2026-04 HLD; no new interfaces." },
+    { artifact: "Threat model", feature: "ENT-401", tier: "Minor", owner: "M. Okonjo", at: "12 Aug 2026", rationale: "Recorded refresher against the entitlements model from May; no trust-boundary change." },
+    { artifact: "Performance verification", feature: "ENT-377", tier: "Config / copy", owner: "A. Nowak", at: "19 Aug 2026", rationale: "Capacity pressure this sprint, will revisit next release.", flagged: true }
+  ],
+  payments: [
+    { artifact: "High-level design", feature: "PAY-218", tier: "Minor", owner: "R. Diallo", at: "05 Aug 2026", rationale: "Covered by the payments status HLD; webhook is an additional transport only." },
+    { artifact: "Accessibility", feature: "PAY-218", tier: "Minor", owner: "R. Diallo", at: "05 Aug 2026", rationale: "Server-to-server change with no user-facing surface." }
+  ],
+  nucleus: [
+    { artifact: "Performance verification", feature: "NUC-109", tier: "Minor", owner: "D. Farah", at: "22 Aug 2026", rationale: "No change to startup or render path; covered by the standing mobile perf suite." }
+  ]
+};
+
+const ACTIONS = {
+  entitlements: [
+    { signal: "Threat model absent at Done gate", next: "Book pre-release refresh session with Security before candidate build.", owner: "M. Okonjo", age: "open 4d", status: "Open", sev: "poor" },
+    { signal: "WCAG 2.2 AA evidence missing", next: "Attach axe-core CI report for the bulk-assignment journey.", owner: "Web guild", age: "open 4d", status: "Open", sev: "poor" },
+    { signal: "Xray connector stale, 4h 12m", next: "Platform team re-authorising the Xray service account.", owner: "Platform", age: "ack 1h", status: "Acknowledged", sev: "watch" }
+  ],
+  payments: [
+    { signal: "Threat model absent at Ready gate", next: "New trust boundary — full session required before development starts.", owner: "R. Diallo", age: "open 6d", status: "Open", sev: "poor" },
+    { signal: "Performance sign-off pending", next: "Perf run scheduled tonight; result attaches automatically.", owner: "K. Lindqvist", age: "ack 2d", status: "Acknowledged", sev: "watch" }
+  ],
+  nucleus: [
+    { signal: "Two WCAG 2.2 AA violations open", next: "Fix focus order on the accounts journey component.", owner: "T. Verhoeven", age: "open 3d", status: "Open", sev: "poor" },
+    { signal: "LLD incomplete for iOS", next: "Complete the iOS low-level design to grant Ready.", owner: "Mobile guild", age: "ack 5d", status: "Acknowledged", sev: "watch" }
+  ]
+};
+
+const SHIFT = {
+  entitlements: {
+    headline: [["68%","Defects caught at PR","watch","target 80%"],["14%","Found after deploy","poor","target under 5%"],["61%","Checks at L1–L2","watch","target 70%"],["9.4m","Median PR feedback","watch","target under 8m"]],
+    detection: { weeks: ["W27","W29","W31","W33","W35"], pr: [41,48,52,57,61], nightly: [22,19,17,15,14], prod: [7,6,5,5,4] },
+    stages: [
+      ["Plan","Quality of intent before any code exists.",[["Stories with testable acceptance criteria","78%","watch","41 of 52 Q3 stories"],["NFRs named at intake","62%","poor","perf and a11y most often missing"],["Open ambiguity flags","7","poor","raised by requirement checks"]]],
+      ["Design","Decide what gets verified, and at which layer.",[["Critical paths mapped to a test layer","84%","watch","16% only covered by E2E"],["Endpoints with planned contract tests","22 / 26","good","OpenAPI diff driven"],["Observability assertions drafted","11","good","feeds release checks"]]],
+      ["Build","Tests arrive with the change, not after it.",[["Changed paths with unit or slice tests","81%","watch","target 90%"],["Bug-fix PRs without a regression test","6","poor","highest-value gap to close"],["New high SAST findings","0","good","clean for 3 releases"]]],
+      ["Test","Continuous verification instead of late discovery.",[["L1 / L2 / L3 / L4 execution share","38/23/25/14","watch","still E2E heavy"],["Flake rate, 7 day","4.6%","poor","3 suites drive most of it"],["Failures first seen in PR","68%","watch","rest surface in nightly"]]],
+      ["Deploy","Readiness summarised from evidence already collected.",[["Quality gates green at candidate","9 / 10","good","perf gate pending"],["Unacknowledged high-severity findings","1","watch","owner assigned"],["Rollback drill age","12d","good","within 30d policy"]]],
+      ["Maintain","Production learning becomes tomorrow's checks.",[["Escaped defects this release","9","poor","5 in entitlement rules"],["Regressions added from incidents","7","good","78% of escapes covered"],["Feedback-loop items still open","3","watch","awaiting Plan intake"]]]
+    ]
+  },
+  payments: {
+    headline: [["79%","Defects caught at PR","good","target 80%"],["6%","Found after deploy","watch","target under 5%"],["72%","Checks at L1–L2","good","target 70%"],["5.1m","Median PR feedback","good","target under 8m"]],
+    detection: { weeks: ["W27","W29","W31","W33","W35"], pr: [58,63,70,74,79], nightly: [18,16,13,11,9], prod: [6,5,4,3,2] },
+    stages: [
+      ["Plan","Quality of intent before any code exists.",[["Stories with testable acceptance criteria","91%","good","43 of 47 Q3 stories"],["NFRs named at intake","84%","good","payment SLAs stated up front"],["Open ambiguity flags","2","good","both on one epic"]]],
+      ["Design","Decide what gets verified, and at which layer.",[["Critical paths mapped to a test layer","93%","good","scheme flows covered"],["Endpoints with planned contract tests","31 / 33","good","two async topics open"],["Observability assertions drafted","24","good","per journey"]]],
+      ["Build","Tests arrive with the change, not after it.",[["Changed paths with unit or slice tests","89%","good","target 90%"],["Bug-fix PRs without a regression test","2","watch","both mobile journeys"],["New high SAST findings","1","watch","dependency upgrade queued"]]],
+      ["Test","Continuous verification instead of late discovery.",[["L1 / L2 / L3 / L4 execution share","46/26/19/9","good","healthy pyramid"],["Flake rate, 7 day","2.1%","good","quarantine working"],["Failures first seen in PR","79%","good","rest in nightly"]]],
+      ["Deploy","Readiness summarised from evidence already collected.",[["Quality gates green at candidate","10 / 10","good","all green"],["Unacknowledged high-severity findings","0","good","none open"],["Rollback drill age","6d","good","within 30d policy"]]],
+      ["Maintain","Production learning becomes tomorrow's checks.",[["Escaped defects this release","4","watch","none customer visible"],["Regressions added from incidents","4","good","full coverage of escapes"],["Feedback-loop items still open","1","good","in next intake"]]]
+    ]
+  },
+  nucleus: {
+    headline: [["74%","Defects caught at PR","watch","target 80%"],["8%","Found after deploy","watch","target under 5%"],["66%","Checks at L1–L2","watch","target 70%"],["6.3m","Median PR feedback","good","target under 8m"]],
+    detection: { weeks: ["W27","W29","W31","W33","W35"], pr: [52,57,63,69,74], nightly: [24,22,20,17,16], prod: [9,8,7,6,5] },
+    stages: [
+      ["Plan","Quality of intent before any code exists.",[["Stories with testable acceptance criteria","85%","good","46 of 54 Q3 stories"],["NFRs named at intake","70%","watch","a11y often added late"],["Open ambiguity flags","4","watch","concentrated in one journey"]]],
+      ["Design","Decide what gets verified, and at which layer.",[["Critical paths mapped to a test layer","88%","good","app shell covered"],["Endpoints with planned contract tests","14 / 18","watch","4 legacy endpoints"],["Observability assertions drafted","9","watch","mobile crash paths only"]]],
+      ["Build","Tests arrive with the change, not after it.",[["Changed paths with unit or slice tests","86%","good","target 90%"],["Bug-fix PRs without a regression test","3","watch","iOS journey"],["New high SAST findings","0","good","clean"]]],
+      ["Test","Continuous verification instead of late discovery.",[["L1 / L2 / L3 / L4 execution share","42/24/22/12","watch","device farm heavy"],["Flake rate, 7 day","3.4%","watch","device-related"],["Failures first seen in PR","74%","watch","rest in nightly"]]],
+      ["Deploy","Readiness summarised from evidence already collected.",[["Quality gates green at candidate","9 / 10","good","a11y gate pending"],["Unacknowledged high-severity findings","0","good","none open"],["Rollback drill age","24d","watch","schedule refresh"]]],
+      ["Maintain","Production learning becomes tomorrow's checks.",[["Escaped defects this release","5","watch","2 crash-related"],["Regressions added from incidents","5","good","all escapes covered"],["Feedback-loop items still open","2","watch","awaiting triage"]]]
+    ]
+  }
+};
+
+const DECKS = {
+  entitlements: {
+    label: "Entitlements", window: "Q2 2026 · Apr 1 – Jun 30 (13.0 wks) → Q3 2026 · Jul 1 – Aug 30 (8.7 wks)",
+    glance: [["Epics done","10","6","watch"],["Stories done, incl. tech","89 · avg CT 8.7d · median 3d","52 · avg CT 8.1d · median 1d","watch"],["Tasks done","77","29","watch"],["MAINT resolved","46 · avg CT 13.1d · backlog 55","105 · avg CT 21.3d · backlog 29","poor"],["PRs merged","329 · avg CT 0.34d","234 · avg CT 0.17d","good"],["PR size mix under 500 LOC","59%","53%","watch"]],
+    epics: { q2avg: "69.6d", q2sub: "median 66d · P85 119d (n=8)", q3avg: "54.5d", q3sub: "median 50d · P85 83d (n=4)", q3rag: "watch", tq2: 10, tq3: 6, delta: "−40% vs Q2", trag: "watch", size: { labels: ["0–8 SP","9–20 SP","21–40 SP","40+ SP"], count: [1,2,2,1], cycle: [21,38,62,104] } },
+    stories: { q2avg: "8.7d", q2sub: "median 3d · P85 12d (n=83)", q3avg: "8.1d", q3sub: "median 1d · P85 8d (n=48)", q3rag: "good", tq2: 89, tq3: 52, delta: "−42% vs Q2", trag: "watch", weeks: ["W27","W28","W29","W30","W31","W32","W33","W34","W35"], done: [7,5,8,4,6,5,7,6,4], size: { labels: ["1–2 SP","3–5 SP","8 SP","13+ SP"], count: [24,18,7,3], cycle: [2,6,13,24] } },
+    maint: { q2avg: "13.1d", q2sub: "median 9d (n=30)", q3avg: "21.3d", q3sub: "+63% · median 12d", q3rag: "poor", backlog: "29", backlogSub: "was 55 · net −26", backlogRag: "good", flow: "79 / 105", flowSub: "closure rate 133%", flowRag: "good", priority: { labels: ["Blocker","Critical","Major","Minor"], count: [4,18,61,22], cycle: [6,11,22,34] } },
+    prs: { scope: "LinearB · APPR / LIM / AC / AG / LE-LEGALENTITY", q2median: "0.02d", q2sub: "avg 0.34d · 329 PRs", q3median: "0.02d", q3sub: "avg 0.17d · 234 PRs", small: "53%", smallSub: "Q2 59% → Q3 53%", smallRag: "watch", huge: "75", hugeSub: "32% of merged · tail driver", hugeRag: "poor", buckets: { labels: ["<100","100–499","500–999","1000+"], cycle: [0.01,0.04,0.21,0.63] }, periods: ["Jul 1","Jul 15","Jul 29","Aug 12","Aug 26"], merged: [52,47,44,51,40] }
+  },
+  payments: {
+    label: "DB Payments", window: "Q2 2026 · Apr 1 – Jun 30 (13.0 wks) → Q3 2026 · Jul 1 – Aug 30 (8.7 wks)",
+    glance: [["Epics done","21","6","watch"],["Stories done, incl. tech","21 · avg CT 16.5d · median 7d","47 · avg CT 7.7d · median 5d","good"],["Tasks done","23","29","good"],["MAINT resolved","178 · avg CT 14.5d · backlog 51","84 · avg CT 13d · backlog 36","good"],["PRs merged","0 · no LinearB scope","263 · avg CT 0.96d","good"],["PR size mix under 500 LOC","0%","77%","good"]],
+    epics: { q2avg: "103d", q2sub: "median 22d · P85 197d (n=9)", q3avg: "10.8d", q3sub: "median 6d · P85 20d (n=4)", q3rag: "good", tq2: 21, tq3: 6, delta: "−71% vs Q2", trag: "watch", size: { labels: ["0–8 SP","9–20 SP","21–40 SP","40+ SP"], count: [2,1,1,0], cycle: [5,9,18,0] } },
+    stories: { q2avg: "16.5d", q2sub: "median 7d · P85 45d (n=19)", q3avg: "7.7d", q3sub: "median 5d · P85 13d (n=39)", q3rag: "good", tq2: 21, tq3: 47, delta: "+124% vs Q2", trag: "good", weeks: ["W27","W28","W29","W30","W31","W32","W33","W34","W35"], done: [4,6,5,7,5,6,4,6,4], size: { labels: ["1–2 SP","3–5 SP","8 SP","13+ SP"], count: [19,17,8,3], cycle: [3,6,11,19] } },
+    maint: { q2avg: "14.5d", q2sub: "median 4d (n=91)", q3avg: "13d", q3sub: "−10% · median 6d", q3rag: "watch", backlog: "36", backlogSub: "was 51 · net −15", backlogRag: "good", flow: "69 / 84", flowSub: "closure rate 122%", flowRag: "good", priority: { labels: ["Blocker","Critical","Major","Minor"], count: [3,14,49,18], cycle: [4,8,14,21] } },
+    prs: { scope: "LinearB · BUS contacts, manage and omni payments journeys, Android and iOS", q2median: "0d", q2sub: "no scoped repositories in Q2", q3median: "0.01d", q3sub: "avg 0.96d · 263 PRs", small: "77%", smallSub: "Q2 0% → Q3 77%", smallRag: "good", huge: "40", hugeSub: "15% of merged · tail driver", hugeRag: "watch", buckets: { labels: ["<100","100–499","500–999","1000+"], cycle: [0.01,0.06,0.42,1.84] }, periods: ["Jul 1","Jul 15","Jul 29","Aug 12","Aug 26"], merged: [46,58,51,62,46] }
+  },
+  nucleus: {
+    label: "Nucleus", window: "Q2 2026 · Apr 1 – Jun 30 (13.0 wks) → Q3 2026 · Jul 1 – Aug 30 (8.7 wks)",
+    glance: [["Epics done","5","5","good"],["Stories done, incl. tech","25 · avg CT 8.3d · median 4d","54 · avg CT 3.6d · median 3d","good"],["Tasks done","3","2","watch"],["MAINT resolved","66 · avg CT 16.3d · backlog 19","31 · avg CT 16.5d · backlog 17","watch"],["PRs merged","14 · avg CT 0.15d","32 · avg CT 0.24d","good"],["PR size mix under 500 LOC","93%","88%","good"]],
+    epics: { q2avg: "45.8d", q2sub: "median 35d · P85 68d (n=5)", q3avg: "14.4d", q3sub: "median 8d · P85 26d (n=5)", q3rag: "good", tq2: 5, tq3: 5, delta: "+0% vs Q2", trag: "good", size: { labels: ["0–8 SP","9–20 SP","21–40 SP","40+ SP"], count: [2,2,1,0], cycle: [7,13,27,0] } },
+    stories: { q2avg: "8.3d", q2sub: "median 4d · P85 25d (n=23)", q3avg: "3.6d", q3sub: "median 3d · P85 7d (n=52)", q3rag: "good", tq2: 25, tq3: 54, delta: "+116% vs Q2", trag: "good", weeks: ["W27","W28","W29","W30","W31","W32","W33","W34","W35"], done: [6,7,5,8,6,5,7,6,4], size: { labels: ["1–2 SP","3–5 SP","8 SP","13+ SP"], count: [28,18,6,2], cycle: [2,4,8,15] } },
+    maint: { q2avg: "16.3d", q2sub: "median 6d (n=41)", q3avg: "16.5d", q3sub: "+1% · median 18d", q3rag: "poor", backlog: "17", backlogSub: "was 19 · net −2", backlogRag: "good", flow: "28 / 31", flowSub: "closure rate 111%", flowRag: "good", priority: { labels: ["Blocker","Critical","Major","Minor"], count: [1,5,18,7], cycle: [5,12,19,26] } },
+    prs: { scope: "LinearB · iOS and Android banking apps, experience manager, retail journeys", q2median: "0.01d", q2sub: "avg 0.15d · 14 PRs", q3median: "0d", q3sub: "avg 0.24d · 32 PRs", small: "88%", smallSub: "Q2 93% → Q3 88%", smallRag: "good", huge: "3", hugeSub: "9% of merged · tail driver", hugeRag: "good", buckets: { labels: ["<100","100–499","500–999","1000+"], cycle: [0.01,0.03,0.18,0.51] }, periods: ["Jul 1","Jul 15","Jul 29","Aug 12","Aug 26"], merged: [5,8,6,7,6] }
+  }
+};
+
+const RELEASE = {
+  entitlements: { verdict: "Not clear to ship", rag: "poor",
+    reasons: ["ENT-412 threat model absent at the Done gate", "Two release-blocking defects open, one unacknowledged for 3 days", "Evidence completeness 61% — below the 90% release bar"],
+    tiles: [["1,284 / 1,310","Tests executed","good","98% of the planned set"],["96.1%","Pass rate","good","first attempt"],["4.6%","Flaky tests","poor","3 suites drive most of it"],["78%","Automation coverage","watch","target 85%"],["3 / 5","NFR verification","watch","perf and a11y outstanding"],["2","Blocking defects","poor","1 unacknowledged 3d"],["61%","Evidence completeness","poor","release bar is 90%"],["4h 12m","Oldest connector sync","watch","Xray lagging"]],
+    trend: { x: ["Aug 5","Aug 12","Aug 19","Aug 26","Sep 2"], pass: [88,91,93,95,96], fail: [12,9,7,5,4] },
+    blockers: [["MAINT-8841","Entitlement rule evaluates stale cache after bulk assign","Blocker","L. Ferreira","open 3d"],["MAINT-8902","Audit export truncates over 50k rows","Critical","D. Farah","open 1d"]] },
+  payments: { verdict: "Clear to ship, with one condition", rag: "watch",
+    reasons: ["Performance sign-off for PAY-233 lands tonight — release manager to confirm before cut"],
+    tiles: [["2,106 / 2,110","Tests executed","good","99% of the planned set"],["98.4%","Pass rate","good","first attempt"],["2.1%","Flaky tests","good","quarantine working"],["86%","Automation coverage","good","target 85%"],["4 / 5","NFR verification","watch","perf run pending"],["0","Blocking defects","good","none open"],["92%","Evidence completeness","good","release bar is 90%"],["6m","Oldest connector sync","good","all fresh"]],
+    trend: { x: ["Aug 5","Aug 12","Aug 19","Aug 26","Sep 2"], pass: [93,95,96,98,98], fail: [7,5,4,2,2] },
+    blockers: [["—","No release-blocking defects open","Clear","—","—"]] },
+  nucleus: { verdict: "Not clear to ship", rag: "poor",
+    reasons: ["Two WCAG 2.2 AA violations open on the accounts journey", "NUC-118 accessibility evidence missing at the Done gate"],
+    tiles: [["1,540 / 1,602","Tests executed","watch","96% of the planned set"],["94.8%","Pass rate","watch","first attempt"],["3.4%","Flaky tests","watch","device-related"],["81%","Automation coverage","watch","target 85%"],["3 / 5","NFR verification","poor","a11y failing"],["1","Blocking defects","watch","acknowledged"],["74%","Evidence completeness","watch","release bar is 90%"],["18m","Oldest connector sync","good","within threshold"]],
+    trend: { x: ["Aug 5","Aug 12","Aug 19","Aug 26","Sep 2"], pass: [90,92,93,94,95], fail: [10,8,7,6,5] },
+    blockers: [["MAINT-9012","Focus order breaks on accounts navigation","Blocker","T. Verhoeven","ack 3d"]] }
+};
+
+const PORTFOLIO = [
+  ["Entitlements", [["61%","poor"],["58%","poor"],["81%","watch"],["9","poor"],["3","watch"]]],
+  ["DB Payments", [["94%","good"],["92%","good"],["89%","good"],["4","watch"],["2","good"]]],
+  ["Nucleus", [["88%","good"],["74%","watch"],["86%","good"],["5","watch"],["1","good"]]],
+  ["Onboarding", [["79%","watch"],["71%","watch"],["77%","watch"],["6","watch"],["4","watch"]]],
+  ["Cards & Wallets", [["96%","good"],["95%","good"],["91%","good"],["1","good"],["0","good"]]],
+  ["Data Platform", [["55%","poor"],["49%","poor"],["68%","poor"],["11","poor"],["7","poor"]]]
+];
+
+const GUIDES = {
+  discipline: { title: "Feature Readiness — how this page works", sub: "Every widget here reads the evidence record. Nothing on this page is computed from a weighted score; each state resolves to a list of source artifacts.",
+    who: [
+      "Someone about to say yes or no to starting a feature, who needs to see what is actually written down before development begins.",
+      "Someone preparing a sign-off conversation who needs the missing items named, so the discussion is about the gap rather than about the colour.",
+      "Someone reviewing a month of scoped-down artifacts to see whether the same rationale keeps reappearing."
+    ], sections: [
+    { widget: "Definition of Ready / Done completeness",
+      decision: "ETL decides whether a feature may start (Ready) or be signed off (Done). A drop below the release bar of 90% is the trigger to stop the gate conversation and fix the gap.",
+      source: "Jira (issue fields + links), Confluence (page tree + labels), Xray (test sets and executions), CI (job artifacts).",
+      fetch: "Jira REST v3 search — project = ENT AND issuetype in (Story, Epic) AND labels = shiftleft-tracked AND fixVersion = \"2026.3\" — then per issue: remotelinks + issue links resolved to Confluence page IDs.",
+      labels: "Tag the Jira issue with shiftleft-tracked and set fixVersion to the release (e.g. Release 2026.3). Set the Risk tier field to New capability / Major / Minor / Config-copy. Confluence pages need the page label matching the artifact: sl-requirements, sl-testplan, sl-hld, sl-lld, sl-threatmodel, sl-performance, sl-accessibility." },
+    { widget: "Cleared at the Done gate",
+      decision: "Release manager's shortlist: which features in this release actually carry complete evidence. Anything not cleared appears in the Release Readiness blocker list automatically.",
+      source: "Derived — the checklist below, evaluated per feature. No independent data source.",
+      fetch: "Rules engine evaluation on each connector sync; result written to rule_results and cached. Recomputed within 60s of any source change webhook.",
+      labels: "Nothing to tag. If a feature is missing here, it was never tagged shiftleft-tracked in Jira." },
+    { widget: "Feature readiness table — Ready / Done evidence bars",
+      decision: "Where to spend the next hour. The bar shows present-vs-required artifacts for that gate; scoped-out artifacts are excluded from the denominator so the number is never inflated.",
+      source: "Jira, Confluence, Figma (design links), Xray, CI.",
+      fetch: "Confluence CQL — label = \"sl-hld\" AND ancestor = <space feature page> — plus Xray GraphQL getTestExecutions(jira: {jql: \"issue in linkedIssues('ENT-412')\"}) and the CI REST run artifact index.",
+      labels: "Link the Confluence page to the Jira issue (Confluence \"Jira issue\" macro or a remote link). Name the Figma frame with the Jira key. In Xray, link the test execution to the feature issue." },
+    { widget: "Status & reason (RAG with reasons)",
+      decision: "Whether to hold the gate. Red is always accompanied by the literal list of absent artifacts, so the conversation is about the gap, not about the colour.",
+      source: "Rule pack, evaluated over the artifact set above.",
+      fetch: "rules table per project; each rule is artifact + gate + tier condition. Missing connector data resolves to missing, never to pass.",
+      labels: "None. Adjust thresholds in Project settings → Rules." },
+    { widget: "Scoped-out artifacts (waivers)",
+      decision: "Platform owners review these monthly. Repeated \"capacity pressure\" rationales are a planning signal that surfaces before work starts, not an excuse recorded after.",
+      source: "artifact_waivers — written in the product when an ETL scopes an artifact down.",
+      fetch: "Written through the platform API, not fetched. Indexed free-text rationale, reportable by artifact, tier, owner and period.",
+      labels: "Recorded in-product. No source-system tagging." },
+    { widget: "Open actions",
+      decision: "Owner and next action for every red. High-severity items dispatch to the owning channel rather than waiting to be noticed on next dashboard open.",
+      source: "action_records, auto-created on red or threshold breach; owner resolved from project roles.",
+      fetch: "Created by the rules engine; dispatched to Slack webhook or Jira Service Management per alert_routes.",
+      labels: "Configure the destination in Project settings → Alert routes. Owners resolve from SSO group membership, so keep the team group current." }
+  ] },
+  execution: { title: "Developer & SDET Flow — how this page works", sub: "Real-time execution telemetry. Useful for the daily loop; it is not evidence, and a green tile here never clears a gate.",
+    who: [
+      "Someone running a daily stand-up who wants to know whether today's PR, build and test loop is healthy before the team commits to anything new.",
+      "Someone deciding which single improvement to make this sprint, and wanting the cheapest gap rather than the biggest number.",
+      "Someone investigating why defects keep surfacing late, who needs to see at which stage the loop is leaking."
+    ], sections: [
+    { widget: "Defects caught at PR / Found after deploy",
+      decision: "The core shift-left signal pair. Rising PR-time detection with flat post-deploy detection means the earlier checks are running but not exercising the risky behaviour.",
+      source: "CI check results and Xray executions, joined to Jira defects by the change that introduced them; Sentry for release regressions.",
+      fetch: "Jira JQL — issuetype = Bug AND project = ENT AND created >= startOfRelease() — joined to CI run IDs via the commit SHA in the defect's Found-in build field.",
+      labels: "On every defect set Found-in build (CI run ID or commit SHA) and Detection stage (pr / nightly / staging / production). Without Detection stage the defect is excluded, not assumed green." },
+    { widget: "Checks at L1–L2 / Median PR feedback",
+      decision: "Pyramid balance and feedback latency — the two levers a tech lead controls directly this week.",
+      source: "Test runner reports collected by CI and aggregated in Allure; GitHub Actions workflow timings.",
+      fetch: "GitHub REST — GET /repos/{owner}/{repo}/actions/runs?status=completed&created=>=2026-07-01 — plus the Allure results index per run.",
+      labels: "Tag suites with the layer in the runner config: @L1 unit, @L2 slice/contract, @L3 integration, @L4 e2e. Untagged suites fall into L3 by default and will skew the mix." },
+    { widget: "By SDLC stage panels (Plan → Maintain)",
+      decision: "Locates the stage where the loop is leaking. Each row is one signal with an explicit target, so a lead can pick the cheapest gap to close.",
+      source: "Jira (Plan), design coverage map + Xray (Design), SonarQube + GitHub (Build), CI + Allure (Test), CI/CD + deployment tools (Deploy), JSM + Xray (Maintain).",
+      fetch: "Per-stage connector queries on a 15-minute schedule; results cached in metrics_snapshots. Every row drills to its source record.",
+      labels: "Bug-fix PRs must carry the fix label for the regression-test check. Incident-derived tests must link the JSM incident key in the Xray test description for the Maintain loop to count." }
+  ] },
+  delivery: { title: "Team Insights — how this page works", sub: "Flow telemetry for delivery management: pace, size and defect pressure. Compare rates rather than raw counts — the two quarters are different lengths.",
+    who: [
+      "Someone who wants a weekly or bi-weekly update on how a single team is moving — what got finished, how long it took, and whether the pace changed.",
+      "Someone preparing a quarter-on-quarter summary and needing the comparison already normalised for window length, rather than rebuilding it in a spreadsheet.",
+      "Someone trying to explain slow delivery, who needs to know whether the cause is batching, oversized work items, or defect pressure."
+    ], sections: [
+    { widget: "Q2 vs Q3 at a glance",
+      decision: "The opening five minutes of the bi-weekly review: what moved, and is the movement real once you normalise for window length.",
+      source: "Jira issue changelog for cycle time and throughput; LinearB for PR counts and size mix.",
+      fetch: "Jira JQL — project = ENT AND status changed to Done during (\"2026-07-01\", \"2026-08-30\") — with expand=changelog to derive per-issue start and done timestamps.",
+      labels: "Use a consistent Done status category, and set the team's board so that first in-progress transition is meaningful. Items reopened and re-closed take the last transition." },
+    { widget: "Epics — cycle time, throughput, size vs cycle time",
+      decision: "Whether slow epics are genuinely large or simply held open. Large-and-slow is a slicing problem; small-and-slow is a flow problem.",
+      source: "Jira epics with rolled-up story points from children.",
+      fetch: "Jira Agile REST — GET /rest/agile/1.0/epic/{id}/issue — story points summed across children; P85 computed over the completed set.",
+      labels: "Story points must be on the child issues, not the epic. Tag the epic with the release (fixVersion Release 2026.3) so it appears under the selected release filter." },
+    { widget: "Stories — weekly cadence and size distribution",
+      decision: "Shows whether the team's delivery is steady or batched. A saw-tooth cadence usually means work lands at sprint boundaries rather than continuously.",
+      source: "Jira, including technical stories.",
+      fetch: "Weekly buckets over the same changelog query; ISO week boundaries.",
+      labels: "Technical work must be a Story with the tech label to be included; Tasks are counted separately." },
+    { widget: "MAINT defect flow",
+      decision: "Defect pressure and whether the team is keeping pace with inflow. Closure rate above 100% means the backlog is shrinking.",
+      source: "Jira MAINT issue type; open backlog queried live at page load rather than period-end.",
+      fetch: "Jira JQL — project = MAINT AND \"Team\" = Entitlements AND resolutiondate >= startOfQuarter() — plus a live unresolved count.",
+      labels: "Set the Team field on every MAINT issue and keep Priority meaningful — if blockers and minors clear at the same speed, priority is decorative." },
+    { widget: "Pull requests",
+      decision: "Review latency and batching. Share under 500 LOC is the strongest single lever on both review quality and cycle time.",
+      source: "LinearB, restricted to the team's configured repository or journey scope.",
+      fetch: "LinearB API measurements endpoint, filtered by the team's repo/label scope; size is additions plus deletions.",
+      labels: "Configure the team's repository scope in LinearB and mirror it in Project settings → Connectors, otherwise PRs from shared repos count against the wrong team." }
+  ] },
+  release: { title: "Release Readiness — how this page works", sub: "One merged view for test confidence and release evidence, pulled once. The platform reports the decision; the release manager makes it.",
+    who: [
+      "Someone chairing the go / no-go call who needs one page that holds both test confidence and release evidence, instead of two dashboards that half-agree.",
+      "Someone who has to justify a release decision afterwards and wants the blocking items and their owners recorded at the time.",
+      "Someone checking, mid-release, whether the verification that was planned has actually run and can be trusted."
+    ], sections: [
+    { widget: "Ship decision",
+      decision: "The go / no-go summary for the release call. Reasons are the literal blocking items — remove them and the verdict recomputes.",
+      source: "Derived from the tiles and blocker list below plus the Engineering Discipline record for every feature in the release.",
+      fetch: "Evaluated per release on each sync; a stale connector in scope forces the verdict out of green regardless of the other inputs.",
+      labels: "Set fixVersion = Release 2026.3 on every issue in the release. Untagged work is invisible here and will not block the release, which is the most common cause of a surprise escape." },
+    { widget: "Test execution, pass rate, flaky tests, automation coverage",
+      decision: "Whether the verification actually ran, and whether the result can be trusted. Flake above threshold devalues the pass rate on the same card.",
+      source: "Xray test executions, CI runs, SonarQube coverage.",
+      fetch: "Xray GraphQL getTestExecutions(jira: {jql: \"fixVersion = '2026.3'\"}) with per-test run status; flake classified as passed-on-retry with no code change between attempts.",
+      labels: "Link every Xray test execution to the release version, and keep test repository folders aligned to the journey names used in Jira." },
+    { widget: "NFR verification / Evidence completeness",
+      decision: "The two rows that most often block a release. Both read the Engineering Discipline record — this page never computes its own evidence truth.",
+      source: "Confluence (perf and a11y sign-off pages), CI (axe-core, perf runner), the evidence checklist.",
+      fetch: "Cross-link to the Engineering Discipline rule results for the same feature set; CI artifacts matched by run ID.",
+      labels: "Attach the axe-core and performance reports to the CI run with the artifact names accessibility-report and performance-report so they are auto-discovered." },
+    { widget: "Release-blocking defects",
+      decision: "The list the release call walks item by item. Unacknowledged high-severity items auto-notify rather than waiting for someone to open this page.",
+      source: "Jira defects flagged as release-blocking.",
+      fetch: "Jira JQL — fixVersion = \"2026.3\" AND labels = release-blocker AND resolution = Unresolved ORDER BY priority DESC.",
+      labels: "Label the defect release-blocker and set fixVersion. Severity comes from Jira Priority (Blocker / Critical)." }
+  ] },
+  portfolio: { title: "Portfolio & Programme — how this page works", sub: "A pure roll-up. Nothing here computes its own truth — every cell is the same number the owning team sees on its own dashboard.",
+    who: [
+      "Someone deciding where to put programme attention next month, who needs to tell a bad sprint apart from a capability that is consistently struggling.",
+      "Someone running a monthly or quarterly review across several teams who wants one grid instead of a deck assembled by hand.",
+      "Someone who needs to be sure the numbers shown here are the same ones each team sees, so the conversation is not spent reconciling figures."
+    ], sections: [
+    { widget: "Systemic hotspots grid",
+      decision: "Where to direct programme attention next month: a row that is red across DoR, DoD and escapes is a capability problem, not a bad sprint.",
+      source: "Aggregated from each team's Engineering Discipline and Release Confidence records.",
+      fetch: "Precomputed nightly into metrics_snapshots per team and period; the grid reads snapshots, not the source systems, so it loads fast and stays consistent with the team views.",
+      labels: "Team identity comes from the project's SSO group mapping. A team missing from this grid has no project configured, which renders as absent rather than as zero." },
+    { widget: "Cell colouring",
+      decision: "Colour is a threshold, not a ranking — the grid deliberately does not rank teams against each other.",
+      source: "Project-level thresholds, configurable per programme.",
+      fetch: "Thresholds live in rules; changing them is an audited action.",
+      labels: "Benchmarking across teams is only ever shown paired with escaped-defect and evidence-completeness signals, to avoid recreating a feature-factory incentive." }
+  ] },
+  settings: { title: "Settings — how this area works", sub: "Two levels of configuration: what a project runs, and how the platform reaches the source systems. Every change on this page writes an audit entry.",
+    who: [
+      "Someone setting up a new team on the platform who needs to choose which dashboards that team runs and point each widget at the right query.",
+      "Someone whose dashboard shows a gap and who suspects the query scope, not the team, is wrong.",
+      "Someone responsible for credentials who needs to rotate a token or check what a service account can actually reach."
+    ], sections: [
+      { widget: "Projects",
+        decision: "A project is the unit of access, ownership and connector scope. Enabling a template here deep-copies it into a new dashboard for that project; later template edits never reach back into it.",
+        source: "Platform's own store — projects, dashboards, templates, widgets, connector_instances.",
+        fetch: "Written through the platform API. Deleting a project soft-deletes its dashboards and keeps the audit trail.",
+        labels: "Keep the project key aligned with the Jira project key — several default queries are generated from it." },
+      { widget: "Per-widget connector configuration",
+        decision: "The query is the contract between a widget and its source. Narrowing it is the fastest way to fix a number that looks wrong for the team.",
+        source: "Each widget binds to one connector instance and one query, with its own refresh interval.",
+        fetch: "Queries are validated and previewed before saving; a failing query saves as disabled rather than silently returning nothing.",
+        labels: "Query syntax follows the source: JQL for Jira, CQL for Confluence, GraphQL for Xray, REST paths for GitHub and CI." },
+      { widget: "Connectors",
+        decision: "Which systems the platform may reach, with what credentials, and how often. A stale or disabled connector degrades every widget bound to it rather than hiding it.",
+        source: "connector_types and connector_instances; secrets held in the vault.",
+        fetch: "Each connector declares its own auth model — an OAuth app, an API key pair, an installation ID and private key, or a service token — so the form changes per connector.",
+        labels: "Rotate credentials on the schedule shown per connector. Tokens are write-only in this UI and can be replaced but never read back." },
+      { widget: "Access & SSO",
+        decision: "Who can see a project's data. Authorisation is evaluated on every API call, so removing a group here removes the data, not just the menu item.",
+        source: "project_access, seeded from SSO group membership.",
+        fetch: "Group membership resolves at sign-in; explicit grants layer on top for cross-team reviewers.",
+        labels: "Name SSO groups consistently per team; the group-to-project mapping is the thing most often out of date after a reorg." }
+    ] },
+  signal: { title: "Quality Trajectory — how this page works", sub: "Quarterly executive view. DORA's four keys are used as shared vocabulary so a new leader can read this without onboarding.",
+    who: [
+      "Someone reporting quarterly on whether quality is genuinely improving, who needs an outcome measure rather than an activity count.",
+      "Someone new to the organisation who needs a widely-recognised frame — DORA's four keys — to read the numbers without a briefing first.",
+      "Someone accountable for the programme itself, checking that the practice moved and not just the reporting."
+    ], sections: [
+    { widget: "Evidence completeness / Escaped defects",
+      decision: "Is the organisation's quality trajectory improving. These are the two outcome measures the programme is accountable for.",
+      source: "Rolled up from project dashboards; no independent query.",
+      fetch: "Quarterly aggregation over metrics_snapshots; each point drills to the contributing projects.",
+      labels: "Nothing to tag — accuracy here depends entirely on shiftleft-tracked and fixVersion discipline in the underlying projects." },
+    { widget: "Change failure rate / Lead time (DORA)",
+      decision: "Externally comparable framing for board and CTO conversations, sitting alongside the Backbase-specific evidence measures.",
+      source: "CI/CD deployment records, incident records in JSM, Jira changelog.",
+      fetch: "Deployments from GitHub Deployments API and the CD tool; failures matched to deployments by the incident's Caused-by deployment field.",
+      labels: "Set Caused-by deployment on incidents, and mark rollbacks as deployments of type rollback so change failure rate is not undercounted." },
+    { widget: "Reporting without behaviour change (counter-metric)",
+      decision: "Guards against the failure mode of this whole platform: adoption rising while practice stays still. If adoption moves and the behaviour metrics do not, the programme is not working.",
+      source: "Platform usage analytics paired with the behaviour metrics above.",
+      fetch: "Dashboard opens and action-record acknowledge/resolve times from the platform's own store, plotted against evidence completeness and escaped defects.",
+      labels: "None. This widget is intentionally not configurable." }
+  ] }
+};
+
+const TEMPLATE_DEFS = [
+  { id: "discipline", name: "Engineering Discipline & Feature Readiness", perspective: "Evidence of record", widgets: [
+    { w: "Evidence checklist", c: "Jira", q: "project = ENT AND labels = shiftleft-tracked AND fixVersion = \"2026.3\"", i: "5 min" },
+    { w: "Artifact pages", c: "Confluence", q: "label in (sl-requirements, sl-testplan, sl-hld, sl-lld, sl-threatmodel) AND ancestor = 4915231", i: "15 min" },
+    { w: "Test evidence", c: "Xray", q: "getTestExecutions(jira: {jql: \"fixVersion = '2026.3'\"}, limit: 100) { total results { status } }", i: "10 min" },
+    { w: "Accessibility & perf artifacts", c: "CI (GitHub Actions)", q: "workflow:verify · artifacts: accessibility-report, performance-report", i: "10 min" },
+    { w: "Design evidence", c: "Figma", q: "file:BB-Entitlements · frames named with the Jira key", i: "60 min" }
+  ] },
+  { id: "execution", name: "Developer & SDET Flow", perspective: "Execution health", widgets: [
+    { w: "Defect detection stage", c: "Jira", q: "project = ENT AND issuetype = Bug AND created >= startOfRelease() ORDER BY created DESC", i: "5 min" },
+    { w: "PR feedback latency", c: "GitHub", q: "GET /repos/backbase/entitlements/actions/runs?status=completed&created=>=2026-07-01", i: "5 min" },
+    { w: "Test layer mix", c: "Allure", q: "suites tagged @L1 @L2 @L3 @L4, last 7 days", i: "15 min" },
+    { w: "Static analysis", c: "SonarQube", q: "component_keys=bb:entitlements&metricKeys=coverage,new_violations", i: "30 min" }
+  ] },
+  { id: "delivery", name: "Engineering Delivery Health (incl. Operational Indicators)", perspective: "Delivery control", widgets: [
+    { w: "Cycle time & throughput", c: "Jira", q: "project = ENT AND status changed to Done during (\"2026-07-01\",\"2026-08-30\")", i: "60 min" },
+    { w: "Epic rollup", c: "Jira", q: "GET /rest/agile/1.0/epic/{id}/issue — story points summed across children", i: "60 min" },
+    { w: "MAINT defect flow", c: "Jira", q: "project = MAINT AND \"Team\" = Entitlements AND resolutiondate >= startOfQuarter()", i: "30 min" },
+    { w: "PR size & latency", c: "LinearB", q: "teamIds=418 · repos: APPR, LIM, AC, AG, LE-LEGALENTITY", i: "60 min" }
+  ] },
+  { id: "release", name: "Release & Quality Confidence", perspective: "Release confidence", widgets: [
+    { w: "Execution & pass rate", c: "Xray", q: "getTestExecutions(jira: {jql: \"fixVersion = '2026.3'\"}, limit: 100)", i: "10 min" },
+    { w: "Flaky classification", c: "CI (GitHub Actions)", q: "reruns where attempt > 1 AND head_sha unchanged", i: "10 min" },
+    { w: "Release blockers", c: "Jira", q: "fixVersion = \"2026.3\" AND labels = release-blocker AND resolution = Unresolved", i: "5 min" },
+    { w: "NFR verification", c: "CI (GitHub Actions)", q: "artifacts: accessibility-report, performance-report on the candidate run", i: "10 min" }
+  ] },
+  { id: "portfolio", name: "Portfolio & Programme Overview", perspective: "Portfolio quality", widgets: [
+    { w: "Team rollup grid", c: "Platform (snapshots)", q: "metrics_snapshots WHERE period = 'Q3-2026' GROUP BY team", i: "nightly" },
+    { w: "Escaped defects by team", c: "Jira", q: "issuetype = Bug AND environment = Production AND resolutiondate >= startOfQuarter()", i: "nightly" }
+  ] },
+  { id: "signal", name: "Executive Stakeholder Perspective", perspective: "Executive signal", widgets: [
+    { w: "Quality trajectory", c: "Platform (snapshots)", q: "metrics_snapshots WHERE metric IN ('evidence_completeness','escaped_defects') ORDER BY period", i: "nightly" },
+    { w: "DORA four keys", c: "GitHub Deployments", q: "GET /repos/{owner}/{repo}/deployments + JSM incidents with Caused-by deployment", i: "nightly" }
+  ] }
+];
+
+const PROJECT_CFG = [
+  { key: "ENT", name: "Entitlements", owner: "M. Okonjo", dashboards: 4, created: "12 Mar 2026", off: ["portfolio", "signal"],
+    access: [["bb-eng-entitlements", "Contributor", "SSO group"], ["bb-qa-shared", "Viewer", "SSO group"], ["h.nuti@backbase.com", "Admin", "Explicit grant"]] },
+  { key: "PAY", name: "DB Payments", owner: "R. Diallo", dashboards: 6, created: "04 Feb 2026", off: ["signal"],
+    access: [["bb-eng-payments", "Contributor", "SSO group"], ["bb-release-mgmt", "Viewer", "SSO group"]] },
+  { key: "NUC", name: "Nucleus", owner: "T. Verhoeven", dashboards: 3, created: "21 Apr 2026", off: ["portfolio", "signal"],
+    access: [["bb-eng-nucleus", "Contributor", "SSO group"], ["bb-mobile-guild", "Viewer", "SSO group"]] },
+  { key: "PLT", name: "Platform Programme", owner: "H. Nuti", dashboards: 2, created: "30 May 2026", off: ["discipline", "execution", "release"],
+    access: [["bb-directors", "Viewer", "SSO group"], ["bb-platform-admins", "Admin", "SSO group"]] }
+];
+
+const CONNECTORS = [
+  { id: "jira", name: "Jira", cat: "Planning & docs", state: "Connected", sync: "6m ago", instances: 3,
+    desc: "Issues, changelog, story points, versions and links. The backbone of both evidence and flow.",
+    auth: ["OAuth 2.0 (3LO) app — recommended", "API token + service account", "Personal access token (Data Center)"],
+    fields: [["Site URL", "https://backbase.atlassian.net", "Cloud site or Data Center base URL."], ["Service account", "svc-shiftleft@backbase.com", "Used when a query runs on a schedule rather than on a user's behalf."], ["API token", "secret", "Stored in the vault, rotated every 90 days."], ["Project keys in scope", "ENT, PAY, NUC, MAINT", "Restricts every query this instance can run."], ["Custom field map", "Risk tier → customfield_10412, Detection stage → customfield_10488", "Maps Backbase fields to the canonical model."]],
+    scopes: "read:jira-work · read:jira-user", rate: "Cloud rate limits apply; sync backs off automatically." },
+  { id: "confluence", name: "Confluence", cat: "Planning & docs", state: "Connected", sync: "14m ago", instances: 2,
+    desc: "Requirements, test plans, HLD/LLD, threat models and NFR sign-off pages, discovered by label.",
+    auth: ["OAuth 2.0 (3LO) app — recommended", "API token + service account"],
+    fields: [["Site URL", "https://backbase.atlassian.net/wiki", "Same Atlassian site as Jira in most setups."], ["Spaces in scope", "ENG, ARCH, SEC", "CQL is restricted to these spaces."], ["API token", "secret", "Stored in the vault."], ["Artifact label map", "sl-requirements, sl-testplan, sl-hld, sl-lld, sl-threatmodel, sl-performance, sl-accessibility", "Which page label satisfies which checklist artifact."]],
+    scopes: "read:content:confluence · read:space:confluence", rate: "CQL results paged at 100." },
+  { id: "xray", name: "Xray", cat: "Test management", state: "Stale", sync: "4h 12m ago", instances: 1,
+    desc: "Test sets, executions, traceability to requirements, and automated results imported from CI.",
+    auth: ["API key — client ID + client secret (Cloud)", "Personal access token (Server / Data Center)"],
+    fields: [["Edition", "Xray Cloud", "Cloud uses an API key pair; Server/DC uses a Jira PAT instead."], ["Client ID", "32A27E69C0AC4E539C14…", "From Xray Global Settings → API Keys."], ["Client secret", "secret", "Exchanged for a bearer token that expires after 24h; refreshed automatically."], ["Test project keys", "ENT, PAY, NUC", "Scopes the GraphQL queries."]],
+    scopes: "Inherits the API key user's Jira permissions.", rate: "300 requests / 5 min on Standard, 1000 on Enterprise." },
+  { id: "github", name: "GitHub", cat: "Code & review", state: "Connected", sync: "3m ago", instances: 1,
+    desc: "Pull requests, reviews, changed files, Actions runs, check results and deployments.",
+    auth: ["GitHub App installation — recommended", "Fine-grained personal access token"],
+    fields: [["Organisation", "backbase", "Installation is scoped to this org."], ["App installation ID", "48219004", "Created once by a platform admin."], ["Private key", "secret", "Signs the app JWT; stored in the vault."], ["Repositories", "entitlements, payments-web, nucleus-ios, nucleus-android", "Only these repos are read."], ["Webhook secret", "secret", "Enables near-real-time PR and run updates instead of polling."]],
+    scopes: "contents:read · pull_requests:read · checks:read · actions:read · deployments:read", rate: "5,000 requests/hour per installation." },
+  { id: "bitbucket", name: "Bitbucket", cat: "Code & review", state: "Disabled", sync: "—", instances: 0,
+    desc: "Alternative source for pull requests and pipelines where a team has not migrated to GitHub.",
+    auth: ["OAuth 2.0 consumer", "Repository access token"],
+    fields: [["Workspace", "backbase", "Bitbucket workspace slug."], ["Consumer key", "—", "From workspace settings → OAuth consumers."], ["Consumer secret", "secret", "Stored in the vault."], ["Repositories", "—", "Explicit list; wildcards are not accepted."]],
+    scopes: "repository:read · pullrequest:read · pipeline:read", rate: "1,000 requests/hour." },
+  { id: "sonarqube", name: "SonarQube", cat: "Code quality", state: "Connected", sync: "22m ago", instances: 1,
+    desc: "Coverage on changed files, new violations and quality-gate status per branch.",
+    auth: ["User token"],
+    fields: [["Server URL", "https://sonar.backbase.net", "Self-hosted instance behind the VPN."], ["User token", "secret", "Generated for a read-only service user."], ["Project keys", "bb:entitlements, bb:payments, bb:nucleus", "One key per analysed component."], ["Branch strategy", "main + PR branches", "Determines which analysis the widgets read."]],
+    scopes: "Browse permission on the listed projects.", rate: "No published limit; polled every 30 min." },
+  { id: "ci", name: "CI (GitHub Actions)", cat: "Build & deploy", state: "Connected", sync: "3m ago", instances: 1,
+    desc: "Workflow runs, durations, first-attempt pass rate, and the artifacts that carry NFR evidence.",
+    auth: ["Shares the GitHub App installation"],
+    fields: [["Workflows in scope", "verify.yml, nightly.yml, release.yml", "Other workflows are ignored."], ["Evidence artifacts", "accessibility-report, performance-report, junit-results", "Artifact names the connector looks for on each run."], ["Retention window", "90 days", "How far back runs are ingested."]],
+    scopes: "actions:read · checks:read", rate: "Shared with the GitHub installation budget." },
+  { id: "jenkins", name: "Jenkins", cat: "Build & deploy", state: "Disabled", sync: "—", instances: 0,
+    desc: "For teams still on Jenkins pipelines rather than Actions.",
+    auth: ["User + API token", "Bearer token (with the plugin)"],
+    fields: [["Base URL", "—", "e.g. https://jenkins.backbase.net"], ["User", "—", "Read-only service user."], ["API token", "secret", "From the user's configure page."], ["Jobs / folders", "—", "Folder path prefixes to ingest."], ["CSRF crumb", "enabled", "Required when CSRF protection is on."]],
+    scopes: "Overall/Read · Job/Read", rate: "Polled every 15 min." },
+  { id: "linearb", name: "LinearB", cat: "Flow metrics", state: "Connected", sync: "41m ago", instances: 1,
+    desc: "PR cycle time, size distribution and review latency, already normalised per team.",
+    auth: ["API key"],
+    fields: [["API key", "secret", "Workspace-level key from LinearB settings."], ["Team IDs", "418 (Entitlements), 502 (Payments), 377 (Nucleus)", "Maps a LinearB team to a project here."], ["Repository scope", "inherited from the LinearB team", "Mirror the scope in both tools or PRs count against the wrong team."]],
+    scopes: "Read-only workspace access.", rate: "Hourly pull." },
+  { id: "jsm", name: "Jira Service Management", cat: "Operations", state: "Connected", sync: "9m ago", instances: 1,
+    desc: "Incidents, escaped defects and the alert destination for release-blocking findings.",
+    auth: ["Shares the Jira connection"],
+    fields: [["Service desk project", "OPS", "Incidents are read from here."], ["Incident link field", "Caused-by deployment", "Used to attribute change failures to a deployment."], ["Alert route", "OPS · Quality gate queue", "Where high-severity findings are raised as tickets."]],
+    scopes: "read:servicedesk-request · write:servicedesk-request", rate: "Shares the Jira budget." },
+  { id: "slack", name: "Slack", cat: "Operations", state: "Connected", sync: "live", instances: 1,
+    desc: "Delivery channel for unacknowledged high-severity findings, so they don't wait to be noticed.",
+    auth: ["Slack app — bot token", "Incoming webhook"],
+    fields: [["Workspace", "backbase.slack.com", "Single workspace."], ["Bot token", "secret", "xoxb- token from the installed app."], ["Default channel", "#shiftleft-alerts", "Per-project overrides live in Alert routes."], ["Severity filter", "Blocker, Critical", "Anything lower stays on the dashboard only."]],
+    scopes: "chat:write · channels:read", rate: "1 message/second per channel." },
+  { id: "sentry", name: "Sentry", cat: "Operations", state: "Connected", sync: "8m ago", instances: 1,
+    desc: "Release regressions and crash-rate signals feeding the post-deploy detection metric.",
+    auth: ["Internal integration token", "OAuth application"],
+    fields: [["Organisation slug", "backbase", "From the Sentry URL."], ["Auth token", "secret", "Internal integration token, read scopes only."], ["Projects", "entitlements-api, nucleus-ios, nucleus-android", "One entry per Sentry project."], ["Release naming", "match the CI release tag", "Lets a regression be attributed to a release."]],
+    scopes: "project:read · event:read · org:read", rate: "Polled every 10 min." },
+  { id: "pagerduty", name: "PagerDuty", cat: "Operations", state: "Not configured", sync: "—", instances: 0,
+    desc: "Optional paging target for release-blocking findings. Deferred in v1 — Slack and JSM cover the launch case.",
+    auth: ["REST API key", "Events API v2 routing key"],
+    fields: [["API key", "—", "Read-only REST key for service lookup."], ["Routing key", "—", "Events API v2 key for the target service."], ["Services", "—", "Which services may be paged from here."]],
+    scopes: "services.read · incidents.write", rate: "Event API is rate limited per routing key." },
+  { id: "figma", name: "Figma", cat: "Design", state: "Connected", sync: "3h ago", instances: 1,
+    desc: "Presence of visual design for a feature — file and frame existence only, never file content.",
+    auth: ["OAuth 2.0", "Personal access token"],
+    fields: [["Team / project", "Backbase Design · Banking", "Scopes file discovery."], ["Access token", "secret", "Read-only token for a service account."], ["File keys", "BB-Entitlements, BB-Nucleus", "Files checked for feature frames."], ["Frame naming rule", "frame name contains the Jira key", "How a design is matched to a feature."]],
+    scopes: "file_read", rate: "Polled hourly; design changes rarely need faster." },
+  { id: "datadog", name: "Datadog", cat: "Observability", state: "Not configured", sync: "—", instances: 0,
+    desc: "Optional. Post-deploy service health for the Maintain loop and executive MTTR.",
+    auth: ["API key + Application key"],
+    fields: [["Site", "datadoghq.eu", "Region matters — EU and US are separate endpoints."], ["API key", "—", "Organisation-level key."], ["Application key", "—", "Scoped to a read-only role."], ["Monitors / SLOs", "—", "Which objects contribute to the widgets."]],
+    scopes: "metrics_read · monitors_read · slos_read", rate: "Per-org limits by endpoint." },
+  { id: "security", name: "Security scanners", cat: "Security", state: "Connected", sync: "27m ago", instances: 2,
+    desc: "SAST and dependency findings. Presence and status only — finding content stays in the source tool.",
+    auth: ["Service account token per scanner"],
+    fields: [["Scanners", "CodeQL (via GitHub), Snyk", "Each scanner is a separate instance."], ["Snyk org ID", "bb-platform", "From Snyk organisation settings."], ["Token", "secret", "Read-only service account."], ["Severity floor", "High", "Findings below this are not surfaced here."], ["Content policy", "status only", "Titles and payloads are never stored by the platform."]],
+    scopes: "security_events:read (GitHub) · org.read, project.read (Snyk)", rate: "Polled every 30 min." }
+];
+
+const ACCESS_MODEL = [
+  { t: "Sign-in is SSO only, inside the VPN", d: "The service sits at shiftleft.backbase.com behind the corporate VPN, with Backbase SSO (OIDC) as the only identity provider. There is no local account, no password reset, and no anonymous share link — a permalink still requires a session." },
+  { t: "Authentication is not authorisation", d: "Being signed in gets you the app, not the data. Every dashboard, connector instance and rule belongs to exactly one project, and access is evaluated at the API layer on every read and write — not hidden in the UI." },
+  { t: "SSO groups seed access, explicit grants layer on top", d: "A team's SSO group maps to its project with a default role on first login. Cross-team reviewers who need read access across many projects get an explicit grant instead of joining every team's group." },
+  { t: "Three roles, project-scoped", d: "Viewer reads dashboards. Contributor edits dashboards and rules within the project. Admin manages connectors, access grants and template governance for that project. A small, audited platform-admin set exists for the service's own operators." },
+  { t: "Connector credentials are service accounts, not yours", d: "Scheduled syncs run as a service account whose own source-system permissions define the ceiling of what can ever be ingested. Where a source supports it, drill-down opens in the source system so the user's own permissions apply at the moment of reading." },
+  { t: "Sensitive evidence is status-only", d: "Threat models, unresolved security findings and pen-test evidence are stored as presence and status. The content never leaves the source system, so a broad dashboard grant can never become a broad security-data grant." },
+  { t: "Secrets live in the vault, never in a dashboard", d: "Tokens and keys are write-only in this UI: you can replace one, never read one back. Rotation is scheduled per connector, and every grant, revoke and credential change is an immutable audit entry with longer retention than ordinary dashboard edits." }
+];
+
+class Component extends DCLogic {
+  state = { screen: "discipline", project: "entitlements", release: "2026.3", selIdx: null, aiAccepted: false, acked: {}, guide: false, setTab: "projects", selProj: 0, selConn: "jira", openTpl: "discipline", tplOff: {}, queries: {}, authPick: {}, connOff: {}, tested: "" };
+
+  set(patch) { this.setState(patch); }
+
+  niceMax(v) { if (v <= 0) return 1; const m = Math.pow(10, Math.floor(Math.log10(v))); return Math.ceil(v / m * 2) / 2 * m; }
+  r(n) { return Math.round(n * 10) / 10; }
+
+  frame() { return { W: 640, H: 220, padL: 46, padR: 8, padT: 12, padB: 34 }; }
+
+  gridOf(max) {
+    const f = this.frame(), plotH = f.H - f.padT - f.padB, out = [];
+    for (let i = 0; i <= 4; i++) {
+      const y = this.r(f.padT + plotH - plotH * i / 4);
+      out.push({ y, ty: y + 3.5, label: String(Math.round(max * i / 4 * 100) / 100) });
+    }
+    return out;
+  }
+
+  lineSpec(cats, series, caption) {
+    const f = this.frame(), plotW = f.W - f.padL - f.padR, plotH = f.H - f.padT - f.padB;
+    const max = this.niceMax(Math.max.apply(null, series.reduce((a, s) => a.concat(s.data), [])));
+    const step = cats.length > 1 ? plotW / (cats.length - 1) : 0;
+    const lines = [], dots = [];
+    series.forEach(s => {
+      const pts = s.data.map((v, i) => [this.r(f.padL + step * i), this.r(f.padT + plotH - (v / max) * plotH)]);
+      lines.push({ points: pts.map(p => p[0] + "," + p[1]).join(" "), stroke: s.color });
+      pts.forEach(p => dots.push({ cx: p[0], cy: p[1], fill: s.color }));
+    });
+    return { legend: series.map(s => ({ name: s.name, color: s.color })), grid: this.gridOf(max), bars: [], lines, dots,
+      xlabels: cats.map((c, i) => ({ x: this.r(f.padL + step * i), y: f.H - f.padB + 18, label: c })), caption };
+  }
+
+  barSpec(cats, series, caption) {
+    const f = this.frame(), plotW = f.W - f.padL - f.padR, plotH = f.H - f.padT - f.padB;
+    const max = this.niceMax(Math.max.apply(null, series.reduce((a, s) => a.concat(s.data), [])));
+    const groupW = plotW / cats.length, barW = (groupW * 0.62) / series.length, bars = [];
+    cats.forEach((c, ci) => {
+      const gx = f.padL + groupW * ci;
+      series.forEach((s, si) => {
+        const v = s.data[ci] || 0, h = (v / max) * plotH;
+        bars.push({ x: this.r(gx + groupW * 0.19 + barW * si), y: this.r(f.padT + plotH - h), w: this.r(Math.max(barW - 3, 2)), h: this.r(Math.max(h, 0)), fill: s.color });
+      });
+    });
+    return { legend: series.map(s => ({ name: s.name, color: s.color })), grid: this.gridOf(max), bars, lines: [], dots: [],
+      xlabels: cats.map((c, i) => ({ x: this.r(f.padL + groupW * i + groupW / 2), y: f.H - f.padB + 18, label: c })), caption };
+  }
+
+  tile(v, label, rag, note) { return { value: v, label, note, color: C[rag] || "#16171B" }; }
+
+  feature(f, i) {
+    const arts = f.st.map((code, k) => {
+      const a = ARTIFACTS[k], s = ST[code];
+      const stale = this.props.stalenessDemo && (k === 6 || k === 7) && code === "p" ? ST.s : s;
+      return { name: a[0], accountable: a[1], gate: a[2], source: a[3], code, statusLabel: stale.label, color: stale.color, bg: stale.bg,
+        note: f.notes[k] || "", hasNote: !!f.notes[k],
+        link: code === "m" ? "not linked" : "open ↗", linkColor: code === "m" ? "#C7C6C1" : "#3355FF" };
+    });
+    const count = (gates) => {
+      const set = arts.filter(a => gates.indexOf(a.gate) >= 0 && a.code !== "w");
+      return { done: set.filter(a => a.code === "p" || a.code === "s").length, total: set.length };
+    };
+    const rc = count(["Ready", "Both"]), dc = count(["Done", "Both"]);
+    const missing = arts.filter(a => a.code === "m");
+    const tier = TIERS[f.tier];
+    const pct = (o) => o.total ? Math.round(o.done / o.total * 100) : 100;
+    const col = (o) => pct(o) === 100 ? C.good : pct(o) >= 70 ? C.watch : C.poor;
+    return {
+      idx: i, id: f.id, name: f.name, tier: f.tier, gate: f.gate, tierColor: tier.color, tierBg: tier.bg,
+      ragColor: C[f.rag], ragLabel: RAGL[f.rag],
+      reason: missing.length ? missing.length + " required artifacts missing" : (f.rag === "watch" ? "evidence present, one signal amber" : "all required evidence present"),
+      readyText: rc.done + " of " + rc.total, doneText: dc.done + " of " + dc.total,
+      readyPct: pct(rc), donePct: pct(dc), readyColor: col(rc), doneColor: col(dc),
+      artifacts: arts, missingList: missing.map(a => a.name + " — " + a.accountable + ", due at " + (a.gate === "Both" ? "Ready and Done" : a.gate)),
+      missingCount: missing.length, hasMissing: missing.length > 0,
+      owner: f.owner, next: f.next, age: f.age, ai: f.ai,
+      gateNote: "Ready counts artifacts due before development starts; Done counts artifacts due before sign-off. Scoped-out artifacts are excluded from both and listed as waivers.",
+      open: () => this.set({ selIdx: i, aiAccepted: false })
+    };
+  }
+
+  renderVals() {
+    const s = this.state, p = s.project;
+    const screens = {
+      discipline: { perspective: "Perspective 1 · Engineering Discipline", title: "Feature Readiness", sub: "Is this feature allowed to start, or to ship? Composed from the evidence checklist — never from a hidden score." },
+      execution: { perspective: "Perspective 2 · Execution Health", title: "Developer & SDET Flow", sub: "Is today's PR, build and test loop healthy? Real-time, and always linked back to the evidence record." },
+      delivery: { perspective: "Perspective 3 · Delivery Control", title: "Team Insights", sub: "Operational indicators — pace, size and defect pressure for the team's current window." },
+      release: { perspective: "Perspective 4 · Release & Quality Confidence", title: "Release Readiness", sub: "Is this release safe to ship? One view, pulled once — test confidence and release evidence together." },
+      portfolio: { perspective: "Perspective 5 · Portfolio Quality", title: "Portfolio & Programme", sub: "Where are systemic hotspots across teams? A pure roll-up — every cell traces to a team record." },
+      signal: { perspective: "Perspective 6 · Executive Signal", title: "Quality Trajectory", sub: "Is the organisation's quality trajectory improving, and is the practice moving with the reporting?" },
+      settings: { perspective: "Administration", title: "Settings", sub: "Projects and the templates they run, connector configuration, and how access is decided. Changes here are audited." }
+    };
+    const cur = screens[s.screen];
+    const navDef = [
+      ["Evidence", [["discipline", "Feature Readiness", "ETL · PM · architects"]]],
+      ["Delivery", [["execution", "Developer & SDET Flow", "devs · SDETs · leads"], ["delivery", "Team Insights", "managers · delivery leads"]]],
+      ["Release", [["release", "Release Readiness", "QA leads · release managers"]]],
+      ["Roll-up", [["portfolio", "Portfolio & Programme", "directors · programme leads"], ["signal", "Quality Trajectory", "VP Eng · CTO"]]],
+      ["Administration", [["settings", "Settings", "projects, connectors, access"]]]
+    ];
+    const nav = navDef.map(([label, items]) => ({
+      label,
+      items: items.map(([id, lab, sub]) => {
+        const on = s.screen === id;
+        return { label: lab,
+          style: "display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:left;border:none;cursor:pointer;font-family:inherit;padding:8px 10px;border-radius:8px;background:" + (on ? "#22252B" : "transparent") + ";color:" + (on ? "#FFFFFF" : "#9DA0A8"),
+          dot: "width:6px;height:6px;border-radius:99px;flex-shrink:0;background:" + (on ? "#3355FF" : "transparent"),
+          onClick: () => this.set({ screen: id, selIdx: null }) };
+      })
+    }));
+
+    const feats = FEATURES[p].map((f, i) => this.feature(f, i));
+    const sel = s.selIdx !== null ? feats[s.selIdx] : null;
+    const done = feats.filter(f => f.gate === "Done gate");
+    const cleared = done.filter(f => f.ragLabel === RAGL.good).length;
+    const dor = Math.round(feats.reduce((a, f) => a + f.readyPct, 0) / feats.length);
+    const dod = Math.round(done.reduce((a, f) => a + f.donePct, 0) / done.length);
+    const wv = WAIVERS[p];
+
+    const sh = SHIFT[p], dk = DECKS[p], rl = RELEASE[p];
+    const stale = !!this.props.stalenessDemo;
+
+    const deckSections = [
+      { title: "Epics", scope: "Jira · rolled-up story points",
+        tiles: [this.tile(dk.epics.q2avg, "Q2 average cycle time", "", dk.epics.q2sub), this.tile(dk.epics.q3avg, "Q3 average cycle time", dk.epics.q3rag, dk.epics.q3sub), this.tile(String(dk.epics.tq2), "Q2 throughput", "", "epics completed in 13.0 weeks"), this.tile(String(dk.epics.tq3), "Q3 throughput", dk.epics.trag, "8.7 weeks · " + dk.epics.delta)],
+        charts: [
+          { title: "Epic throughput, Q2 vs Q3", spec: this.barSpec(["Q2 2026", "Q3 2026"], [{ name: "Epics done", data: [dk.epics.tq2, dk.epics.tq3], color: C.info }], "x-axis quarter · y-axis epics completed") },
+          { title: "Epic size vs cycle time", spec: this.barSpec(dk.epics.size.labels, [{ name: "Epics done", data: dk.epics.size.count, color: C.info }, { name: "Avg cycle time (days)", data: dk.epics.size.cycle, color: C.watch }], "x-axis size bucket · y-axis count and mean cycle time") }
+        ] },
+      { title: "Stories", scope: "Jira · includes technical stories",
+        tiles: [this.tile(dk.stories.q2avg, "Q2 average cycle time", "", dk.stories.q2sub), this.tile(dk.stories.q3avg, "Q3 average cycle time", dk.stories.q3rag, dk.stories.q3sub), this.tile(String(dk.stories.tq2), "Q2 throughput", "", "13.0 weeks"), this.tile(String(dk.stories.tq3), "Q3 throughput", dk.stories.trag, "8.7 weeks · " + dk.stories.delta)],
+        charts: [
+          { title: "Weekly completion cadence", spec: this.lineSpec(dk.stories.weeks, [{ name: "Stories done", data: dk.stories.done, color: C.info }], "x-axis ISO week · y-axis stories completed") },
+          { title: "Story distribution by size", spec: this.barSpec(dk.stories.size.labels, [{ name: "Stories done", data: dk.stories.size.count, color: C.info }, { name: "Avg cycle time (days)", data: dk.stories.size.cycle, color: C.watch }], "x-axis point bucket · y-axis count and mean cycle time") }
+        ] },
+      { title: "MAINT defect flow", scope: "Jira · MAINT issue type",
+        tiles: [this.tile(dk.maint.q2avg, "Q2 average cycle time", "", dk.maint.q2sub), this.tile(dk.maint.q3avg, "Q3 average cycle time", dk.maint.q3rag, dk.maint.q3sub), this.tile(dk.maint.backlog, "Open backlog now", dk.maint.backlogRag, dk.maint.backlogSub), this.tile(dk.maint.flow, "Opened / closed", dk.maint.flowRag, dk.maint.flowSub)],
+        charts: [
+          { title: "Priority mix and cycle time", spec: this.barSpec(dk.maint.priority.labels, [{ name: "Resolved", data: dk.maint.priority.count, color: C.info }, { name: "Avg cycle time (days)", data: dk.maint.priority.cycle, color: C.poor }], "x-axis priority · y-axis resolved count and mean cycle time") },
+          { title: "Cycle time by PR size", spec: this.barSpec(dk.prs.buckets.labels, [{ name: "Median cycle time (days)", data: dk.prs.buckets.cycle, color: C.watch }], "x-axis changed lines · y-axis median cycle time") }
+        ] },
+      { title: "Pull requests", scope: dk.prs.scope,
+        tiles: [this.tile(dk.prs.q2median, "Q2 median cycle time", "", dk.prs.q2sub), this.tile(dk.prs.q3median, "Q3 median cycle time", "good", dk.prs.q3sub), this.tile(dk.prs.small, "Share under 500 LOC", dk.prs.smallRag, dk.prs.smallSub), this.tile(dk.prs.huge, "Huge PRs, 1000 LOC and above", dk.prs.hugeRag, dk.prs.hugeSub)],
+        charts: [
+          { title: "Two-week merge throughput", spec: this.lineSpec(dk.prs.periods, [{ name: "PRs merged", data: dk.prs.merged, color: C.info }], "x-axis two-week period start · y-axis PRs merged") },
+          { title: "Where defects are found", spec: this.lineSpec(sh.detection.weeks, [{ name: "At PR", data: sh.detection.pr, color: C.good }, { name: "Nightly or later", data: sh.detection.nightly, color: C.watch }, { name: "After deploy", data: sh.detection.prod, color: C.poor }], "x-axis reporting week · y-axis share of detected defects (%)") }
+        ] }
+    ];
+
+    return {
+      nav, project: p, release: s.release,
+      projectOptions: [{ value: "entitlements", label: "Entitlements" }, { value: "payments", label: "DB Payments" }, { value: "nucleus", label: "Nucleus" }],
+      releaseOptions: [{ value: "2026.3", label: "Release 2026.3 · Jul 1 – Aug 30" }, { value: "2026.2", label: "Release 2026.2 · Apr 1 – Jun 30" }],
+      onProject: (e) => this.set({ project: e.target.value, selIdx: null }),
+      onRelease: (e) => this.set({ release: e.target.value }),
+      openReview: () => this.set({ screen: "discipline", selIdx: null }),
+      goDiscipline: () => this.set({ screen: "discipline", selIdx: 0 }),
+      goDelivery: () => this.set({ screen: "delivery", selIdx: null }),
+
+      settingsTabs: [["projects", "Projects"], ["connectors", "Connectors"], ["access", "Access & SSO"]].map(([id, label]) => ({ label,
+        style: "white-space:nowrap;border:1px solid " + (s.setTab === id ? "#121316" : "#DFDED9") + ";background:" + (s.setTab === id ? "#121316" : "#FFFFFF") + ";color:" + (s.setTab === id ? "#FFFFFF" : "#4A4D55") + ";border-radius:8px;padding:7px 14px;font-size:12.5px;font-family:inherit;cursor:pointer;font-weight:500",
+        onClick: () => this.set({ setTab: id }) })),
+      isProjectsTab: s.setTab === "projects", isConnectorsTab: s.setTab === "connectors", isAccessTab: s.setTab === "access",
+
+      projectList: PROJECT_CFG.map((pr, i) => ({ name: pr.name, key: pr.key, meta: pr.owner + " · " + pr.dashboards + " dashboards",
+        style: "text-align:left;width:100%;border:1px solid " + (s.selProj === i ? "#3355FF" : "#EFEEEA") + ";background:" + (s.selProj === i ? "#F7F8FF" : "#FFFFFF") + ";border-radius:10px;padding:11px 13px;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;gap:3px",
+        onClick: () => this.set({ selProj: i }) })),
+      proj: (() => {
+        const pr = PROJECT_CFG[s.selProj];
+        return { name: pr.name, key: pr.key, owner: pr.owner, created: pr.created, dashboards: String(pr.dashboards),
+          access: pr.access.map(a => ({ who: a[0], role: a[1], via: a[2] })) };
+      })(),
+      templates: TEMPLATE_DEFS.map(t => {
+        const pr = PROJECT_CFG[s.selProj], k = pr.key + ":" + t.id;
+        const on = s.tplOff[k] !== undefined ? !s.tplOff[k] : pr.off.indexOf(t.id) < 0;
+        const open = s.openTpl === t.id;
+        return { name: t.name, perspective: t.perspective, open,
+          stateLabel: on ? "Enabled" : "Disabled",
+          stateStyle: "font-size:11px;padding:3px 8px;border-radius:6px;font-weight:500;background:" + (on ? C.goodBg : C.neutralBg) + ";color:" + (on ? C.good : C.neutral),
+          toggleStyle: "width:38px;height:22px;border-radius:99px;border:none;cursor:pointer;padding:2px;display:flex;justify-content:" + (on ? "flex-end" : "flex-start") + ";background:" + (on ? "#3355FF" : "#DFDED9"),
+          toggle: () => this.setState(st => ({ tplOff: Object.assign({}, st.tplOff, { [k]: on }) })),
+          expand: () => this.set({ openTpl: open ? "" : t.id }),
+          chevron: open ? "▾" : "▸",
+          widgets: t.widgets.map((w, wi) => {
+            const qk = k + ":" + wi;
+            return { name: w.w, connector: w.c, interval: w.i, query: s.queries[qk] !== undefined ? s.queries[qk] : w.q,
+              onQuery: (e) => { const v = e.target.value; this.setState(st => ({ queries: Object.assign({}, st.queries, { [qk]: v }) })); } };
+          }) };
+      }),
+
+      connectorGroups: (() => {
+        const cats = [];
+        CONNECTORS.forEach(c => { let g = cats.find(x => x.cat === c.cat); if (!g) { g = { cat: c.cat, items: [] }; cats.push(g); } 
+          const on = s.connOff[c.id] !== undefined ? !s.connOff[c.id] : c.state !== "Disabled" && c.state !== "Not configured";
+          g.items.push({ name: c.name, meta: c.state === "Stale" ? "stale · " + c.sync : (on ? c.instances + " instance" + (c.instances === 1 ? "" : "s") + " · " + c.sync : c.state),
+            dot: "width:6px;height:6px;border-radius:99px;flex-shrink:0;background:" + (c.state === "Stale" ? C.watch : on ? C.good : "#D3D2CD"),
+            style: "text-align:left;width:100%;border:1px solid " + (s.selConn === c.id ? "#3355FF" : "#EFEEEA") + ";background:" + (s.selConn === c.id ? "#F7F8FF" : "#FFFFFF") + ";border-radius:10px;padding:10px 12px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:9px",
+            onClick: () => this.set({ selConn: c.id, tested: "" }) }); });
+        return cats;
+      })(),
+      conn: (() => {
+        const c = CONNECTORS.find(x => x.id === s.selConn);
+        const on = s.connOff[c.id] !== undefined ? !s.connOff[c.id] : c.state !== "Disabled" && c.state !== "Not configured";
+        const pick = s.authPick[c.id] !== undefined ? s.authPick[c.id] : 0;
+        return { name: c.name, cat: c.cat, desc: c.desc, scopes: c.scopes, rate: c.rate, sync: c.sync,
+          stateLabel: on ? (c.state === "Stale" ? "Connected, stale" : "Connected") : c.state,
+          stateStyle: "font-size:11px;padding:3px 9px;border-radius:6px;font-weight:500;background:" + (c.state === "Stale" && on ? C.watchBg : on ? C.goodBg : C.neutralBg) + ";color:" + (c.state === "Stale" && on ? C.watch : on ? C.good : C.neutral),
+          toggleLabel: on ? "Disable connector" : "Enable connector",
+          toggle: () => this.setState(st => ({ connOff: Object.assign({}, st.connOff, { [c.id]: on }) })),
+          auth: c.auth.map((a, i) => ({ label: a,
+            style: "display:flex;align-items:center;gap:9px;border:1px solid " + (pick === i ? "#3355FF" : "#EFEEEA") + ";background:" + (pick === i ? "#F7F8FF" : "#FFFFFF") + ";border-radius:9px;padding:10px 12px;cursor:pointer;font-family:inherit;font-size:12.5px;color:#33353B;text-align:left;width:100%",
+            radio: "width:13px;height:13px;border-radius:99px;flex-shrink:0;border:" + (pick === i ? "4px solid #3355FF" : "1px solid #C7C6C1"),
+            onClick: () => this.setState(st => ({ authPick: Object.assign({}, st.authPick, { [c.id]: i }) })) })),
+          fields: c.fields.map(f => ({ label: f[0], help: f[2], secret: f[1] === "secret",
+            value: f[1] === "secret" ? "••••••••••••  ·  stored in vault, write-only" : (f[1] === "—" ? "Not set" : f[1]),
+            vstyle: "font-size:12px;font-family:'JetBrains Mono',monospace;color:" + (f[1] === "—" ? "#9A9CA3" : "#33353B") + ";background:#FBFBF9;border:1px solid #EFEEEA;border-radius:8px;padding:9px 11px;line-height:1.5" })),
+          tested: s.tested === c.id, test: () => this.set({ tested: c.id }) };
+      })(),
+      accessModel: ACCESS_MODEL,
+
+      guideOpen: s.guide, openGuide: () => this.set({ guide: true }), closeGuide: () => this.set({ guide: false }),
+      guideTitle: GUIDES[s.screen].title, guideSub: GUIDES[s.screen].sub, guideWho: GUIDES[s.screen].who,
+      guideSections: GUIDES[s.screen].sections.map((g, i) => ({ n: String(i + 1).padStart(2, "0"), widget: g.widget,
+        rows: [
+          { k: "Decision it supports", v: g.decision, vstyle: "font-size:12.5px;line-height:1.6;color:#33353B" },
+          { k: "Where it comes from", v: g.source, vstyle: "font-size:12.5px;line-height:1.6;color:#33353B" },
+          { k: "How it is fetched", v: g.fetch, vstyle: "font-size:12px;line-height:1.65;color:#33353B;font-family:'JetBrains Mono',monospace;background:#F7F7F5;border:1px solid #EFEEEA;border-radius:8px;padding:9px 11px" },
+          { k: "How to tag it at source", v: g.labels, vstyle: "font-size:12.5px;line-height:1.6;color:#33353B" }
+        ] })),
+
+      perspective: cur.perspective, title: cur.title, subtitle: cur.sub,
+      isPrimary: s.screen === "discipline",
+      isDiscipline: s.screen === "discipline", isExecution: s.screen === "execution", isDelivery: s.screen === "delivery",
+      isRelease: s.screen === "release", isPortfolio: s.screen === "portfolio", isSignal: s.screen === "signal", isSettings: s.screen === "settings",
+      isFlow: s.screen === "execution" || s.screen === "delivery",
+      stale, syncColor: stale ? "#D9A441" : "#5CD69A", syncLabel: stale ? "1 connector stale · Xray 4h 12m" : "All connectors fresh · synced 6m ago",
+
+      disciplineTiles: [
+        this.tile(dor + "%", "Definition of Ready completeness", dor >= 90 ? "good" : dor >= 70 ? "watch" : "poor", "across " + feats.length + " features in scope"),
+        this.tile(dod + "%", "Definition of Done completeness", dod >= 90 ? "good" : dod >= 70 ? "watch" : "poor", "at sign-off, release bar is 90%"),
+        this.tile(cleared + " / " + done.length, "Cleared at the Done gate", cleared === done.length ? "good" : "poor", "the rest have named missing artifacts"),
+        this.tile(String(wv.length), "Scoped-out artifacts", wv.some(w => w.flagged) ? "poor" : "neutral", wv.filter(w => w.flagged).length + " without a defensible rationale")
+      ],
+      features: feats,
+      waivers: wv.map(w => ({ artifact: w.artifact, feature: w.feature, tier: w.tier, owner: w.owner, at: w.at, rationale: w.rationale, flagged: !!w.flagged, bar: w.flagged ? C.poor : "#E1E0DB" })),
+      actions: ACTIONS[p].map((a, i) => ({ signal: a.signal, next: a.next, owner: a.owner, age: s.acked[i] ? "acknowledged just now" : a.age,
+        status: s.acked[i] ? "Acknowledged" : a.status, color: s.acked[i] ? C.neutral : C[a.sev], bg: s.acked[i] ? C.neutralBg : (a.sev === "poor" ? C.poorBg : C.watchBg),
+        cta: s.acked[i] ? "Acknowledged" : "Acknowledge",
+        ack: () => this.setState(st => ({ acked: Object.assign({}, st.acked, { [i]: true }) })) })),
+
+      panelOpen: !!sel, sel: sel || {}, closePanel: () => this.set({ selIdx: null }),
+      showAi: this.props.showAiAssist !== false && !!sel,
+      aiText: sel ? sel.ai.text : "", aiEvidence: sel ? sel.ai.ev : "",
+      aiCta: s.aiAccepted ? "Accepted by Hari Nuti · recorded" : "Accept as evidence",
+      acceptAi: () => this.set({ aiAccepted: true }),
+
+      headline: sh.headline.map(h => ({ value: h[0], label: h[1], color: C[h[2]], note: h[3] })),
+      detectionChart: this.lineSpec(sh.detection.weeks, [{ name: "At PR", data: sh.detection.pr, color: C.good }, { name: "Nightly or later", data: sh.detection.nightly, color: C.watch }, { name: "After deploy", data: sh.detection.prod, color: C.poor }], "Source: CI, Xray and Jira · x-axis reporting week, y-axis share of detected defects (%)"),
+      stages: sh.stages.map(st => ({ stage: st[0], intent: st[1], metrics: st[2].map(m => ({ name: m[0], value: m[1], color: C[m[2]], note: m[3] })) })),
+
+      deckWindow: dk.window,
+      glance: dk.glance.map(g => ({ row: g[0], q2: g[1], q3: g[2], color: C[g[3]], label: RAGL[g[3]] })),
+      deckSections,
+
+      shipVerdict: rl.verdict, shipColor: C[rl.rag], shipReasons: rl.reasons,
+      releaseTiles: rl.tiles.map(t => this.tile(t[0], t[1], t[2], t[3])),
+      releaseChart: this.lineSpec(rl.trend.x, [{ name: "Pass rate (%)", data: rl.trend.pass, color: C.good }, { name: "Fail rate (%)", data: rl.trend.fail, color: C.poor }], "Source: Xray and CI · x-axis run date, y-axis share of executions (%)"),
+      blockers: rl.blockers.map(b => ({ key: b[0], title: b[1], severity: b[2], owner: b[3], age: b[4],
+        sevColor: b[2] === "Blocker" ? C.poor : b[2] === "Critical" ? C.watch : C.good,
+        sevBg: b[2] === "Blocker" ? C.poorBg : b[2] === "Critical" ? C.watchBg : C.goodBg })),
+
+      portfolio: PORTFOLIO.map(([team, cells]) => ({ team, cells: cells.map(([value, rag]) => ({ value, color: C[rag], bg: rag === "good" ? C.goodBg : rag === "watch" ? C.watchBg : C.poorBg })) })),
+      execTiles: [this.tile("82%", "Evidence completeness", "watch", "org-wide, +6pt on Q2"), this.tile("−18%", "Escaped defects", "good", "quarter on quarter"), this.tile("11.4%", "Change failure rate", "watch", "DORA · target under 10%"), this.tile("2.1d", "Lead time for changes", "good", "DORA · median")],
+      execChart: this.lineSpec(["Q3 25", "Q4 25", "Q1 26", "Q2 26", "Q3 26"], [{ name: "Evidence completeness (%)", data: [61, 66, 71, 76, 82], color: C.good }, { name: "Escaped defects", data: [38, 34, 31, 27, 22], color: C.poor }, { name: "Change failure rate (%)", data: [18, 17, 15, 13, 11], color: C.watch }], "Source: rolled up from project dashboards · x-axis quarter")
+    };
+  }
+}
+
+</script>
+</body>
+</html>

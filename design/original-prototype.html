@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ShiftLeft AI — powering Backbase</title>
+<style>
+  :root {
+    --bg: #171717;
+    --chrome: #1e1e1e;
+    --panel: #202020;
+    --panel-2: #242424;
+    --border: #2e2e2e;
+    --border-2: #3a3a3a;
+    --text: #e8e8e8;
+    --text-2: #a8a8a8;
+    --text-3: #7d7d7d;
+    --accent: #2f81f7;
+    --good: #3fb950;
+    --watch: #d29922;
+    --poor: #f85149;
+    --info: #4d9cf6;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #ffffff;
+      --chrome: #f7f7f7;
+      --panel: #fbfbfb;
+      --panel-2: #f2f2f2;
+      --border: #e3e3e3;
+      --border-2: #d5d5d5;
+      --text: #1c1c1c;
+      --text-2: #5b5b5b;
+      --text-3: #858585;
+      --accent: #0b62d6;
+      --good: #1a7f37;
+      --watch: #9a6700;
+      --poor: #cf222e;
+      --info: #0b62d6;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    line-height: 20px;
+  }
+  header.app {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 12px 16px;
+    background: var(--chrome); border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .mark {
+    width: 28px; height: 28px; border-radius: 6px; background: var(--accent);
+    color: #fff; display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 600; flex-shrink: 0;
+  }
+  .wordmark { font-weight: 700; letter-spacing: 1.1px; }
+  .tagline { color: var(--text-3); font-size: 12px; }
+  .user { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-3); }
+  .chip {
+    background: var(--panel-2); border: 1px solid var(--border-2);
+    border-radius: 999px; padding: 3px 10px; color: var(--text); font-size: 12px;
+  }
+  .shell { display: flex; align-items: stretch; min-height: calc(100vh - 53px); }
+  nav.side {
+    width: 230px; flex-shrink: 0; padding: 12px;
+    border-right: 1px solid var(--border); background: var(--bg);
+  }
+  nav.side .group { color: var(--text-3); font-size: 12px; margin: 14px 0 6px; }
+  nav.side button {
+    display: block; width: 100%; text-align: left; margin-bottom: 6px;
+    background: transparent; border: 1px solid transparent; color: var(--text);
+    padding: 7px 10px; border-radius: 6px; font-size: 13px; cursor: pointer;
+    font-family: inherit;
+  }
+  nav.side button:hover { background: var(--panel-2); }
+  nav.side button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  nav.side .newdash {
+    margin-top: 12px; border: 1px solid var(--border-2); background: var(--panel-2);
+  }
+  nav.side .note { color: var(--text-3); font-size: 12px; margin-top: 10px; }
+  main { flex: 1; min-width: 0; padding: 20px; }
+  .pagehead { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
+  h1 { font-size: 24px; line-height: 30px; margin: 0; font-weight: 600; }
+  h2 { font-size: 18px; line-height: 24px; margin: 22px 0 10px; font-weight: 600; }
+  h3 { font-size: 14px; margin: 0 0 4px; font-weight: 600; }
+  .sub { color: var(--text-2); margin-top: 4px; }
+  .titlerow { display: flex; align-items: center; gap: 8px; }
+  .infobtn {
+    width: 22px; height: 22px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--border-2); background: var(--panel-2); color: var(--text);
+    font-size: 12px; font-style: italic; font-weight: 700; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center; font-family: Georgia, serif;
+  }
+  .infobtn:hover { border-color: var(--accent); color: var(--accent); }
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; }
+  select {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border-2);
+    border-radius: 6px; padding: 6px 8px; font-size: 13px; font-family: inherit;
+  }
+  .grid { display: grid; gap: 12px; }
+  .g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (max-width: 1100px) { .g4 { grid-template-columns: repeat(2, minmax(0,1fr)); } .g3 { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+  @media (max-width: 760px) {
+    .shell { display: block; }
+    nav.side { width: auto; border-right: none; border-bottom: 1px solid var(--border); }
+    .g4, .g3, .g2 { grid-template-columns: minmax(0, 1fr); }
+  }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; }
+  .card > .head {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 8px 12px; border-bottom: 1px solid var(--border);
+    font-size: 12px; color: var(--text-2);
+  }
+  .card > .body { padding: 12px; }
+  .tile .value { font-size: 22px; font-weight: 600; line-height: 28px; }
+  .tile .label { color: var(--text-2); font-size: 12px; }
+  .tile .note { color: var(--text-3); font-size: 12px; margin-top: 6px; }
+  .v-good { color: var(--good); }
+  .v-watch { color: var(--watch); }
+  .v-poor { color: var(--poor); }
+  .rag { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap; }
+  .dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; flex-shrink: 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-2); font-weight: 600; font-size: 12px; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:nth-child(even) { background: rgba(127,127,127,0.05); }
+  .cap { color: var(--text-3); font-size: 12px; margin-top: 8px; }
+  .scope { color: var(--text-2); font-size: 12px; margin: 0 0 10px; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--text-2); margin-bottom: 6px; }
+  .legend span.k { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .pills { display: flex; gap: 6px; flex-wrap: wrap; }
+  .modal-scrim {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 50;
+    display: none; align-items: center; justify-content: center; padding: 24px;
+  }
+  .modal-scrim.open { display: flex; }
+  .modal {
+    width: 100%; max-width: 920px; max-height: 84vh; overflow-y: auto;
+    background: var(--chrome); border: 1px solid var(--border-2);
+    border-radius: 10px; padding: 18px;
+  }
+  .modal .mhead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+  .modal h2 { margin: 0; }
+  .closebtn {
+    background: var(--panel-2); border: 1px solid var(--border-2); color: var(--text);
+    border-radius: 6px; padding: 6px 12px; cursor: pointer; font-family: inherit; font-size: 13px;
+  }
+  .ragkey { display: flex; gap: 14px; flex-wrap: wrap; margin: 8px 0 12px; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+  svg { display: block; width: 100%; height: auto; }
+  .footer { color: var(--text-3); font-size: 12px; margin-top: 24px; }
+</style>
+</head>
+<body>
+<header class="app">
+  <div class="brand">
+    <div class="mark">SL</div>
+    <div>
+      <div class="wordmark">SHIFTLEFT AI</div>
+      <div class="tagline">powering Backbase</div>
+    </div>
+  </div>
+  <div class="user">
+    <span>Signed in</span>
+    <span class="chip">Hari Nuti</span>
+    <span>Shared Services</span>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="side">
+    <button data-nav="home" class="active">Dashboard</button>
+    <div class="group">My dashboards</div>
+    <button data-nav="pr">PR flow</button>
+    <button data-nav="build">Build plugins</button>
+    <div class="group">From templates</div>
+    <button data-nav="team">Team Insights</button>
+    <button class="newdash">New dashboard</button>
+    <div class="note">Dashboards listed here belong to your account.</div>
+  </nav>
+  <main id="main"></main>
+</div>
+
+<div class="modal-scrim" id="scrim">
+  <div class="modal" id="modal"></div>
+</div>
+
+<script>
+/* ------------------------------ data ------------------------------ */
+const RAG = {
+  good:  { label: "Good",            color: "var(--good)",  cls: "v-good" },
+  watch: { label: "Watch",           color: "var(--watch)", cls: "v-watch" },
+  poor:  { label: "Needs attention", color: "var(--poor)",  cls: "v-poor" }
+};
+
+const PROJECTS = [
+  { value: "entitlements", label: "Entitlements" },
+  { value: "payments", label: "DB Payments" },
+  { value: "nucleus", label: "Nucleus" }
+];
+
+const RELEASES = [
+  { value: "2026.3", label: "Release 2026.3 · Jul 1 – Aug 30" },
+  { value: "2026.2", label: "Release 2026.2 · Apr 1 – Jun 30" }
+];
+
+const SHIFT_LEFT = {
+  entitlements: {
+    headline: [
+      { value: "68%",  label: "Defects caught at PR", rag: "watch", note: "target 80%" },
+      { value: "14%",  label: "Found after deploy",   rag: "poor",  note: "target under 5%" },
+      { value: "61%",  label: "Checks at L1–L2",      rag: "watch", note: "target 70%" },
+      { value: "9.4m", label: "Median PR feedback",   rag: "watch", note: "target under 8m" }
+    ],
+    detection: { weeks: ["W27","W29","W31","W33","W35"], pr: [41,48,52,57,61], nightly: [22,19,17,15,14], prod: [7,6,5,5,4] },
+    stages: [
+      { stage: "Plan", intent: "Quality of intent before any code exists.", metrics: [
+        { name: "Stories with testable acceptance criteria", value: "78%", rag: "watch", note: "41 of 52 Q3 stories" },
+        { name: "NFRs named at intake", value: "62%", rag: "poor", note: "perf and a11y most often missing" },
+        { name: "Open ambiguity flags", value: "7", rag: "poor", note: "raised by requirement checks" }]},
+      { stage: "Design", intent: "Decide what gets verified, and at which layer.", metrics: [
+        { name: "Critical paths mapped to a test layer", value: "84%", rag: "watch", note: "16% only covered by E2E" },
+        { name: "Endpoints with planned contract tests", value: "22 / 26", rag: "good", note: "OpenAPI diff driven" },
+        { name: "Observability assertions drafted", value: "11", rag: "good", note: "feeds release checks" }]},
+      { stage: "Build", intent: "Tests arrive with the change, not after it.", metrics: [
+        { name: "Changed paths with unit or slice tests", value: "81%", rag: "watch", note: "target 90%" },
+        { name: "Bug-fix PRs without a regression test", value: "6", rag: "poor", note: "highest-value gap to close" },
+        { name: "New high SAST findings", value: "0", rag: "good", note: "clean for 3 releases" }]},
+      { stage: "Test", intent: "Continuous verification instead of late discovery.", metrics: [
+        { name: "L1 / L2 / L3 / L4 execution share", value: "38 / 23 / 25 / 14", rag: "watch", note: "still E2E heavy" },
+        { name: "Flake rate, 7 day", value: "4.6%", rag: "poor", note: "3 suites drive most of it" },
+        { name: "Failures first seen in PR", value: "68%", rag: "watch", note: "rest surface in nightly" }]},
+      { stage: "Deploy", intent: "Readiness summarised from evidence already collected.", metrics: [
+        { name: "Quality gates green at candidate", value: "9 / 10", rag: "good", note: "perf gate pending" },
+        { name: "Unacknowledged high-severity findings", value: "1", rag: "watch", note: "owner assigned" },
+        { name: "Rollback drill age", value: "12d", rag: "good", note: "within 30d policy" }]},
+      { stage: "Maintain", intent: "Production learning becomes tomorrow's checks.", metrics: [
+        { name: "Escaped defects this release", value: "9", rag: "poor", note: "5 in entitlement rules" },
+        { name: "Regressions added from incidents", value: "7", rag: "good", note: "78% of escapes covered" },
+        { name: "Feedback-loop items still open", value: "3", rag: "watch", note: "awaiting Plan intake" }]}
+    ]
+  },
+  payments: {
+    headline: [
+      { value: "79%",  label: "Defects caught at PR", rag: "good",  note: "target 80%" },
+      { value: "6%",   label: "Found after deploy",   rag: "watch", note: "target under 5%" },
+      { value: "72%",  label: "Checks at L1–L2",      rag: "good",  note: "target 70%" },
+      { value: "5.1m", label: "Median PR feedback",   rag: "good",  note: "target under 8m" }
+    ],
+    detection: { weeks: ["W27","W29","W31","W33","W35"], pr: [58,63,70,74,79], nightly: [18,16,13,11,9], prod: [6,5,4,3,2] },
+    stages: [
+      { stage: "Plan", intent: "Quality of intent before any code exists.", metrics: [
+        { name: "Stories with testable acceptance criteria", value: "91%", rag: "good", note: "43 of 47 Q3 stories" },
+        { name: "NFRs named at intake", value: "84%", rag: "good", note: "payment SLAs stated up front" },
+        { name: "Open ambiguity flags", value: "2", rag: "good", note: "both on one epic" }]},
+      { stage: "Design", intent: "Decide what gets verified, and at which layer.", metrics: [
+        { name: "Critical paths mapped to a test layer", value: "93%", rag: "good", note: "scheme flows covered" },
+        { name: "Endpoints with planned contract tests", value: "31 / 33", rag: "good", note: "two async topics open" },
+        { name: "Observability assertions drafted", value: "24", rag: "good", note: "per journey" }]},
+      { stage: "Build", intent: "Tests arrive with the change, not after it.", metrics: [
+        { name: "Changed paths with unit or slice tests", value: "89%", rag: "good", note: "target 90%" },
+        { name: "Bug-fix PRs without a regression test", value: "2", rag: "watch", note: "both mobile journeys" },
+        { name: "New high SAST findings", value: "1", rag: "watch", note: "dependency upgrade queued" }]},
+      { stage: "Test", intent: "Continuous verification instead of late discovery.", metrics: [
+        { name: "L1 / L2 / L3 / L4 execution share", value: "46 / 26 / 19 / 9", rag: "good", note: "healthy pyramid" },
+        { name: "Flake rate, 7 day", value: "2.1%", rag: "good", note: "quarantine working" },
+        { name: "Failures first seen in PR", value: "79%", rag: "good", note: "rest in nightly" }]},
+      { stage: "Deploy", intent: "Readiness summarised from evidence already collected.", metrics: [
+        { name: "Quality gates green at candidate", value: "10 / 10", rag: "good", note: "all green" },
+        { name: "Unacknowledged high-severity findings", value: "0", rag: "good", note: "none open" },
+        { name: "Rollback drill age", value: "6d", rag: "good", note: "within 30d policy" }]},
+      { stage: "Maintain", intent: "Production learning becomes tomorrow's checks.", metrics: [
+        { name: "Escaped defects this release", value: "4", rag: "watch", note: "none customer visible" },
+        { name: "Regressions added from incidents", value: "4", rag: "good", note: "full coverage of escapes" },
+        { name: "Feedback-loop items still open", value: "1", rag: "good", note: "in next intake" }]}
+    ]
+  },
+  nucleus: {
+    headline: [
+      { value: "74%",  label: "Defects caught at PR", rag: "watch", note: "target 80%" },
+      { value: "8%",   label: "Found after deploy",   rag: "watch", note: "target under 5%" },
+      { value: "66%",  label: "Checks at L1–L2",      rag: "watch", note: "target 70%" },
+      { value: "6.3m", label: "Median PR feedback",   rag: "good",  note: "target under 8m" }
+    ],
+    detection: { weeks: ["W27","W29","W31","W33","W35"], pr: [52,57,63,69,74], nightly: [24,22,20,17,16], prod: [9,8,7,6,5] },
+    stages: [
+      { stage: "Plan", intent: "Quality of intent before any code exists.", metrics: [
+        { name: "Stories with testable acceptance criteria", value: "85%", rag: "good", note: "46 of 54 Q3 stories" },
+        { name: "NFRs named at intake", value: "70%", rag: "watch", note: "a11y often added late" },
+        { name: "Open ambiguity flags", value: "4", rag: "watch", note: "concentrated in one journey" }]},
+      { stage: "Design", intent: "Decide what gets verified, and at which layer.", metrics: [
+        { name: "Critical paths mapped to a test layer", value: "88%", rag: "good", note: "app shell covered" },
+        { name: "Endpoints with planned contract tests", value: "14 / 18", rag: "watch", note: "4 legacy endpoints" },
+        { name: "Observability assertions drafted", value: "9", rag: "watch", note: "mobile crash paths only" }]},
+      { stage: "Build", intent: "Tests arrive with the change, not after it.", metrics: [
+        { name: "Changed paths with unit or slice tests", value: "86%", rag: "good", note: "target 90%" },
+        { name: "Bug-fix PRs without a regression test", value: "3", rag: "watch", note: "iOS journey" },
+        { name: "New high SAST findings", value: "0", rag: "good", note: "clean" }]},
+      { stage: "Test", intent: "Continuous verification instead of late discovery.", metrics: [
+        { name: "L1 / L2 / L3 / L4 execution share", value: "42 / 24 / 22 / 12", rag: "watch", note: "device farm heavy" },
+        { name: "Flake rate, 7 day", value: "3.4%", rag: "watch", note: "device-related" },
+        { name: "Failures first seen in PR", value: "74%", rag: "watch", note: "rest in nightly" }]},
+      { stage: "Deploy", intent: "Readiness summarised from evidence already collected.", metrics: [
+        { name: "Quality gates green at candidate", value: "9 / 10", rag: "good", note: "a11y gate pending" },
+        { name: "Unacknowledged high-severity findings", value: "0", rag: "good", note: "none open" },
+        { name: "Rollback drill age", value: "24d", rag: "watch", note: "schedule refresh" }]},
+      { stage: "Maintain", intent: "Production learning becomes tomorrow's checks.", metrics: [
+        { name: "Escaped defects this release", value: "5", rag: "watch", note: "2 crash-related" },
+        { name: "Regressions added from incidents", value: "5", rag: "good", note: "all escapes covered" },
+        { name: "Feedback-loop items still open", value: "2", rag: "watch", note: "awaiting triage" }]}
+    ]
+  }
+};
+
+const DECKS = {
+  entitlements: {
+    label: "Entitlements",
+    window: "Q2 2026 · Apr 1 – Jun 30 (13.0 wks) → Q3 2026 · Jul 1 – Aug 30 (8.7 wks)",
+    glance: [
+      { row: "Epics done", q2: "10", q3: "6", rag: "watch" },
+      { row: "Stories done, incl. tech", q2: "89 · avg CT 8.7d · median 3d", q3: "52 · avg CT 8.1d · median 1d", rag: "watch" },
+      { row: "Tasks done", q2: "77", q3: "29", rag: "watch" },
+      { row: "MAINT resolved", q2: "46 · avg CT 13.1d · backlog 55", q3: "105 · avg CT 21.3d · backlog 29", rag: "poor" },
+      { row: "PRs merged", q2: "329 · avg CT 0.34d · median 0.02d", q3: "234 · avg CT 0.17d · median 0.02d", rag: "good" },
+      { row: "PR size mix under 500 LOC", q2: "59%", q3: "53%", rag: "watch" }
+    ],
+    epics: {
+      q2: { avg: "69.6d", sub: "median 66d · P85 119d (n=8)" },
+      q3: { avg: "54.5d", sub: "median 50d · P85 83d (n=4)", rag: "watch" },
+      throughput: { q2: 10, q3: 6, delta: "−40% vs Q2", rag: "watch" },
+      size: { labels: ["0–8 SP","9–20 SP","21–40 SP","40+ SP"], count: [1,2,2,1], cycle: [21,38,62,104] }
+    },
+    stories: {
+      q2: { avg: "8.7d", sub: "median 3d · P85 12d (n=83)" },
+      q3: { avg: "8.1d", sub: "median 1d · P85 8d (n=48)", rag: "good" },
+      throughput: { q2: 89, q3: 52, delta: "−42% vs Q2", rag: "watch" },
+      weekly: { weeks: ["W27","W28","W29","W30","W31","W32","W33","W34","W35"], done: [7,5,8,4,6,5,7,6,4] },
+      size: { labels: ["1–2 SP","3–5 SP","8 SP","13+ SP"], count: [24,18,7,3], cycle: [2,6,13,24] }
+    },
+    maint: {
+      q2avg: "13.1d", q2sub: "median 9d (n=30)",
+      q3avg: "21.3d", q3sub: "+63% · median 12d", q3rag: "poor",
+      backlog: "29", backlogSub: "was 55 · net −26", backlogRag: "good",
+      flow: "79 / 105", flowSub: "closure rate 133%", flowRag: "good",
+      priority: { labels: ["Blocker","Critical","Major","Minor"], count: [4,18,61,22], cycle: [6,11,22,34] }
+    },
+    prs: {
+      scope: "LinearB · APPR / LIM / AC / AG / LE-LEGALENTITY",
+      q2median: "0.02d", q2sub: "avg 0.34d · 329 PRs",
+      q3median: "0.02d", q3sub: "+0% · avg 0.17d · 234 PRs",
+      small: "53%", smallSub: "Q2 59% → Q3 53%", smallRag: "watch",
+      huge: "75", hugeSub: "32% of merged · tail driver", hugeRag: "poor",
+      buckets: { labels: ["<100","100–499","500–999","1000+"], cycle: [0.01,0.04,0.21,0.63] },
+      trend: { periods: ["Jul 1","Jul 15","Jul 29","Aug 12","Aug 26"], merged: [52,47,44,51,40] }
+    }
+  },
+  payments: {
+    label: "DB Payments",
+    window: "Q2 2026 · Apr 1 – Jun 30 (13.0 wks) → Q3 2026 · Jul 1 – Aug 30 (8.7 wks)",
+    glance: [
+      { row: "Epics done", q2: "21", q3: "6", rag: "watch" },
+      { row: "Stories done, incl. tech", q2: "21 · avg CT 16.5d · median 7d", q3: "47 · avg CT 7.7d · median 5d", rag: "good" },
+      { row: "Tasks done", q2: "23", q3: "29", rag: "good" },
+      { row: "MAINT resolved", q2: "178 · avg CT 14.5d · backlog 51", q3: "84 · avg CT 13d · backlog 36", rag: "good" },
+      { row: "PRs merged", q2: "0 · no LinearB scope", q3: "263 · avg CT 0.96d · median 0.01d", rag: "good" },
+      { row: "PR size mix under 500 LOC", q2: "0%", q3: "77%", rag: "good" }
+    ],
+    epics: {
+      q2: { avg: "103d", sub: "median 22d · P85 197d (n=9)" },
+      q3: { avg: "10.8d", sub: "median 6d · P85 20d (n=4)", rag: "good" },
+      throughput: { q2: 21, q3: 6, delta: "−71% vs Q2", rag: "watch" },
+      size: { labels: ["0–8 SP","9–20 SP","21–40 SP","40+ SP"], count: [2,1,1,0], cycle: [5,9,18,0] }
+    },
+    stories: {
+      q2: { avg: "16.5d", sub: "median 7d · P85 45d (n=19)" },
+      q3: { avg: "7.7d", sub: "median 5d · P85 13d (n=39)", rag: "good" },
+      throughput: { q2: 21, q3: 47, delta: "+124% vs Q2", rag: "good" },
+      weekly: { weeks: ["W27","W28","W29","W30","W31","W32","W33","W34","W35"], done: [4,6,5,7,5,6,4,6,4] },
+      size: { labels: ["1–2 SP","3–5 SP","8 SP","13+ SP"], count: [19,17,8,3], cycle: [3,6,11,19] }
+    },
+    maint: {
+      q2avg: "14.5d", q2sub: "median 4d (n=91)",
+      q3avg: "13d", q3sub: "−10% · median 6d", q3rag: "watch",
+      backlog: "36", backlogSub: "was 51 · net −15", backlogRag: "good",
+      flow: "69 / 84", flowSub: "closure rate 122%", flowRag: "good",
+      priority: { labels: ["Blocker","Critical","Major","Minor"], count: [3,14,49,18], cycle: [4,8,14,21] }
+    },
+    prs: {
+      scope: "LinearB · BUS business contacts, manage payments and omni payments journeys, Android and iOS",
+      q2median: "0d", q2sub: "no scoped repositories in Q2",
+      q3median: "0.01d", q3sub: "avg 0.96d · 263 PRs",
+      small: "77%", smallSub: "Q2 0% → Q3 77%", smallRag: "good",
+      huge: "40", hugeSub: "15% of merged · tail driver", hugeRag: "watch",
+      buckets: { labels: ["<100","100–499","500–999","1000+"], cycle: [0.01,0.06,0.42,1.84] },
+      trend: { periods: ["Jul 1","Jul 15","Jul 29","Aug 12","Aug 26"], merged: [46,58,51,62,46] }
+    }
+  },
+  nucleus: {
+    label: "Nucleus",
+    window: "Q2 2026 · Apr 1 – Jun 30 (13.0 wks) → Q3 2026 · Jul 1 – Aug 30 (8.7 wks)",
+    glance: [
+      { row: "Epics done", q2: "5", q3: "5", rag: "good" },
+      { row: "Stories done, incl. tech", q2: "25 · avg CT 8.3d · median 4d", q3: "54 · avg CT 3.6d · median 3d", rag: "good" },
+      { row: "Tasks done", q2: "3", q3: "2", rag: "watch" },
+      { row: "MAINT resolved", q2: "66 · avg CT 16.3d · backlog 19", q3: "31 · avg CT 16.5d · backlog 17", rag: "watch" },
+      { row: "PRs merged", q2: "14 · avg CT 0.15d · median 0.01d", q3: "32 · avg CT 0.24d · median 0d", rag: "good" },
+      { row: "PR size mix under 500 LOC", q2: "93%", q3: "88%", rag: "good" }
+    ],
+    epics: {
+      q2: { avg: "45.8d", sub: "median 35d · P85 68d (n=5)" },
+      q3: { avg: "14.4d", sub: "median 8d · P85 26d (n=5)", rag: "good" },
+      throughput: { q2: 5, q3: 5, delta: "+0% vs Q2", rag: "good" },
+      size: { labels: ["0–8 SP","9–20 SP","21–40 SP","40+ SP"], count: [2,2,1,0], cycle: [7,13,27,0] }
+    },
+    stories: {
+      q2: { avg: "8.3d", sub: "median 4d · P85 25d (n=23)" },
+      q3: { avg: "3.6d", sub: "median 3d · P85 7d (n=52)", rag: "good" },
+      throughput: { q2: 25, q3: 54, delta: "+116% vs Q2", rag: "good" },
+      weekly: { weeks: ["W27","W28","W29","W30","W31","W32","W33","W34","W35"], done: [6,7,5,8,6,5,7,6,4] },
+      size: { labels: ["1–2 SP","3–5 SP","8 SP","13+ SP"], count: [28,18,6,2], cycle: [2,4,8,15] }
+    },
+    maint: {
+      q2avg: "16.3d", q2sub: "median 6d (n=41)",
+      q3avg: "16.5d", q3sub: "+1% · median 18d", q3rag: "poor",
+      backlog: "17", backlogSub: "was 19 · net −2", backlogRag: "good",
+      flow: "28 / 31", flowSub: "closure rate 111%", flowRag: "good",
+      priority: { labels: ["Blocker","Critical","Major","Minor"], count: [1,5,18,7], cycle: [5,12,19,26] }
+    },
+    prs: {
+      scope: "LinearB · iOS banking apps, Android banking app, Backbase banking app, experience manager and retail journeys",
+      q2median: "0.01d", q2sub: "avg 0.15d · 14 PRs",
+      q3median: "0d", q3sub: "−100% · avg 0.24d · 32 PRs",
+      small: "88%", smallSub: "Q2 93% → Q3 88%", smallRag: "good",
+      huge: "3", hugeSub: "9% of merged · tail driver", hugeRag: "good",
+      buckets: { labels: ["<100","100–499","500–999","1000+"], cycle: [0.01,0.03,0.18,0.51] },
+      trend: { periods: ["Jul 1","Jul 15","Jul 29","Aug 12","Aug 26"], merged: [5,8,6,7,6] }
+    }
+  }
+};
+
+const GUIDES = {
+  home: { title: "Shift-left metric guide", rows: [
+    ["Defects caught at PR","The core shift-left signal. A high share means problems are found while the change is cheap to fix, before it reaches a shared environment or a customer.","CI check results and Xray executions, joined to Jira defects by the change that introduced them.","defects first detected by PR-time checks ÷ all defects detected in the window × 100"],
+    ["Found after deploy","The inverse safety check. If this rises while PR-time coverage also rises, the earlier checks are running but not testing the risky behaviour.","Jira and Jira Service Management issues created after the release date, plus Sentry release regressions.","defects created after release date ÷ all defects for that release × 100"],
+    ["Checks at L1–L2","Pyramid balance. Unit and slice checks give fast, stable feedback, so a higher share lowers both cost and flake exposure.","Test runner reports collected by CI, aggregated in Allure.","(L1 + L2 executions) ÷ total executions × 100"],
+    ["Median PR feedback","Feedback latency decides whether engineers wait for signal or context-switch away from the change.","CI workflow timings from GitHub Actions.","median(first required check completion − PR opened) across merged PRs"],
+    ["Stories with testable acceptance criteria","Untestable criteria are the root cause of late rework, and they are what makes AI-generated tests unverifiable.","Jira story fields, evaluated by the requirement-quality check.","stories passing all testability rules ÷ stories in the window × 100"],
+    ["NFRs named at intake","Performance, accessibility and security are the requirements most often discovered late, when they are most expensive.","Jira custom fields and linked Confluence requirement pages.","stories with at least one non-functional requirement ÷ stories in the window × 100"],
+    ["Critical paths mapped to a test layer","Shows whether verification was designed, or left to whichever layer happened to catch it.","Design coverage map, reconciled against Xray test sets.","critical paths linked to at least one planned test ÷ identified critical paths × 100"],
+    ["Changed paths with unit or slice tests","The most direct build-stage signal that tests are written with the code rather than retrofitted.","Coverage reports for changed files, from SonarQube and CI.","changed files with covering L1 or L2 tests ÷ changed files × 100"],
+    ["Bug-fix PRs without a regression test","A fix without a test invites the same defect back. This is usually the cheapest gap to close.","GitHub PRs labelled as fixes, cross-checked against added test files.","count of fix PRs merged with no added or modified test"],
+    ["Flake rate, 7 day","Flake destroys trust in the gates. Once teams learn to re-run, real failures get re-run too.","Repeated executions in CI, classified by the failure-triage service.","executions that passed on retry without a code change ÷ total executions × 100"],
+    ["Escaped defects this release","The outcome that matters. Everything earlier is a leading indicator of this number.","Jira defects with an environment of production, linked to the release.","count of production defects attributed to the release"],
+    ["Regressions added from incidents","Confirms the Maintain loop is closing: production learning becomes an automated check.","Incident records in Jira Service Management linked to new tests in Xray.","count of new automated tests created from incidents in the window"]
+  ]},
+  team: { title: "Operational indicators metric guide", rows: [
+    ["Cycle time, average / median / P85","Average exposes the long tail, median describes the typical item, and P85 is the number to plan with. Reading only the average hides both.","Jira issue changelog: transitions into the first in-progress status and into Done.","done timestamp − start timestamp, per completed item; P85 is the 85th percentile of that set"],
+    ["Throughput","Volume delivered in a window. Only comparable once you normalise for window length, which is why the quarter length is always shown.","Jira issues that reached a Done status inside the window.","count of items completed in the window"],
+    ["Rolled-up story points","Shows whether slow epics are genuinely large or simply held open too long.","Jira story points on child issues, summed to the epic.","sum of story points across all children of the epic"],
+    ["MAINT average cycle time","How long defects sit before they are cleared. Rising cycle time with falling backlog usually means old items are being closed last.","Jira MAINT issue type, resolution timestamps.","mean(resolved timestamp − created timestamp) over MAINT issues resolved in the window"],
+    ["Open backlog now","Current pressure rather than a period-end snapshot, so it reflects what the team actually faces today.","Jira query at page load.","count of unresolved MAINT issues at query time"],
+    ["Opened / closed and closure rate","Tells you whether the team is keeping pace with inflow. Above 100% means the backlog is shrinking.","Jira created and resolved counts for the window.","closed ÷ opened × 100 for the window"],
+    ["Priority mix and cycle time by priority","Reveals whether severity actually changes behaviour. If blockers and minors clear at the same speed, priority is decorative.","Jira priority field on MAINT issues.","count and mean cycle time grouped by priority"],
+    ["PR median cycle time","Review latency is the most controllable part of flow, and the median resists distortion from a few stale PRs.","LinearB, restricted to the team's configured repository or journey scope.","median(merge timestamp − first commit timestamp) across merged PRs in scope"],
+    ["Share under 500 LOC","Small PRs get reviewed properly. This is the strongest lever on both review quality and cycle time.","LinearB PR size, additions plus deletions.","PRs with additions + deletions < 500 ÷ merged PRs × 100"],
+    ["Huge PRs, 1000 LOC and above","The tail driver behind slow reviews and shallow feedback. Usually a batching or branching problem, not an effort problem.","LinearB PR size distribution.","count and share of merged PRs with additions + deletions ≥ 1000"],
+    ["Done","This is a workflow state, not a statement that release evidence exists. Treat it as flow, not assurance.","Jira workflow status category.","status category = Done"]
+  ]},
+  pr: { title: "PR flow metric guide", rows: [
+    ["Median PR cycle time","The clearest measure of how quickly work clears review, without distortion from a few abandoned branches.","GitHub pull requests for the selected repositories.","median(merged_at − created_at) across merged PRs"],
+    ["PRs under 500 LOC","Small changes get real review attention. This is the lever with the largest effect on review quality.","GitHub PR additions and deletions.","PRs under 500 changed lines ÷ merged PRs × 100"],
+    ["PRs without L1 tests","Catches changes merging without the fastest layer of verification attached.","GitHub changed files joined to CI test reports.","merged PRs touching source with no added or modified unit test"],
+    ["Required check pass rate","Distinguishes a healthy gate from one that people re-run until it goes green.","GitHub Actions check runs.","first-attempt passing runs ÷ total runs × 100"]
+  ]},
+  build: { title: "Build plugin metric guide", rows: [
+    ["CI pass rate","Baseline pipeline health. A falling rate on an unchanged codebase points at environment or flake, not at the code.","GitHub Actions workflow runs on the selected branch.","successful runs ÷ total runs × 100"],
+    ["p95 pipeline duration","Feedback speed for the slowest realistic case, which is what engineers actually experience on a bad day.","GitHub Actions run durations.","95th percentile of run duration over the window"],
+    ["Critical and high vulnerabilities","Security debt that should block or be explicitly acknowledged rather than quietly carried.","Dependency and SAST scanners.","count of open findings by severity, excluding acknowledged items"],
+    ["Connector freshness","Stale data is worse than missing data, because it looks trustworthy. A stale panel must never render green.","Connector sync state in the platform.","now − last successful sync, per connector"]
+  ]}
+};
+
+const PR_ROWS = [
+  { name: "Median PR cycle time", value: "6.2h", rag: "good", note: "target under 8h" },
+  { name: "PRs under 500 LOC", value: "81%", rag: "good", note: "target 80%" },
+  { name: "PRs without L1 tests", value: "14%", rag: "watch", note: "target under 10%" },
+  { name: "Required check pass rate", value: "88%", rag: "watch", note: "first attempt" },
+  { name: "Review wait over 24h", value: "9 PRs", rag: "poor", note: "oldest 6 days" }
+];
+
+const BUILD_ROWS = [
+  { name: "CI pass rate", value: "96.4%", rag: "good", note: "branch main, 7 days" },
+  { name: "p95 pipeline duration", value: "11m", rag: "watch", note: "target under 10m" },
+  { name: "Critical vulnerabilities", value: "0", rag: "good", note: "none open" },
+  { name: "High vulnerabilities", value: "3", rag: "watch", note: "all acknowledged" },
+  { name: "Oldest connector sync", value: "42m", rag: "watch", note: "Xray connector lagging" }
+];
+
+/* ---------------------------- helpers ---------------------------- */
+const esc = (s) => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+function ragBadge(key) {
+  const r = RAG[key];
+  return '<span class="rag" style="color:' + r.color + '"><span class="dot" style="background:' + r.color + '"></span>' + r.label + '</span>';
+}
+
+function tile(value, label, note, rag) {
+  const r = RAG[rag];
+  return '<div class="card tile"><div class="body">' +
+    '<div class="value ' + r.cls + '">' + esc(value) + '</div>' +
+    '<div class="label">' + esc(label) + '</div>' +
+    '<div style="margin-top:6px">' + ragBadge(rag) + '</div>' +
+    '<div class="note">' + esc(note) + '</div>' +
+    '</div></div>';
+}
+
+function plainTile(value, label, note) {
+  return '<div class="card tile"><div class="body">' +
+    '<div class="value">' + esc(value) + '</div>' +
+    '<div class="label">' + esc(label) + '</div>' +
+    '<div class="note">' + esc(note) + '</div>' +
+    '</div></div>';
+}
+
+function table(headers, rows) {
+  let h = '<table><thead><tr>' + headers.map(x => '<th>' + esc(x) + '</th>').join('') + '</tr></thead><tbody>';
+  h += rows.map(r => '<tr>' + r.map(c => '<td>' + c + '</td>').join('') + '</tr>').join('');
+  return h + '</tbody></table>';
+}
+
+function card(title, trailing, body) {
+  const head = title
+    ? '<div class="head"><span>' + esc(title) + '</span>' + (trailing ? '<span>' + esc(trailing) + '</span>' : '') + '</div>'
+    : '';
+  return '<div class="card">' + head + '<div class="body">' + body + '</div></div>';
+}
+
+function legend(series) {
+  return '<div class="legend">' + series.map(s =>
+    '<span class="k"><span class="swatch" style="background:' + s.color + '"></span>' + esc(s.name) + '</span>').join('') + '</div>';
+}
+
+function niceMax(v) {
+  if (v <= 0) return 1;
+  const mag = Math.pow(10, Math.floor(Math.log10(v)));
+  return Math.ceil(v / mag * 2) / 2 * mag;
+}
+
+function barChart(categories, series, caption) {
+  const W = 620, H = 230, padL = 44, padR = 12, padT = 12, padB = 40;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const max = niceMax(Math.max.apply(null, series.flatMap(s => s.data)));
+  const groupW = plotW / categories.length;
+  const barW = (groupW * 0.68) / series.length;
+  let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img">';
+  for (let i = 0; i <= 4; i++) {
+    const y = padT + plotH - (plotH * i / 4);
+    const val = (max * i / 4);
+    svg += '<line x1="' + padL + '" y1="' + y + '" x2="' + (W - padR) + '" y2="' + y + '" stroke="var(--border)" stroke-width="1"/>';
+    svg += '<text x="' + (padL - 6) + '" y="' + (y + 4) + '" font-size="10" fill="var(--text-3)" text-anchor="end">' + (Math.round(val * 100) / 100) + '</text>';
+  }
+  categories.forEach((cat, ci) => {
+    const gx = padL + groupW * ci;
+    series.forEach((s, si) => {
+      const v = s.data[ci] || 0;
+      const h = max === 0 ? 0 : (v / max) * plotH;
+      const x = gx + groupW * 0.16 + barW * si;
+      const y = padT + plotH - h;
+      svg += '<rect x="' + x + '" y="' + y + '" width="' + Math.max(barW - 2, 1) + '" height="' + Math.max(h, 0) + '" fill="' + s.color + '" rx="2"><title>' + esc(s.name + ": " + v) + '</title></rect>';
+    });
+    svg += '<text x="' + (gx + groupW / 2) + '" y="' + (H - padB + 16) + '" font-size="10" fill="var(--text-2)" text-anchor="middle">' + esc(cat) + '</text>';
+  });
+  svg += '</svg>';
+  return legend(series) + svg + (caption ? '<div class="cap">' + esc(caption) + '</div>' : '');
+}
+
+function lineChart(categories, series, caption, suffix) {
+  const W = 620, H = 230, padL = 44, padR = 12, padT = 12, padB = 40;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const max = niceMax(Math.max.apply(null, series.flatMap(s => s.data)));
+  const step = categories.length > 1 ? plotW / (categories.length - 1) : 0;
+  let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img">';
+  for (let i = 0; i <= 4; i++) {
+    const y = padT + plotH - (plotH * i / 4);
+    svg += '<line x1="' + padL + '" y1="' + y + '" x2="' + (W - padR) + '" y2="' + y + '" stroke="var(--border)" stroke-width="1"/>';
+    svg += '<text x="' + (padL - 6) + '" y="' + (y + 4) + '" font-size="10" fill="var(--text-3)" text-anchor="end">' + (Math.round(max * i / 4 * 100) / 100) + '</text>';
+  }
+  series.forEach(s => {
+    const pts = s.data.map((v, i) => [padL + step * i, padT + plotH - (max === 0 ? 0 : (v / max) * plotH)]);
+    svg += '<polyline fill="none" stroke="' + s.color + '" stroke-width="2" points="' + pts.map(p => p[0] + ',' + p[1]).join(' ') + '"/>';
+    pts.forEach((p, i) => {
+      svg += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="3" fill="' + s.color + '"><title>' + esc(s.name + ": " + s.data[i] + (suffix || "")) + '</title></circle>';
+    });
+  });
+  categories.forEach((c, i) => {
+    svg += '<text x="' + (padL + step * i) + '" y="' + (H - padB + 16) + '" font-size="10" fill="var(--text-2)" text-anchor="middle">' + esc(c) + '</text>';
+  });
+  svg += '</svg>';
+  return legend(series) + svg + (caption ? '<div class="cap">' + esc(caption) + '</div>' : '');
+}
+
+/* ---------------------------- state ---------------------------- */
+let state = { nav: "home", project: "entitlements", release: "2026.3" };
+
+function filtersHtml() {
+  const p = PROJECTS.map(o => '<option value="' + o.value + '"' + (o.value === state.project ? ' selected' : '') + '>' + esc(o.label) + '</option>').join('');
+  const r = RELEASES.map(o => '<option value="' + o.value + '"' + (o.value === state.release ? ' selected' : '') + '>' + esc(o.label) + '</option>').join('');
+  return '<div class="filters"><select id="selProject">' + p + '</select><select id="selRelease">' + r + '</select></div>';
+}
+
+function pageHead(title, sub, withFilters) {
+  return '<div class="pagehead"><div><div class="titlerow"><h1>' + esc(title) + '</h1>' +
+    '<button class="infobtn" id="infoBtn" title="Metric guide" aria-label="Metric guide">i</button></div>' +
+    '<div class="sub">' + esc(sub) + '</div></div>' +
+    (withFilters ? filtersHtml() : '') + '</div>';
+}
+
+/* ---------------------------- pages ---------------------------- */
+function renderHome() {
+  const d = SHIFT_LEFT[state.project];
+  const proj = PROJECTS.find(p => p.value === state.project).label;
+  const rel = RELEASES.find(r => r.value === state.release).label;
+  let h = pageHead("Shift-left", proj + " · " + rel, true);
+
+  h += '<div class="grid g4">' + d.headline.map(x => tile(x.value, x.label, x.note, x.rag)).join('') + '</div>';
+
+  h += '<h2>Where defects are being found</h2>';
+  h += card(null, null, lineChart(d.detection.weeks, [
+      { name: "At PR", data: d.detection.pr, color: "var(--good)" },
+      { name: "Nightly or later", data: d.detection.nightly, color: "var(--watch)" },
+      { name: "After deploy", data: d.detection.prod, color: "var(--poor)" }
+    ], "Source: CI, Xray and Jira · x-axis reporting week, y-axis share of detected defects (%)", "%"));
+
+  h += '<h2>By SDLC stage</h2><div class="grid g2">';
+  h += d.stages.map(s => card(s.stage, null,
+    '<div class="scope">' + esc(s.intent) + '</div>' +
+    table(["Signal","Now","Status","Context"], s.metrics.map(m => [esc(m.name), esc(m.value), ragBadge(m.rag), esc(m.note)]))
+  )).join('');
+  h += '</div>';
+  return h;
+}
+
+function renderTeam() {
+  const t = DECKS[state.project];
+  let h = pageHead("Team Insights", "Operational indicators · " + t.label + " · " + t.window, true);
+
+  h += card("Q2 vs Q3 at a glance", "Side by side",
+    table(["Indicator","Q2 2026","Q3 2026","Status"], t.glance.map(g => [esc(g.row), esc(g.q2), esc(g.q3), ragBadge(g.rag)])) +
+    '<div class="cap">Q3 covers 8.7 weeks against 13.0 in Q2, so compare rates rather than raw counts.</div>');
+
+  h += '<h2>Epics</h2><div class="grid g4">' +
+    plainTile(t.epics.q2.avg, "Q2 average cycle time", t.epics.q2.sub) +
+    tile(t.epics.q3.avg, "Q3 average cycle time", t.epics.q3.sub, t.epics.q3.rag) +
+    plainTile(String(t.epics.throughput.q2), "Q2 throughput", "epics completed in 13.0 weeks") +
+    tile(String(t.epics.throughput.q3), "Q3 throughput", "8.7 weeks · " + t.epics.throughput.delta, t.epics.throughput.rag) +
+    '</div>';
+
+  h += '<div class="grid g2" style="margin-top:12px">' +
+    card("Epic throughput, Q2 vs Q3", null, barChart(["Q2 2026","Q3 2026"], [
+      { name: "Epics done", data: [t.epics.throughput.q2, t.epics.throughput.q3], color: "var(--info)" }
+    ], "Source: Jira · x-axis quarter, y-axis epics completed (count)")) +
+    card("Epic size vs cycle time", null, barChart(t.epics.size.labels, [
+      { name: "Epics done", data: t.epics.size.count, color: "var(--info)" },
+      { name: "Avg cycle time (days)", data: t.epics.size.cycle, color: "var(--watch)" }
+    ], "Source: Jira rolled-up story points · x-axis size bucket, y-axis count and mean cycle time (days)")) +
+    '</div>';
+
+  h += '<h2>Stories</h2><div class="grid g4">' +
+    plainTile(t.stories.q2.avg, "Q2 average cycle time", t.stories.q2.sub) +
+    tile(t.stories.q3.avg, "Q3 average cycle time", t.stories.q3.sub, t.stories.q3.rag) +
+    plainTile(String(t.stories.throughput.q2), "Q2 throughput", "stories incl. tech, 13.0 weeks") +
+    tile(String(t.stories.throughput.q3), "Q3 throughput", "8.7 weeks · " + t.stories.throughput.delta, t.stories.throughput.rag) +
+    '</div>';
+
+  h += '<div class="grid g2" style="margin-top:12px">' +
+    card("Weekly completion cadence", null, lineChart(t.stories.weekly.weeks, [
+      { name: "Stories done", data: t.stories.weekly.done, color: "var(--info)" }
+    ], "Source: Jira · x-axis ISO week, y-axis stories completed (count)")) +
+    card("Story distribution by size", null, barChart(t.stories.size.labels, [
+      { name: "Stories done", data: t.stories.size.count, color: "var(--info)" },
+      { name: "Avg cycle time (days)", data: t.stories.size.cycle, color: "var(--watch)" }
+    ], "Source: Jira story points · x-axis point bucket, y-axis count and mean cycle time (days)")) +
+    '</div>';
+
+  h += '<h2>MAINT defect flow</h2><div class="grid g4">' +
+    plainTile(t.maint.q2avg, "Q2 average cycle time", t.maint.q2sub) +
+    tile(t.maint.q3avg, "Q3 average cycle time", t.maint.q3sub, t.maint.q3rag) +
+    tile(t.maint.backlog, "Open backlog now", t.maint.backlogSub, t.maint.backlogRag) +
+    tile(t.maint.flow, "Opened / closed", t.maint.flowSub, t.maint.flowRag) +
+    '</div>';
+
+  h += '<div style="margin-top:12px">' + card("Priority mix and cycle time", "Where the defect pressure is",
+    barChart(t.maint.priority.labels, [
+      { name: "Resolved", data: t.maint.priority.count, color: "var(--info)" },
+      { name: "Avg cycle time (days)", data: t.maint.priority.cycle, color: "var(--poor)" }
+    ], "Source: Jira MAINT issues · x-axis priority, y-axis resolved count and mean cycle time (days)")) + '</div>';
+
+  h += '<h2>Pull requests</h2><div class="scope">' + esc(t.prs.scope) + '</div><div class="grid g4">' +
+    plainTile(t.prs.q2median, "Q2 median cycle time", t.prs.q2sub) +
+    tile(t.prs.q3median, "Q3 median cycle time", t.prs.q3sub, "good") +
+    tile(t.prs.small, "Share under 500 LOC", t.prs.smallSub, t.prs.smallRag) +
+    tile(t.prs.huge, "Huge PRs, 1000 LOC and above", t.prs.hugeSub, t.prs.hugeRag) +
+    '</div>';
+
+  h += '<div class="grid g2" style="margin-top:12px">' +
+    card("Cycle time by PR size", null, barChart(t.prs.buckets.labels, [
+      { name: "Median cycle time (days)", data: t.prs.buckets.cycle, color: "var(--watch)" }
+    ], "Source: LinearB · x-axis changed lines, y-axis median cycle time (days)")) +
+    card("Two-week merge throughput", null, lineChart(t.prs.trend.periods, [
+      { name: "PRs merged", data: t.prs.trend.merged, color: "var(--info)" }
+    ], "Source: LinearB · x-axis two-week period start, y-axis PRs merged (count)")) +
+    '</div>';
+
+  h += '<div style="margin-top:12px">' + card("Reading this dashboard", null,
+    '<div class="scope">These are flow indicators: pace, size and defect pressure. Use them to spot bottlenecks and batching problems. They do not describe release evidence, and a green row here does not mean a feature is ready to ship.</div>') + '</div>';
+
+  return h;
+}
+
+function renderPr() {
+  const proj = PROJECTS.find(p => p.value === state.project).label;
+  let h = pageHead("PR flow", "Your dashboard · " + proj + " · GitHub, CI and SonarQube plugins", false);
+  h += '<div class="grid g3">' +
+    tile("6.2h", "Median PR cycle time", "target under 8h", "good") +
+    tile("81%", "PRs under 500 LOC", "target 80%", "good") +
+    tile("9", "Reviews waiting over 24h", "oldest 6 days", "poor") +
+    '</div>';
+  h += '<div style="margin-top:12px">' + card("Panel signals", null,
+    table(["Signal","Now","Status","Context"], PR_ROWS.map(r => [esc(r.name), esc(r.value), ragBadge(r.rag), esc(r.note)]))) + '</div>';
+  h += '<div style="margin-top:12px">' + card("Plugin bindings", null,
+    table(["Panel","Plugin","Query"], [
+      ["Merge latency","GitHub","repo scope · merged last 14d"],
+      ["Required checks","CI","workflow:pr-verify"],
+      ["Coverage delta","SonarQube","changed files only"]
+    ].map(r => r.map(esc)))) + '</div>';
+  return h;
+}
+
+function renderBuild() {
+  let h = pageHead("Build plugins", "Your dashboard · panels composed from installed plugins", false);
+  h += '<div class="grid g3">' +
+    tile("96.4%", "CI pass rate", "branch main, 7 days", "good") +
+    tile("11m", "p95 pipeline duration", "target under 10m", "watch") +
+    tile("3", "High vulnerabilities", "all acknowledged", "watch") +
+    '</div>';
+  h += '<div style="margin-top:12px">' + card("Panel signals", null,
+    table(["Signal","Now","Status","Context"], BUILD_ROWS.map(r => [esc(r.name), esc(r.value), ragBadge(r.rag), esc(r.note)]))) + '</div>';
+  h += '<div class="grid g2" style="margin-top:12px">' +
+    card("Installed plugins", null,
+      '<div class="pills"><span class="chip">GitHub Actions</span><span class="chip">SonarQube</span><span class="chip">Xray</span><span class="chip">Dependency scanner</span></div>' +
+      '<div class="cap">Add a panel, bind a plugin query, then save the board to your account.</div>') +
+    card("Status rules on this board", null,
+      '<h3>Pass rate</h3><div class="scope">Good at or above 95%, watch 90 to 95%, needs attention below 90%.</div>' +
+      '<h3>Connector freshness</h3><div class="scope">Stale beyond 30 minutes renders as needs attention rather than green.</div>') +
+    '</div>';
+  return h;
+}
+
+/* ---------------------------- modal ---------------------------- */
+function openGuide() {
+  const g = GUIDES[state.nav];
+  const rows = g.rows.map(r => r.map(esc));
+  document.getElementById("modal").innerHTML =
+    '<div class="mhead"><div><h2>' + esc(g.title) + '</h2>' +
+    '<div class="sub">What each metric is for, where it comes from, and how it is calculated.</div></div>' +
+    '<button class="closebtn" id="closeGuide">Close</button></div>' +
+    '<div class="ragkey">' + ragBadge("good") + ragBadge("watch") + ragBadge("poor") + '</div><hr/>' +
+    table(["Metric","Why it is useful","Where it comes from","Formula"], rows);
+  document.getElementById("scrim").classList.add("open");
+  document.getElementById("closeGuide").onclick = closeGuide;
+}
+function closeGuide() { document.getElementById("scrim").classList.remove("open"); }
+
+document.getElementById("scrim").addEventListener("click", (e) => {
+  if (e.target.id === "scrim") closeGuide();
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeGuide(); });
+
+/* ---------------------------- render ---------------------------- */
+function render() {
+  const main = document.getElementById("main");
+  main.innerHTML =
+    state.nav === "home" ? renderHome() :
+    state.nav === "team" ? renderTeam() :
+    state.nav === "pr" ? renderPr() : renderBuild();
+
+  document.querySelectorAll("nav.side button[data-nav]").forEach(b => {
+    b.classList.toggle("active", b.dataset.nav === state.nav);
+  });
+
+  const info = document.getElementById("infoBtn");
+  if (info) info.onclick = openGuide;
+
+  const sp = document.getElementById("selProject");
+  if (sp) sp.onchange = (e) => { state.project = e.target.value; render(); };
+  const sr = document.getElementById("selRelease");
+  if (sr) sr.onchange = (e) => { state.release = e.target.value; render(); };
+}
+
+document.querySelectorAll("nav.side button[data-nav]").forEach(b => {
+  b.onclick = () => { state.nav = b.dataset.nav; render(); };
+});
+
+render();
+</script>
+</body>
+</html>

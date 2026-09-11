@@ -1,0 +1,277 @@
+@if (data(); as board) {
+  <div class="page">
+    <div class="record-banner">
+      <p class="record-text">
+        <span class="record-tag">Rollout</span>
+        {{ board.subtitle }}
+      </p>
+      <div class="record-actions">
+        @if (board.policy_drill; as policy) {
+          <a class="meta mono" [href]="policy.url" target="_blank" rel="noopener">{{ board.policy_version }} ↗</a>
+        } @else {
+          <span class="meta mono">{{ board.policy_version }}</span>
+        }
+        <button class="btn" (click)="openEvidence.emit()">{{ board.evidence_link.label }} →</button>
+        <button class="btn" (click)="showGuide()">How this page works</button>
+      </div>
+    </div>
+
+    <sl-freshness [freshness]="board.freshness" />
+
+    <!-- The gating path. Four stages, in order - the numbering is the sequence. -->
+    <section class="card" aria-labelledby="path-title">
+      <header class="card-head">
+        <div class="card-title" id="path-title">Gating path</div>
+        <div class="meta">at <strong>{{ board.stage_label }}</strong> since <span class="mono">{{ board.stage_since }}</span></div>
+      </header>
+      <ol class="path">
+        @for (stage of board.stages; track stage.key) {
+          <li class="step" [class]="'step step-' + stage.state"
+              [attr.aria-current]="stage.state === 'current' ? 'step' : null">
+            <div class="step-head">
+              <span class="step-num mono" aria-hidden="true">
+                @if (stage.state === 'done') { ✓ } @else { {{ stage.index }} }
+              </span>
+              <span class="step-label">{{ stage.label }}</span>
+              <span class="sr-only">
+                ({{ stage.state === 'done' ? 'completed' : stage.state === 'current' ? 'current stage' : 'not reached' }})
+              </span>
+            </div>
+            <p class="step-behaviour">{{ stage.behaviour }}</p>
+          </li>
+        }
+      </ol>
+
+      @if (current(); as stage) {
+        <div class="exit">
+          <div class="exit-head">
+            @if (next(); as upcoming) {
+              <div class="label-caps">To leave {{ stage.label }} for {{ upcoming.label }}</div>
+            } @else {
+              <div class="label-caps">Final stage</div>
+            }
+          </div>
+          @if (stage.criteria.length) {
+            <ul class="criteria">
+              @for (criterion of stage.criteria; track criterion.label) {
+                <li class="criterion">
+                  <sl-rag [state]="criterion.status" [showLabel]="false" />
+                  <span class="criterion-text">
+                    <span class="criterion-label">{{ criterion.label }}</span>
+                    <span class="criterion-evidence">{{ criterion.evidence }}</span>
+                  </span>
+                  <span class="criterion-state">
+                    {{ criterion.met === null ? 'Not measured' : criterion.met ? 'Met' : 'Not met' }}
+                  </span>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="exit-note">
+              Hard gate is the last stage. What it covers is decided per risk tier by engineering
+              leadership, not by a criterion on this board.
+            </p>
+          }
+
+          <div class="exit-actions">
+            @if (needsSignoff()) {
+              <button class="btn btn-primary" [disabled]="busy()" (click)="signoff()">
+                Record team sign-off
+              </button>
+            } @else if (board.signoff.by) {
+              <span class="meta">Team sign-off: <span class="mono">{{ board.signoff.by }}</span></span>
+            }
+            @if (next(); as upcoming) {
+              <!-- Enabled only when the API says every criterion is met; the API checks again. -->
+              <button class="btn btn-dark" [disabled]="busy() || !board.can_advance" (click)="advance()"
+                      [attr.aria-describedby]="board.can_advance ? null : 'advance-why'">
+                Advance to {{ upcoming.label }}
+              </button>
+            }
+            @if (previous(); as earlier) {
+              <button class="btn btn-danger" [disabled]="busy()" (click)="rollbackOpen.set(!rollbackOpen())"
+                      [attr.aria-expanded]="rollbackOpen()" aria-controls="rollback-form">
+                Roll back to {{ earlier.label }}
+              </button>
+            }
+          </div>
+          @if (!board.can_advance && next() && board.advance_blockers.length) {
+            <p class="exit-note" id="advance-why">
+              Advancing needs every criterion met. Still open: {{ board.advance_blockers.length }}.
+            </p>
+          }
+
+          @if (rollbackOpen() && previous(); as earlier) {
+            <form class="rollback" id="rollback-form" (submit)="$event.preventDefault(); rollback()">
+              <label class="label-caps" for="rollback-note">Why roll back to {{ earlier.label }}?</label>
+              <textarea id="rollback-note" name="rollbackNote" rows="2" required
+                        [ngModel]="rollbackNote()" (ngModelChange)="rollbackNote.set($event)"
+                        placeholder="e.g. The validator blocked a production hotfix on the Story workflow."></textarea>
+              <div class="rollback-actions">
+                <button type="submit" class="btn btn-danger" [disabled]="busy()">Roll back</button>
+                <button type="button" class="btn" (click)="rollbackOpen.set(false)">Cancel</button>
+                <span class="meta">Recorded in the audit log with your name and this reason.</span>
+              </div>
+            </form>
+          }
+
+          @if (refusal(); as why) {
+            <div class="refusal" role="alert">
+              <strong>{{ why.message }}</strong>
+              @if (why.blockers.length) {
+                <ul>
+                  @for (item of why.blockers; track item) { <li>{{ item }}</li> }
+                </ul>
+              }
+            </div>
+          }
+        </div>
+      }
+    </section>
+
+    <div class="tiles">
+      @for (tile of board.tiles; track tile.label) {
+        <sl-tile [tile]="tile" />
+      }
+    </div>
+
+    <section class="card" aria-labelledby="surfaces-title">
+      <header class="card-head">
+        <div class="card-title" id="surfaces-title">Where the engine shows up</div>
+        <div class="meta">Jira · GitHub · Slack · Confluence</div>
+      </header>
+      <div class="scroll">
+        <table class="table">
+          <caption class="sr-only">
+            Each surface, its mode, how much of the project it covers, when it last did something,
+            and whether that is what the current stage expects.
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col" class="col-name">Surface</th>
+              <th scope="col">Mode</th>
+              <th scope="col">Coverage</th>
+              <th scope="col">Last event</th>
+              <th scope="col">Last 14 days</th>
+              <th scope="col" class="col-status">Status &amp; reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (surface of board.surfaces; track surface.key) {
+              <tr>
+                <th scope="row">
+                  <span class="row-name">{{ surface.name }}</span>
+                  <span class="row-meta">
+                    {{ surface.system }}{{ surface.gating ? ' · can stop work' : ' · informs' }}
+                    @if (surface.drill; as link) {
+                      · <a [href]="link.url" target="_blank" rel="noopener">{{ link.label }} ↗</a>
+                    }
+                  </span>
+                </th>
+                <td><span class="mode" [class]="'mode mode-' + surface.mode">{{ surface.mode_label }}</span></td>
+                <td class="mono num">{{ surface.coverage }}</td>
+                <td class="mono num">{{ surface.last_event }}</td>
+                <td class="mono num">{{ surface.events }}</td>
+                <td>
+                  <sl-rag [state]="surface.status" />
+                  <span class="reason">{{ surface.status.reasons.join(' ') }}</span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="detectors-title">
+      <header class="card-head">
+        <div class="card-title" id="detectors-title">Detection by artifact</div>
+        <div class="meta">engine against the ETL's manual audit</div>
+      </header>
+      @if (board.detectors.length) {
+        <div class="scroll">
+          <table class="table">
+            <caption class="sr-only">
+              For each checklist artifact: how it is detected, how many were audited, how many the
+              engine got right, and the two kinds of error.
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col" class="col-name">Artifact &amp; detection method</th>
+                <th scope="col" class="num">Audited</th>
+                <th scope="col" class="num">Correct</th>
+                <th scope="col" class="num" title="Shown missing, but the audit found it">False missing</th>
+                <th scope="col" class="num" title="Shown present, but the audit found nothing usable">False present</th>
+                <th scope="col" class="col-status">Accuracy</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (detector of board.detectors; track detector.key) {
+                <tr>
+                  <th scope="row">
+                    <span class="row-name">
+                      {{ detector.name }}
+                      @if (detector.status_only) { <span class="tag">status only</span> }
+                    </span>
+                    <span class="row-meta">{{ detector.method }}</span>
+                    @if (detector.note) { <span class="row-note">{{ detector.note }}</span> }
+                  </th>
+                  <td class="mono num">{{ detector.audited }}</td>
+                  <td class="mono num">{{ detector.correct }}</td>
+                  <td class="mono num" [class.err]="detector.false_missing">{{ detector.false_missing }}</td>
+                  <td class="mono num" [class.err]="detector.false_present">{{ detector.false_present }}</td>
+                  <td>
+                    <span class="accuracy mono">{{ detector.accuracy }}%</span>
+                    <sl-rag [state]="detector.status" />
+                    @if (detector.drill; as link) {
+                      <a class="row-link" [href]="link.url" target="_blank" rel="noopener">{{ link.label }} ↗</a>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+      <p class="panel-note">{{ board.audit_note }}</p>
+    </section>
+
+    <div class="charts">
+      <section class="card chart-card" aria-labelledby="accuracy-title">
+        <header class="card-head"><div class="card-title" id="accuracy-title">Detection accuracy by sprint</div></header>
+        <div class="chart-body">
+          @if (chart('accuracy'); as spec) {
+            <sl-chart [spec]="spec" />
+          } @else {
+            <p class="chart-empty">No audit recorded yet. Unmeasured is not the same as accurate.</p>
+          }
+        </div>
+      </section>
+      <section class="card chart-card" aria-labelledby="outcomes-title">
+        <header class="card-head"><div class="card-title" id="outcomes-title">How warnings ended, by sprint</div></header>
+        <div class="chart-body">
+          @if (chart('outcomes'); as spec) {
+            <sl-chart [spec]="spec" />
+          } @else {
+            <p class="chart-empty">
+              Warnings start at Warn. Until then there is nothing to count, and the chart doesn't draw zeros.
+            </p>
+          }
+        </div>
+      </section>
+    </div>
+
+    <p class="sr-only" role="status" aria-live="polite">{{ announcement() }}</p>
+  </div>
+} @else if (error(); as message) {
+  <div class="card empty">
+    <strong>Nothing to show, and that is the finding</strong>
+    {{ message }}
+  </div>
+} @else {
+  <div class="card empty">Loading the rollout…</div>
+}
+
+@if (openGuide() && guide()) {
+  <sl-guide-modal [guide]="guide()!" (closed)="openGuide.set(false)" />
+}
