@@ -1,9 +1,10 @@
 """Deciding which discovered candidate belongs to which slot.
 
 This is the one genuinely fuzzy step in onboarding: "Retail Onboarding" might mean the RTO
-Jira project, or the RETAIL one, or neither. Claude reads the candidate list and proposes an
-assignment; a deterministic name match does the same job, less well, whenever Claude is not
-configured — so this module always answers.
+Jira project, or the RETAIL one, or neither. A model reads the candidate list and proposes an
+assignment: Claude when an Anthropic key is set, otherwise one on the team's Cursor plan when
+the Cursor CLI is signed in. A deterministic name match does the same job, less well, whenever
+neither is available — so this module always answers.
 
 Three rules hold in both modes:
 
@@ -11,7 +12,8 @@ Three rules hold in both modes:
   a page id or a query. Anything it names that was not in the input is dropped on the way out.
 * Candidate titles are text that anybody in the org can edit, so they are untrusted input. The
   model sees them as data inside a schema-constrained call with no tools, and its output is
-  re-validated here rather than trusted.
+  re-validated here rather than trusted. Through Cursor, the call is a read-only CLI run in an
+  empty folder (see cursor_cli).
 * Nothing this module returns is applied. It is a draft until a named person accepts it
   (PRD s9 / product rule 6), which happens in the accept endpoint, not here.
 """
@@ -24,6 +26,7 @@ from pydantic import BaseModel, Field
 
 from app.connectors.discovery import SLOTS, Candidate
 from app.core.config import get_settings
+from app.services import cursor_cli
 
 logger = logging.getLogger("shiftleft.onboarding")
 
@@ -65,7 +68,7 @@ class Resolution(BaseModel):
 @dataclass
 class ResolutionResult:
     resolution: Resolution
-    # "claude" or "name-match" — surfaced in the UI, because how a proposal was arrived at
+    # "claude", "cursor" or "name-match" — surfaced in the UI, because how a proposal was arrived at
     # changes how hard a person should look at it.
     mode: str
     note: str = ""
@@ -94,7 +97,35 @@ async def resolve(hint: str, candidates: list[Candidate]) -> ResolutionResult:
             )
             return fallback
 
+    cursor = await cursor_cli.status()
+    if cursor.available and cursor.default_model:
+        try:
+            return await _resolve_with_cursor(hint, candidates, settings, cursor.default_model)
+        except cursor_cli.CursorFailed as exc:
+            logger.warning("Cursor resolution unavailable, falling back to name matching: %s", exc)
+            fallback = _resolve_by_name(hint, candidates)
+            fallback.note = (
+                f"Cursor couldn't answer ({exc}), so these were matched on name similarity alone — "
+                "check each one."
+            )
+            return fallback
+
     return _resolve_by_name(hint, candidates)
+
+
+async def _resolve_with_cursor(
+    hint: str, candidates: list[Candidate], settings, model: str
+) -> ResolutionResult:
+    answer = await cursor_cli.ask(
+        model, SYSTEM_PROMPT, _prompt(hint, candidates), Resolution, settings.cursor_timeout_seconds
+    )
+    resolution = _sanitize(answer, candidates, hint)
+    return ResolutionResult(
+        resolution=resolution,
+        mode="cursor",
+        note=f"Drafted by {model} through Cursor. Nothing here is applied until you accept it.",
+        caveats=resolution.caveats,
+    )
 
 
 async def _resolve_with_claude(
@@ -205,7 +236,7 @@ def _resolve_by_name(hint: str, candidates: list[Candidate]) -> ResolutionResult
             caveats=["Matched on name similarity only — confirm each source before accepting."],
         ),
         mode="name-match",
-        note="Claude is not configured, so these were matched on name similarity alone.",
+        note="No model is configured (Claude or Cursor), so these were matched on name similarity alone.",
         caveats=["Matched on name similarity only — confirm each source before accepting."],
     )
 

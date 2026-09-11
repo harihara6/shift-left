@@ -1,8 +1,12 @@
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# The local SQLite file sits at the repo root, whatever directory the backend is started from.
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 class Settings(BaseSettings):
@@ -15,7 +19,7 @@ class Settings(BaseSettings):
     environment: Literal["development", "test", "production"] = "development"
 
     # Postgres is the production store (TDD s10). SQLite keeps local dev runnable with no daemon.
-    database_url: str = "sqlite+aiosqlite:///./shiftleft.db"
+    database_url: str = f"sqlite+aiosqlite:///{REPO_ROOT / 'shiftleft.db'}"
     database_echo: bool = False
     # Alembic owns the schema wherever it is deployed (`alembic upgrade head`). Creating tables
     # from the models at startup is a local-dev convenience only.
@@ -87,8 +91,19 @@ class Settings(BaseSettings):
     xray_client_id: str = ""
     xray_client_secret: SecretStr | None = None
 
-    # Cursor's API lists the models the team's account can use. It has no call that answers a
-    # prompt, so these models run in the editor, never on this server.
+    # Cursor, as an alternative to an Anthropic key: the AI steps run through the Cursor CLI on the
+    # machine running ShiftLeft, billed to the signed-in Cursor seat (app/services/cursor_cli.py,
+    # docs/SETUP-Cursor-CLI.md). "auto" finds `cursor-agent` or `agent` on PATH or in
+    # ~/.local/bin; a path names the binary; "off" turns it off.
+    cursor_cli: str = "auto"
+    # The model to use where no picker is shown (compliance proposals, guided setup), and the
+    # picker's default. Empty: the model the CLI marks as current.
+    cursor_model: str = ""
+    # Guided setup is interactive, but the CLI starts an agent per call, so it gets longer than
+    # `anthropic_timeout_seconds`. Kickoff calls use `kickoff_model_timeout_seconds`.
+    cursor_timeout_seconds: float = 120.0
+    # Optional. Passed to the CLI as CURSOR_API_KEY, for a machine where nobody ran `agent login`.
+    # Usage bills to whoever owns the key.
     cursor_api_key: SecretStr | None = None
 
     # Encrypts every value behind a "vault://..." reference (app/services/vault.py) - what makes

@@ -34,7 +34,31 @@ async def test_secrets_are_never_returned(client, admin):
     assert secrets, "Jira declares at least one credential field"
     for field in secrets:
         assert field["value"] is None
-        assert "vault" in field["placeholder"]
+        # Nothing stored yet, so nothing claims to be.
+        assert field["placeholder"].startswith("Not set")
+
+    await _configure(client, admin, "jira", {}, {"api_token": "a-real-token"})
+    response = await client.get("/api/connectors/jira", headers=admin)
+    token = next(f for f in response.json()["fields"] if f["key"] == "api_token")
+    assert token["value"] is None and "stored in vault" in token["placeholder"]
+    assert "a-real-token" not in response.text
+
+
+async def test_a_catalog_example_is_a_placeholder_not_a_value(client, admin):
+    """A value only shown, never saved, is read by nothing: it must not look configured."""
+    from sqlalchemy import select
+
+    from app.db.session import SessionLocal
+    from app.models.connector import ConnectorInstance
+
+    async with SessionLocal() as session:
+        query = select(ConnectorInstance).where(ConnectorInstance.connector_key == "confluence")
+        instance = (await session.execute(query)).scalars().first()
+        instance.config = {k: v for k, v in instance.config.items() if k != "account_email"}
+        await session.commit()
+    detail = (await client.get("/api/connectors/confluence", headers=admin)).json()
+    email = next(f for f in detail["fields"] if f["key"] == "account_email")
+    assert email["value"] is None and email["placeholder"]
 
 
 async def test_credentials_cannot_be_written_through_the_config_body(client, admin):
@@ -66,10 +90,57 @@ async def test_rotating_a_credential_stores_a_reference_not_a_value(client, admi
 
 
 async def test_a_stale_connector_reports_stale_regardless_of_stored_state(client, admin):
+    r = await client.post("/api/connectors/xray/secrets", headers=admin,
+                          json={"field_key": "client_secret", "value": "a-real-secret"})
+    assert r.status_code == 204
     connectors = (await client.get("/api/connectors", headers=admin)).json()
     xray = next(c for c in connectors if c["key"] == "xray")
     assert xray["stale"] is True
     assert xray["state_label"] == "Stale"
+
+
+async def test_connected_is_never_shown_without_a_stored_credential(client, admin):
+    """A seeded "Connected" with nothing in the vault can read nothing, so it says so (rule 1)."""
+    connectors = (await client.get("/api/connectors", headers=admin)).json()
+    github = next(c for c in connectors if c["key"] == "github")
+    assert github["state"] == "not_configured" and github["state_label"] == "No credential stored"
+    assert github["sync_label"] == "—" and github["instances"] == 0
+    # CI shares GitHub's connection, so it has none either.
+    ci = next(c for c in connectors if c["key"] == "ci")
+    assert ci["state"] == "not_configured"
+
+    r = await client.post("/api/connectors/github/secrets", headers=admin,
+                          json={"field_key": "personal_access_token", "value": "a-real-token"})
+    assert r.status_code == 204
+    detail = (await client.get("/api/connectors/github", headers=admin)).json()
+    assert detail["state"] in ("connected", "stale")
+    connectors = (await client.get("/api/connectors", headers=admin)).json()
+    assert next(c for c in connectors if c["key"] == "ci")["state"] in ("connected", "stale")
+
+
+async def test_a_store_seeded_from_an_older_catalog_gets_the_current_connector_forms(client, admin):
+    """GitHub once offered an App installation; the service reads a token. The form follows the code."""
+    from sqlalchemy import select
+
+    from app.db.session import SessionLocal
+    from app.models.connector import ConnectorInstance, ConnectorType
+    from app.seed.loader import seed_reference
+
+    async with SessionLocal() as session:
+        github = await session.get(ConnectorType, "github")
+        github.auth_methods = [{"label": "GitHub App installation", "recommended": True}]
+        github.fields = [{"key": "private_key", "label": "Private key", "help": "", "type": "secret",
+                          "seed_value": None}]
+        instance = (await session.execute(
+            select(ConnectorInstance).where(ConnectorInstance.connector_key == "github"))).scalars().first()
+        instance.auth_method = "GitHub App installation"
+        await session.commit()
+        assert await seed_reference(session) is True
+
+    detail = (await client.get("/api/connectors/github", headers=admin)).json()
+    assert "personal_access_token" in {f["key"] for f in detail["fields"]}
+    assert "private_key" not in {f["key"] for f in detail["fields"]}
+    assert detail["selected_auth"] == detail["auth_methods"][0]["label"]
 
 
 async def test_config_accepts_only_the_connectors_own_fields(client, admin):

@@ -88,7 +88,7 @@ const STEP_COPY: Record<KickoffStepKey, { title: string; lede: string; optional?
   plan: {
     title: 'The analysis',
     lede:
-      'Claude reads everything above and says what work is pending in which repo, what you need from ' +
+      'The AI reads everything above and says what work is pending in which repo, what you need from ' +
       'others, and the Jira tasks in the order to do them. Edit them, then create them in your backlog.',
   },
 };

@@ -4,8 +4,9 @@
 2. **Repos to code in**, and 3. **repos relied on**: read from GitHub at a pinned commit.
 4. **Compliance**: proposed from the PRD, approved (or chosen by hand) by a named person.
 5. **API docs**, and 6. **third-party providers**: read from the URLs given.
-7. **The analysis**: Claude drafts what changes in which repo, what each dependency must provide,
-   and the Jira tasks in order. People edit the tasks, then create them in their backlog.
+7. **The analysis**: a model (Claude, or one on the team's Cursor plan) drafts what changes in
+   which repo, what each dependency must provide, and the Jira tasks in order. People edit the
+   tasks, then create them in their backlog.
 
 An analysis is saved as it goes, and can be reopened, changed and run again. The plan keeps a
 fingerprint of the inputs it was drafted from, so a plan older than its inputs says which ones
@@ -21,7 +22,6 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
 from app.models.kickoff import KickoffAnalysis
 from app.models.project import Project
 from app.schemas import kickoff as out
@@ -131,19 +131,21 @@ async def status(session: AsyncSession) -> out.KickoffStatus:
             else "Needed only for the last step. Add the Jira connector in Settings → Connectors.",
         )
     )
+    providers = await model_provider.providers()
+    ready = [p for p in providers if p.available and p.key in model_provider.AI_PROVIDERS]
     rows.append(
         out.ConnectionOut(
             key="ai",
-            name="Claude (the analysis)",
-            state="ready" if ai.available() else "fallback",
-            via="Anthropic API" if ai.available() else "",
-            note="Compliance proposals and the plan are drafted by Claude."
-            if ai.available()
-            else "Not configured (SHIFTLEFT_ANTHROPIC_API_KEY): drafts are rule-based and say so.",
+            name="AI (the analysis)",
+            state="ready" if ready else "fallback",
+            via=" · ".join(p.name for p in ready),
+            note="Compliance proposals and the plan are drafted by a model; a person accepts them."
+            if ready
+            else "No model: set SHIFTLEFT_ANTHROPIC_API_KEY, or sign in the Cursor CLI "
+            "(docs/SETUP-Cursor-CLI.md). Until then drafts are rule-based and say so.",
         )
     )
-    providers = [p for p in await model_provider.providers() if p.key in ("claude", "rules")]
-    default = next((p.key for p in providers if p.available and p.key != "rules"), "rules")
+    default = ready[0].key if ready else "rules"
     return out.KickoffStatus(
         connections=rows,
         providers=[out.ModelProvider(**asdict(p)) for p in providers],
@@ -258,7 +260,7 @@ async def suggest_compliance(row: KickoffAnalysis, actor: str) -> None:
     prd = row.inputs.get("prd")
     if not prd:
         raise Refused("Fetch the PRD first: compliance is proposed from what it says.")
-    found, by, note = await ai.suggest_compliance(prd["lines"], get_settings().anthropic_model)
+    found, by, note = await ai.suggest_compliance(prd["lines"], await model_provider.default_ai())
     current = row.inputs.get("compliance") or {}
     _touch(
         row,
@@ -568,7 +570,11 @@ async def create_backlog(session: AsyncSession, row: KickoffAnalysis, actor: str
 
 
 def _drafted_by(plan: dict[str, Any]) -> str:
-    return f"Claude ({plan['model']})" if plan.get("reader") == "claude" else "the rule-based drafter (no AI)"
+    if plan.get("reader") == "claude":
+        return f"Claude ({plan['model']})"
+    if plan.get("reader") == "cursor":
+        return f"{plan['model']} through Cursor"
+    return "the rule-based drafter (no AI)"
 
 
 def _steps(row: KickoffAnalysis) -> list[out.StepOut]:

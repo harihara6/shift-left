@@ -146,6 +146,40 @@ async def _seed_connector_types(session: AsyncSession) -> None:
         session.add(_connector_type(row))
 
 
+async def _refresh_connector_types(session: AsyncSession) -> bool:
+    """Bring connector definitions a store already holds up to the catalog's current ones.
+
+    A connector's fields and auth methods are code, not configuration: app/connectors/live.py
+    reads specific field keys. A store seeded from an older catalog would otherwise keep offering
+    a form whose credential the service can't use (a GitHub App key where a token is read). Only
+    the definition changes; an instance keeps its values, and an auth method the connector no
+    longer offers is replaced by the one it does.
+    """
+    changed = False
+    for row in _load("connectors"):
+        fresh = _connector_type(row)
+        stored = await session.get(ConnectorType, fresh.key)
+        if stored is None:
+            session.add(fresh)
+            changed = True
+            continue
+        if stored.fields == fresh.fields and stored.auth_methods == fresh.auth_methods:
+            continue
+        for attr in ("name", "category", "description", "auth_methods", "fields", "scopes", "rate_limits"):
+            setattr(stored, attr, getattr(fresh, attr))
+        labels = {a["label"] for a in fresh.auth_methods}
+        instances = (
+            await session.execute(
+                select(ConnectorInstance).where(ConnectorInstance.connector_key == fresh.key)
+            )
+        ).scalars()
+        for instance in instances:
+            if instance.auth_method and instance.auth_method not in labels:
+                instance.auth_method = fresh.auth_methods[0]["label"] if fresh.auth_methods else None
+        changed = True
+    return changed
+
+
 async def _seed_connector_instances(session: AsyncSession) -> None:
     """The prototype's configured connections, with sync times relative to now."""
     for row in _load("connectors"):
@@ -482,11 +516,14 @@ async def seed_reference(session: AsyncSession) -> bool:
     Widget guides, the connector catalog, the template catalog and the eleven canonical
     artifacts are product content, not example data: the service refuses to boot without the
     guides, and Settings has nothing to configure without the catalogs. Each is added only when
-    absent, so an operator's later edits are never overwritten.
+    absent, so an operator's later edits are never overwritten - except connector definitions,
+    which follow the catalog because the connectors' code reads their fields.
     """
     changed = False
     if await _empty(session, ConnectorType.key):
         await _seed_connector_types(session)
+        changed = True
+    elif await _refresh_connector_types(session):
         changed = True
     if await _empty(session, Template.key):
         await _seed_templates(session)

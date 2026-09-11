@@ -15,6 +15,9 @@ os.environ.update(
     {
         "SHIFTLEFT_ENVIRONMENT": "test",
         "SHIFTLEFT_ANTHROPIC_API_KEY": "",
+        # A signed-in Cursor CLI on the developer's machine would otherwise answer, and bill them.
+        "SHIFTLEFT_CURSOR_CLI": "off",
+        "SHIFTLEFT_CURSOR_API_KEY": "",
         "SHIFTLEFT_ATLASSIAN_MCP_TOKEN": "",
         "SHIFTLEFT_ATLASSIAN_SITE_URL": "",
         "SHIFTLEFT_AUTH_MODE": "dev-header",

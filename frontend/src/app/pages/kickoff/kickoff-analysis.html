@@ -36,18 +36,18 @@
     @for (p of providers(); track p.key) {
       <button class="drafter" role="radio" [attr.aria-checked]="providerKey() === p.key" [class.on]="providerKey() === p.key"
               [disabled]="!p.available || running()" (click)="pick(p.key)">
-        <span class="drafter-mark" aria-hidden="true">{{ p.key === 'claude' ? '✦' : '≡' }}</span>
+        <span class="drafter-mark" aria-hidden="true">{{ drafterOf(p.key).mark }}</span>
         <span class="drafter-text">
-          <span class="drafter-name">{{ p.key === 'claude' ? 'Claude' : 'Rule-based draft' }}
-            @if (!p.available) { <span class="state-pill tone-missing"><span class="glyph" aria-hidden="true">?</span>Not configured</span> }
+          <span class="drafter-name">{{ drafterOf(p.key).name }}
+            @if (!p.available) { <span class="state-pill tone-missing"><span class="glyph" aria-hidden="true">?</span>Not available</span> }
           </span>
-          <span class="meta">{{ p.key === 'claude' ? 'Reads the PRD, every repo tree and spec, and the docs.' : 'No AI: one story per requirement in the PRD. Never labelled as AI.' }}</span>
+          <span class="meta">{{ drafterOf(p.key).blurb }}</span>
           @if (!p.available) { <span class="meta">{{ p.note }}</span> }
         </span>
       </button>
     }
   </div>
-  @if (provider()?.key === 'claude' && provider()!.models.length > 1) {
+  @if (provider() && provider()!.key !== 'rules' && provider()!.models.length > 1) {
     <label class="model-field">
       <span class="label-caps">Model</span>
       <select [ngModel]="model()" (ngModelChange)="model.set($event)" [disabled]="running()">
@@ -60,12 +60,12 @@
     <div class="running" role="status">
       <span class="pulse" aria-hidden="true"></span>
       <div>
-        <p class="running-title">{{ providerKey() === 'claude' ? 'Claude is reading every input' : 'Drafting from the inputs' }} · <span class="mono">{{ elapsedLabel() }}</span></p>
+        <p class="running-title">{{ drafter().working }} · <span class="mono">{{ elapsedLabel() }}</span></p>
         <p class="meta">
           The PRD, {{ a.repos.repos.length }} repo{{ a.repos.repos.length === 1 ? '' : 's' }} to code in,
           {{ a.dependencies.repos.length }} relied on, {{ a.api_docs.docs.length }} doc{{ a.api_docs.docs.length === 1 ? '' : 's' }}
           and {{ a.third_parties.providers.length }} provider{{ a.third_parties.providers.length === 1 ? '' : 's' }}.
-          A Claude analysis usually takes one to three minutes. It saves when it's done, even if you leave this page.
+          An AI analysis usually takes one to three minutes; through Cursor, allow a little longer. It saves when it's done, even if you leave this page.
         </p>
       </div>
     </div>
@@ -94,9 +94,9 @@
 
   <section class="result-card summary-card" aria-labelledby="summary-title">
     <div class="drafted">
-      <span class="ai-badge" [class.rules]="plan.reader !== 'claude'">
-        <span aria-hidden="true">{{ plan.reader === 'claude' ? '✦' : '≡' }}</span>
-        {{ plan.reader === 'claude' ? 'AI draft' : 'Rule-based draft' }}
+      <span class="ai-badge" [class.rules]="plan.reader === 'rules'">
+        <span aria-hidden="true">{{ drafterOf(plan.reader).mark }}</span>
+        {{ plan.reader === 'rules' ? 'Rule-based draft' : 'AI draft' }}
       </span>
       <span class="meta">Drafted by {{ plan.drafted_by }} · run <span class="mono">#{{ plan.run_number }}</span> by {{ plan.run_by }} · <span class="mono">{{ plan.run_at | date: 'd MMM, HH:mm' }}</span></span>
     </div>

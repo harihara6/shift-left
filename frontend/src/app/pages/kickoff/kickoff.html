@@ -11,8 +11,8 @@
       <h2 class="hero-title" id="hero-title">From a PRD to an ordered backlog.</h2>
       <p class="hero-lede">
         Paste the PRD, point at your repos and the ones you rely on, approve the compliance, add your
-        API docs and third-party APIs. Claude tells you what work is pending in which repo, and drafts
-        the Jira tasks in the order to do them.
+        API docs and third-party APIs. The AI (Claude, or a model on your Cursor plan) tells you what work
+        is pending in which repo, and drafts the Jira tasks in the order to do them.
       </p>
       <form class="hero-form" (ngSubmit)="start()">
         <label class="sr-only" for="prd-url">Confluence link to the PRD</label>
@@ -276,7 +276,7 @@
                               <span class="glyph" aria-hidden="true">{{ confidenceTone(s).glyph }}</span>{{ confidenceTone(s).label }}
                             </span>
                             @if (framework(s.key); as f) { <span class="pill">{{ f.region }}</span> } @else { <span class="pill">Not in the catalog</span> }
-                            <span class="pill">{{ s.by === 'claude' ? 'Claude' : 'Rules' }}</span>
+                            <span class="pill">{{ s.by === 'claude' ? 'Claude' : s.by === 'cursor' ? 'Cursor' : 'Rules' }}</span>
                           </span>
                           <span class="choice-why">{{ s.why }}</span>
                         </span>

@@ -39,6 +39,7 @@ INACTIVE = ("not_configured", "disabled")
 
 # Shown in place of a credential. There is no endpoint that returns a secret value.
 VAULT_PLACEHOLDER = "•••••••• stored in vault"
+NOT_STORED = "Not set: nothing stored yet"
 
 
 async def _type_or_404(session: AsyncSession, key: str) -> ConnectorType:
@@ -74,8 +75,46 @@ def _secret_keys(ctype: ConnectorType) -> set[str]:
     return {f["key"] for f in ctype.fields if f["type"] == "secret"}
 
 
-def _summary(ctype: ConnectorType, instance: ConnectorInstance | None, stale: bool) -> ConnectorSummary:
+# The connector whose credential another one uses (SHARED_CREDENTIALS), and its instance.
+Shared = tuple[ConnectorType | None, ConnectorInstance | None]
+
+
+async def _has_credential(
+    ctype: ConnectorType, instance: ConnectorInstance | None, shared: Shared | None = None,
+) -> bool:
+    """Whether a credential this connector declares actually resolves in the vault.
+
+    A stored "connected" state is only a label - seeded from the prototype, or left over from an
+    auth method this service no longer offers. Without a credential nothing can be read, so the
+    connector reads Not configured however it is labelled (product rule 1). A connector that
+    shares another's connection (SHARED_CREDENTIALS) is judged by that one.
+    """
+    if shared is not None:
+        ctype, instance = shared
+        if ctype is None:
+            return False
+    needed = _secret_keys(ctype)
+    if not needed:
+        return True
+    refs = (instance.secret_refs or {}) if instance else {}
+    for key in needed:
+        ref = refs.get(key)
+        if ref and await vault.read(ref):
+            return True
+    return False
+
+
+def _summary(
+    ctype: ConnectorType, instance: ConnectorInstance | None, stale: bool, credentialed: bool = True
+) -> ConnectorSummary:
     state = instance.state if instance else "not_configured"
+    if not credentialed and state not in INACTIVE:
+        # No credential behind it: nothing was ever read, so there is no sync to report either.
+        return ConnectorSummary(
+            key=ctype.key, name=ctype.name, category=ctype.category, state="not_configured",
+            state_label="No credential stored", last_successful_sync=None, sync_label="—",
+            instances=0, stale=False,
+        )
     if stale and state == "connected":
         # Freshness overrides a stored state: a connector past its threshold reads Stale.
         state = "stale"
@@ -91,24 +130,41 @@ def _summary(ctype: ConnectorType, instance: ConnectorInstance | None, stale: bo
     )
 
 
+async def _shared(session: AsyncSession, key: str) -> Shared | None:
+    shared_key = SHARED_CREDENTIALS.get(key)
+    if not shared_key:
+        return None
+    return await session.get(ConnectorType, shared_key), await _instance_for(session, shared_key)
+
+
 async def _detail(session: AsyncSession, ctype: ConnectorType) -> ConnectorDetail:
     instance = await _instance_for(session, ctype.key)
     freshness = await resolve(session, [ctype.key])
-    summary = _summary(ctype, instance, stale=_is_active(instance) and freshness.stale)
+    credentialed = await _has_credential(ctype, instance, await _shared(session, ctype.key))
+    stale = _is_active(instance) and freshness.stale
+    summary = _summary(ctype, instance, stale=stale, credentialed=credentialed)
 
     fields = []
+    refs = (instance.secret_refs or {}) if instance else {}
     for field in ctype.fields:
         is_secret = field["type"] == "secret"
-        stored = (instance.config.get(field["key"]) if instance else None) or field.get("seed_value")
+        if is_secret:
+            # Write-only: a secret comes back as a placeholder, never as a value - and the
+            # placeholder only claims a value is stored when one resolves in the vault.
+            ref = refs.get(field["key"])
+            placeholder = VAULT_PLACEHOLDER if ref and await vault.read(ref) else NOT_STORED
+        else:
+            # The catalog's example is a hint, not a value: nothing reads a value that was only
+            # ever shown, so showing it as one would look configured and be empty.
+            placeholder = field.get("seed_value") or ""
         fields.append(
             ConnectorField(
                 key=field["key"],
                 label=field["label"],
                 help=field["help"],
                 type=field["type"],
-                # Write-only: a secret comes back as a placeholder, never as a value.
-                value=None if is_secret else stored,
-                placeholder=VAULT_PLACEHOLDER if is_secret else "",
+                value=None if is_secret else (instance.config.get(field["key"]) if instance else None),
+                placeholder=placeholder,
             )
         )
 
@@ -141,13 +197,17 @@ async def list_connectors(
         instances.setdefault(instance.connector_key, instance)
     freshness = await resolve(session, [t.key for t in types])
     stale_keys = {c.key for c in freshness.connectors if c.stale}
-    return [
-        _summary(
-            ctype, instances.get(ctype.key),
-            stale=_is_active(instances.get(ctype.key)) and ctype.key in stale_keys,
-        )
-        for ctype in types
-    ]
+    by_key = {t.key: t for t in types}
+    out = []
+    for ctype in types:
+        instance = instances.get(ctype.key)
+        shared_key = SHARED_CREDENTIALS.get(ctype.key)
+        shared = (by_key.get(shared_key), instances.get(shared_key)) if shared_key else None
+        out.append(_summary(
+            ctype, instance, stale=_is_active(instance) and ctype.key in stale_keys,
+            credentialed=await _has_credential(ctype, instance, shared),
+        ))
+    return out
 
 
 @router.get("/{connector_key}", response_model=ConnectorDetail)

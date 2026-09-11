@@ -5,9 +5,8 @@ at request time, so the picker offers what the account can actually use today an
 hardcoded id that might not exist.
 
 * **claude**: the Anthropic API, the same key guided setup uses. Models from `GET /v1/models`.
-* **cursor**: models from Cursor's `GET /v1/models`, with the team's API key. Listed, never run
-  here: Cursor's API launches agents on repositories and has no call that answers a prompt, so
-  its models run in the editor. The picker shows them so nobody wonders where they went.
+* **cursor**: the team's Cursor plan, through the Cursor CLI on the machine running ShiftLeft
+  (`cursor_cli`). Models from `agent models`. For when there's a Cursor seat but no Anthropic key.
 * **rules**: no model. The keyword reader. Always available, and the fallback whenever a model
   call fails, so the flow degrades rather than disappears.
 
@@ -18,13 +17,13 @@ import logging
 import time
 from dataclasses import dataclass, field
 
-from app.connectors import http
 from app.core.config import get_settings
+from app.services import cursor_cli
 
 logger = logging.getLogger("shiftleft.kickoff")
 
 RULES_MODEL = "rules"
-CURSOR_API = "https://api.cursor.com"
+AI_PROVIDERS = ("claude", "cursor")
 # A person is waiting on the picker. The list is re-fetched at most this often per process.
 MODEL_LIST_TTL_SECONDS = 300
 MODEL_LIST_LIMIT = 50
@@ -72,28 +71,6 @@ async def _claude_models(api_key: str, default_model: str) -> tuple[list[ModelOp
     return models, note
 
 
-async def _cursor_models(api_key: str) -> tuple[list[ModelOption], str]:
-    cached = _cache.get("cursor")
-    if cached and time.monotonic() - cached[0] < MODEL_LIST_TTL_SECONDS:
-        return cached[1], cached[2]
-    try:
-        async with http.client(timeout=10.0) as c:
-            response = await c.get(f"{CURSOR_API}/v1/models", auth=(api_key, ""))
-        response.raise_for_status()
-        items = response.json().get("items", [])
-        models = [ModelOption(id=str(i["id"]), display_name=str(i.get("displayName") or i["id"]))
-                  for i in items if isinstance(i, dict) and i.get("id")][:MODEL_LIST_LIMIT]
-        note = (
-            f"Connected: {len(models)} model(s) on the team's Cursor account. They run in the editor, "
-            "not here: Cursor's API launches agents on repositories and can't answer a prompt directly."
-        )
-    except Exception as exc:  # a list that can't be fetched says so; it never invents one
-        logger.warning("Could not list Cursor models: %s", type(exc).__name__)
-        models, note = [], f"Couldn't list Cursor's models just now ({type(exc).__name__})."
-    _cache["cursor"] = (time.monotonic(), models, note)
-    return models, note
-
-
 async def providers() -> list[Provider]:
     settings = get_settings()
     out: list[Provider] = []
@@ -118,14 +95,11 @@ async def providers() -> list[Provider]:
             "Not configured. Set SHIFTLEFT_ANTHROPIC_API_KEY to read PRDs with Claude.",
         ))
 
-    if settings.cursor_api_key:
-        models, note = await _cursor_models(settings.cursor_api_key.get_secret_value())
-        out.append(Provider("cursor", "Cursor", False, note, models))
-    else:
-        out.append(Provider(
-            "cursor", "Cursor", False,
-            "Not connected. Set SHIFTLEFT_CURSOR_API_KEY to list the models on the team's Cursor account.",
-        ))
+    cursor = await cursor_cli.status()
+    out.append(Provider(
+        "cursor", "Cursor (your Cursor plan)", cursor.available, cursor.note,
+        [ModelOption(model_id, name) for model_id, name in cursor.models], cursor.default_model,
+    ))
     out.append(Provider(
         "rules", "No model", True,
         "Keyword reader. Always available; every fact still needs a quote from the PRD.",
@@ -145,3 +119,17 @@ async def choose(provider_key: str, model: str) -> tuple[Provider, str] | str:
             return f"{model!r} isn't offered by {provider.name}. Pick one from the list."
         return provider, model
     return f"Unknown model provider {provider_key!r}."
+
+
+async def default_ai() -> tuple[str, str] | None:
+    """The provider and model for the AI steps that have no picker, or None for rules.
+
+    Claude when a key is set, as before; otherwise Cursor when its CLI is signed in.
+    """
+    settings = get_settings()
+    if settings.anthropic_api_key:
+        return "claude", settings.anthropic_model
+    cursor = await cursor_cli.status()
+    if cursor.available and cursor.default_model:
+        return "cursor", cursor.default_model
+    return None

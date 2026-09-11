@@ -6,10 +6,12 @@ Claude drafts; people accept (product rule 6). Three rules hold for everything h
   cites must exist; a task it depends on must be in the list. Anything else is removed on the way
   in, so nothing on the page points at something that isn't there.
 * **Inputs are data, never instructions.** PRDs, READMEs and docs are written by other people.
-  They reach the model as quoted material in a schema-constrained call with no tools, and its
-  output is re-validated here.
-* **A draft says how it was drafted.** Without an Anthropic key, or when the call fails, the
-  rule-based draft is used and labelled as such, with the reason. It is never passed off as AI.
+  They reach the model as quoted material in a schema-constrained call with no tools (through
+  Cursor: a read-only CLI run in an empty folder, see cursor_cli), and its output is
+  re-validated here.
+* **A draft says how it was drafted.** Without a model (an Anthropic key, or the Cursor CLI
+  signed in), or when the call fails, the rule-based draft is used and labelled as such, with the
+  reason. It is never passed off as AI, and an AI draft names the model and where it ran.
 """
 
 import logging
@@ -19,6 +21,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, ValidationError
 
 from app.core.config import get_settings
+from app.services import cursor_cli
 from app.services import kickoff_compliance as compliance
 
 logger = logging.getLogger("shiftleft.kickoff")
@@ -31,6 +34,8 @@ SUGGEST_MAX_TOKENS = 8000
 FEATURE_HEADINGS = ("feature", "requirement", "scope", "user stor", "functional", "capabilit", "what we")
 MAX_RULE_FEATURES = 12
 ESTIMATES = ("XS", "S", "M", "L", "XL")
+# How each AI provider is named where a draft says who drafted it.
+VIA = {"claude": "Claude", "cursor": "Cursor"}
 
 
 class ModelFailed(RuntimeError):
@@ -126,8 +131,22 @@ def available() -> bool:
     return bool(get_settings().anthropic_api_key)
 
 
-async def _call(model: str, system: str, content: str, output: type[BaseModel], max_tokens: int) -> Any:
-    """One structured call, streamed so a long plan never hits a request timeout."""
+async def _call(
+    provider: str, model: str, system: str, content: str, output: type[BaseModel], max_tokens: int
+) -> Any:
+    """One structured call on `provider`. Raises ModelFailed with a reason safe to show."""
+    if provider == "cursor":
+        try:
+            return await cursor_cli.ask(
+                model, system, content, output, get_settings().kickoff_model_timeout_seconds
+            )
+        except cursor_cli.CursorFailed as exc:
+            raise ModelFailed(str(exc)) from exc
+    return await _claude(model, system, content, output, max_tokens)
+
+
+async def _claude(model: str, system: str, content: str, output: type[BaseModel], max_tokens: int) -> Any:
+    """One structured Anthropic call, streamed so a long plan never hits a request timeout."""
     try:
         import anthropic
     except ImportError as exc:
@@ -302,23 +321,31 @@ def _valid_lines(numbers: list[int], lines: list[str]) -> list[int]:
     return [n for n in dict.fromkeys(numbers) if 1 <= n <= len(lines) and not lines[n - 1].startswith("## ")]
 
 
-async def suggest_compliance(lines: list[str], model: str) -> tuple[list[dict[str, Any]], str, str]:
-    """(suggestions, drafted_by, note). Rules always contribute; Claude adds to them when available."""
+async def suggest_compliance(
+    lines: list[str], chosen: tuple[str, str] | None
+) -> tuple[list[dict[str, Any]], str, str]:
+    """(suggestions, drafted_by, note). Rules always contribute; a model adds to them when there is one.
+
+    `chosen` is (provider, model), or None when no model is available.
+    """
     by_rules = compliance.suggest(lines)
-    if not available():
+    if chosen is None:
         return (
             by_rules,
             "rules",
-            "Proposed by the rule-based suggester: set SHIFTLEFT_ANTHROPIC_API_KEY for Claude.",
+            "Proposed by the rule-based suggester: set SHIFTLEFT_ANTHROPIC_API_KEY, or sign in the "
+            "Cursor CLI, for an AI proposal.",
         )
+    provider, model = chosen
+    via = VIA[provider]
     content = f"Catalog:\n{_catalog_block()}\n\nPRD lines:\n{_numbered(lines)}"
     try:
         answer: ComplianceSuggestions = await _call(
-            model, SUGGEST_SYSTEM, content, ComplianceSuggestions, SUGGEST_MAX_TOKENS
+            provider, model, SUGGEST_SYSTEM, content, ComplianceSuggestions, SUGGEST_MAX_TOKENS
         )
     except ModelFailed as exc:
-        logger.warning("Claude couldn't propose compliance: %s", exc)
-        return by_rules, "rules", f"Claude couldn't answer ({exc}), so the rule-based suggester was used."
+        logger.warning("%s couldn't propose compliance: %s", via, exc)
+        return by_rules, "rules", f"{via} couldn't answer ({exc}), so the rule-based suggester was used."
 
     out: list[dict[str, Any]] = []
     for item in answer.frameworks:
@@ -333,7 +360,7 @@ async def suggest_compliance(lines: list[str], model: str) -> tuple[list[dict[st
                 "confidence": item.confidence,
                 "why": item.why,
                 "quotes": [compliance.quote(lines, n - 1) for n in numbers[:3]],
-                "by": "claude",
+                "by": provider,
             }
         )
     for item in answer.other:
@@ -346,15 +373,16 @@ async def suggest_compliance(lines: list[str], model: str) -> tuple[list[dict[st
                     "confidence": "possible",
                     "why": item.why,
                     "quotes": [compliance.quote(lines, n - 1) for n in numbers[:3]],
-                    "by": "claude",
+                    "by": provider,
                 }
             )
-    # A strong keyword match Claude didn't propose is still shown: missing is never silent.
+    # A strong keyword match the model didn't propose is still shown: missing is never silent.
     out += [s for s in by_rules if s["confidence"] == "strong" and all(o["key"] != s["key"] for o in out)]
+    where = " through Cursor" if provider == "cursor" else ""
     return (
         out,
-        "claude",
-        f"Proposed by {model}, with the rule-based matches it didn't list. Each quotes the PRD.",
+        provider,
+        f"Proposed by {model}{where}, with the rule-based matches it didn't list. Each quotes the PRD.",
     )
 
 
@@ -581,22 +609,24 @@ def rules_plan(ctx: Context) -> DraftPlan:
 
 
 async def draft_plan(ctx: Context, provider: str, model: str) -> tuple[dict[str, Any], str, str, str]:
-    """(plan, reader, model, note)."""
-    if provider == "claude" and available():
+    """(plan, reader, model, note). The caller has checked `provider` is available."""
+    if provider == "claude" and not available():
+        note = "Claude isn't configured (SHIFTLEFT_ANTHROPIC_API_KEY), so this is the rule-based draft."
+    elif provider in VIA:
+        via = VIA[provider]
+        where = " through Cursor" if provider == "cursor" else ""
         try:
-            draft = await _call(model, PLAN_SYSTEM, render(ctx), DraftPlan, PLAN_MAX_TOKENS)
+            draft = await _call(provider, model, PLAN_SYSTEM, render(ctx), DraftPlan, PLAN_MAX_TOKENS)
             return (
-                sanitize(draft, ctx, "claude"),
-                "claude",
+                sanitize(draft, ctx, provider),
+                provider,
                 model,
-                f"Drafted by {model} from every input on the left. Nothing counts until a named person "
-                "creates it in the backlog.",
+                f"Drafted by {model}{where} from every input on the left. Nothing counts until a named "
+                "person creates it in the backlog.",
             )
         except ModelFailed as exc:
-            logger.warning("Claude couldn't draft the plan: %s", exc)
-            note = f"Claude couldn't draft this ({exc}), so this is the rule-based draft. Run again to retry."
-    elif provider == "claude":
-        note = "Claude isn't configured (SHIFTLEFT_ANTHROPIC_API_KEY), so this is the rule-based draft."
+            logger.warning("%s couldn't draft the plan: %s", via, exc)
+            note = f"{via} couldn't draft this ({exc}), so this is the rule-based draft. Run again to retry."
     else:
-        note = "Rule-based draft, no AI: one story per PRD requirement. Claude's draft also reads the code."
+        note = "Rule-based draft, no AI: one story per PRD requirement. An AI draft also reads the code."
     return sanitize(rules_plan(ctx), ctx, "rules"), "rules", "rules", note

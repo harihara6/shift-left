@@ -50,7 +50,7 @@ Everything has a working default for local development. List values are JSON, e.
 | Variable | Default | Purpose |
 |---|---|---|
 | `SHIFTLEFT_ENVIRONMENT` | `development` | `production` turns on the startup guards below |
-| `SHIFTLEFT_DATABASE_URL` | `sqlite+aiosqlite:///./shiftleft.db` | Database connection |
+| `SHIFTLEFT_DATABASE_URL` | `sqlite+aiosqlite:///<repo>/shiftleft.db` | Database connection |
 | `SHIFTLEFT_AUTO_CREATE_SCHEMA` | `true` | Create tables from the models on start. Local dev only; Alembic owns the schema elsewhere |
 | `SHIFTLEFT_SEED_ON_STARTUP` | `true` | Fill an empty database with example data on start |
 | `SHIFTLEFT_AUTH_MODE` | `dev-header` | `dev-header` trusts the identity headers as sent. `trusted-proxy` trusts them only with the proxy secret |
@@ -68,17 +68,20 @@ Everything has a working default for local development. List values are JSON, e.
 | `SHIFTLEFT_ATLASSIAN_EMAIL` / `SHIFTLEFT_ATLASSIAN_API_TOKEN` | empty | Feature Kickoff's fallback Jira/Confluence credential on `SHIFTLEFT_ATLASSIAN_SITE_URL`, used when Settings → Connectors has none: reading the PRD and creating the backlog |
 | `SHIFTLEFT_GITHUB_API_URL` / `SHIFTLEFT_GITHUB_TOKEN` | `https://api.github.com` / empty | Feature Kickoff's fallback GitHub token for reading repos, when Settings → Connectors has none. Public repos read without one |
 | `SHIFTLEFT_XRAY_BASE_URL` / `SHIFTLEFT_XRAY_CLIENT_ID` / `SHIFTLEFT_XRAY_CLIENT_SECRET` | `https://xray.cloud.getxray.app` / empty | Xray Cloud for Settings → Connectors. EU and AU tenants use their regional host |
-| `SHIFTLEFT_CURSOR_API_KEY` | empty | Lists the models on the team's Cursor account on the kickoff page (they run in the editor) |
+| `SHIFTLEFT_CURSOR_CLI` | `auto` | Use your Cursor plan instead of an Anthropic key: the AI steps run through the Cursor CLI on this machine. `auto` finds `cursor-agent`/`agent`; a path names it; `off` turns it off. Setup: [docs/SETUP-Cursor-CLI.md](docs/SETUP-Cursor-CLI.md) |
+| `SHIFTLEFT_CURSOR_MODEL` | empty | The Cursor model for steps with no picker (compliance proposals, guided setup), and the picker's default. Empty: the CLI's current model |
+| `SHIFTLEFT_CURSOR_TIMEOUT_SECONDS` | `120` | How long guided setup waits for Cursor before falling back to name matching |
+| `SHIFTLEFT_CURSOR_API_KEY` | empty | Optional. Signs the Cursor CLI in without `agent login` (passed to it as `CURSOR_API_KEY`). Usage bills to the key's owner |
 
 Without the optional settings those features fall back to simpler behaviour; nothing breaks.
 
 ## Database
 
-By default the backend uses a SQLite file, `backend/shiftleft.db`. No database server is needed.
+By default the backend uses a SQLite file, `shiftleft.db` at the repo root. No database server is needed.
 
 - **First start:** tables are created and seeded with example data from the design prototype.
 - **Later starts:** existing data is kept. Data for newly added features is filled in if it's missing.
-- **Reset:** stop the backend, delete `backend/shiftleft.db`, and start it again.
+- **Reset:** stop the backend, delete `shiftleft.db`, and start it again.
 
 Seeded connector sync times are fixed when the file is created, so an old database shows every source
 as stale (amber). Resetting it gives fresh timestamps.

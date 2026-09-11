@@ -81,7 +81,10 @@ class AtlassianRest:
         Connectors' "Test connection" path) - the HTTP calls below are the same either way.
         """
         settings = get_settings()
-        self.site = (site if site is not None else settings.atlassian_site_url).rstrip("/")
+        # "https://x.atlassian.net/wiki" is how Confluence URLs look, and people paste it; every
+        # path below starts from the site root, so a trailing /wiki would be doubled.
+        base = site if site is not None else settings.atlassian_site_url
+        self.site = base.rstrip("/").removesuffix("/wiki")
         self._email = email if email is not None else settings.atlassian_email
         if token is not None:
             self._token = token

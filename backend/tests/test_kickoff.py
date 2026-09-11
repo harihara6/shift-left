@@ -7,6 +7,7 @@ without a connection, a step says how to connect.
 
 import json
 from html import escape
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import httpx
@@ -617,7 +618,7 @@ async def test_a_claude_draft_is_held_to_its_inputs(boot, contributor, world, mo
 
         seen: dict = {}
 
-        async def fake_call(model, system, content, output, max_tokens):
+        async def fake_call(provider, model, system, content, output, max_tokens):
             if output is kickoff_ai.ComplianceSuggestions:
                 return kickoff_ai.ComplianceSuggestions(
                     frameworks=[
@@ -709,6 +710,159 @@ async def test_a_claude_draft_is_held_to_its_inputs(boot, contributor, world, mo
         assert "src/app/accounts/accounts.service.ts" in seen["content"]
         assert "GET /accounts/{id}/balances" in seen["content"]
         assert "psd2: PSD2" in seen["content"]
+
+
+FAKE_CURSOR = '''#!/usr/bin/env python3
+"""A stand-in for the Cursor CLI: logs each call, lists models, answers from answers.json."""
+import json, os, sys
+from pathlib import Path
+
+here = Path(__file__).parent
+args = sys.argv[1:]
+with open(here / "calls.jsonl", "a") as log:
+    call = {{"args": args, "env": dict(os.environ), "cwd": os.getcwd(), "files": sorted(os.listdir("."))}}
+    log.write(json.dumps(call) + "\\n")
+if args[:1] == ["models"]:
+    if (here / "signed-out").exists():
+        print("Error: not logged in. Run 'agent login' first.", file=sys.stderr)
+        sys.exit(1)
+    print("Available models\\n\\nauto - Auto\\nsonnet-4.5 - Claude 4.5 Sonnet  (current)\\ngpt-5 - GPT-5\\n")
+    print("Tip: use --model <id> to switch.")
+    sys.exit(0)
+prompt = args[-1]
+for needle, answer in json.loads((here / "answers.json").read_text()):
+    if needle in prompt:
+        print(json.dumps({{"type": "result", "subtype": "success", "is_error": False, "result": answer}}))
+        sys.exit(0)
+print("no answer for this prompt", file=sys.stderr)
+sys.exit(1)
+'''
+
+
+def _fake_cursor(tmp_path, answers: list[tuple[str, str]]):
+    cli = tmp_path / "cursor-agent"
+    cli.write_text(FAKE_CURSOR.format())
+    cli.chmod(0o755)
+    (tmp_path / "answers.json").write_text(json.dumps(answers))
+    return cli
+
+
+def _cursor_calls(tmp_path) -> list[dict]:
+    return [json.loads(line) for line in (tmp_path / "calls.jsonl").read_text().splitlines()]
+
+
+async def test_a_cursor_draft_runs_the_cli_read_only_and_is_held_to_its_inputs(
+    boot, contributor, world, monkeypatch, tmp_path
+):
+    from app.services import kickoff_ai as k
+
+    plan = k.DraftPlan(
+        summary="Aggregation.",
+        epic_title="Account aggregation",
+        epic_description="Epic.",
+        repo_work=[k.RepoWork(repo="acme/invented", summary="?", changes=[])],
+        dependency_needs=[],
+        risks=[],
+        open_questions=[],
+        tasks=[
+            k.DraftTask(
+                title="Build the UI", type="Story", repo="ACME/accounts-web", description="d",
+                acceptance_criteria=["a"], depends_on=[2], estimate="M", compliance=["psd2", "sox"],
+                prd_lines=[5],
+            ),
+            k.DraftTask(
+                title="Salt Edge client", type="Story", repo="", description="d", acceptance_criteria=[],
+                depends_on=[], estimate="L", compliance=[], prd_lines=[],
+            ),
+        ],
+    )
+    suggestions = k.ComplianceSuggestions(
+        frameworks=[k.SuggestedFramework(key="psd2", confidence="strong", why="Open banking.", lines=[2])],
+        other=[],
+    )
+    cli = _fake_cursor(
+        tmp_path,
+        [
+            # The CLI can't enforce a schema: prose and a fence around the JSON are tolerated.
+            ("compliance frameworks a bank's feature must meet", suggestions.model_dump_json()),
+            ("You plan engineering work", f"Here it is:\n```json\n{plan.model_dump_json()}\n```"),
+        ],
+    )
+    async with boot(**ENV, SHIFTLEFT_CURSOR_CLI=str(cli), SHIFTLEFT_CURSOR_API_KEY="crsr-key") as c:
+        _wire(world, monkeypatch)
+        status = (await c.get(f"{ENT}/kickoff/status", headers=contributor)).json()
+        cursor = next(p for p in status["providers"] if p["key"] == "cursor")
+        assert cursor["available"] and cursor["default_model"] == "sonnet-4.5"
+        assert [m["id"] for m in cursor["models"]] == ["auto", "sonnet-4.5", "gpt-5"]
+        assert status["default_provider"] == "cursor"
+
+        ready = await _ready(c, contributor)
+        assert {(s["key"], s["by"]) for s in ready["compliance"]["suggestions"]} == {
+            ("psd2", "cursor"),
+            ("gdpr", "rules"),
+        }
+        run = f"{ENT}/kickoff/analyses/{ready['id']}/run"
+        r = await c.post(run, headers=contributor, json={"provider": "cursor", "model": "made-up"})
+        assert r.status_code == 409  # only a model the CLI listed can run
+
+        r = await c.post(run, headers=contributor, json={"provider": "cursor", "model": "sonnet-4.5"})
+        assert r.status_code == 200, r.text
+        drafted = r.json()["plan"]
+        assert drafted["reader"] == "cursor" and drafted["drafted_by"] == "sonnet-4.5 through Cursor"
+        assert [t["title"] for t in drafted["tasks"]] == ["Salt Edge client", "Build the UI"]
+        assert {t["origin"] for t in drafted["tasks"]} == {"cursor"}
+        assert drafted["tasks"][1]["compliance"] == ["psd2"]
+        assert drafted["repo_work"] == []  # a repo that isn't an input is dropped
+
+        # An answer that doesn't fit the shape falls back to the rule-based draft, and says why.
+        (tmp_path / "answers.json").write_text(json.dumps([["You plan engineering work", "Sorry, no."]]))
+        r = await c.post(run, headers=contributor, json={"provider": "cursor", "model": "sonnet-4.5"})
+        fallback = r.json()["plan"]
+        assert fallback["reader"] == "rules" and "Cursor couldn't draft this" in fallback["note"]
+
+    asked = [call for call in _cursor_calls(tmp_path) if call["args"][:1] == ["-p"]]
+    assert len(asked) == 3
+    for call in asked:
+        args = call["args"]
+        assert args[args.index("--mode") + 1] == "ask" and "--trust" in args
+        assert "--force" not in args and "-f" not in args and "--approve-mcps" not in args
+        workspace = Path(args[args.index("--workspace") + 1])
+        assert workspace.resolve() == Path(call["cwd"]).resolve()
+        # Nothing of ours reaches the CLI but its own key; its empty workspace is gone afterwards.
+        assert call["env"]["CURSOR_API_KEY"] == "crsr-key"
+        assert not [k for k in call["env"] if k.startswith("SHIFTLEFT_")]
+        assert TOKEN not in json.dumps(call["env"]) and GH_TOKEN not in json.dumps(call["env"])
+        assert not workspace.exists()
+
+
+async def test_inputs_too_long_for_one_argument_reach_the_cli_as_a_file(boot, tmp_path):
+    from app.services import kickoff_ai as k
+
+    answer = k.ComplianceSuggestions(frameworks=[], other=[])
+    cli = _fake_cursor(tmp_path, [("compliance frameworks", answer.model_dump_json())])
+    async with boot(SHIFTLEFT_CURSOR_CLI=str(cli)):
+        from app.services import cursor_cli
+
+        inputs = "a-line-of-the-inputs\n" * 20_000
+        got = await cursor_cli.ask("gpt-5", k.SUGGEST_SYSTEM, inputs, k.ComplianceSuggestions, 30)
+    assert got == answer
+    (call,) = _cursor_calls(tmp_path)
+    assert call["files"] == ["inputs.md"] and "a-line-of-the-inputs" not in call["args"][-1]
+    assert len(call["args"][-1].encode()) < cursor_cli.ARGV_PROMPT_LIMIT
+
+
+async def test_a_signed_out_or_missing_cursor_cli_says_how_to_fix_it(boot, contributor, tmp_path):
+    cli = _fake_cursor(tmp_path, [])
+    (tmp_path / "signed-out").touch()
+    async with boot(SHIFTLEFT_CURSOR_CLI=str(cli)) as c:
+        status = (await c.get(f"{ENT}/kickoff/status", headers=contributor)).json()
+        cursor = next(p for p in status["providers"] if p["key"] == "cursor")
+        assert not cursor["available"] and "agent login" in cursor["note"]
+        assert status["default_provider"] == "rules"
+    async with boot(SHIFTLEFT_CURSOR_CLI=str(tmp_path / "not-there")) as c:
+        status = (await c.get(f"{ENT}/kickoff/status", headers=contributor)).json()
+        cursor = next(p for p in status["providers"] if p["key"] == "cursor")
+        assert not cursor["available"] and "isn't installed" in cursor["note"]
 
 
 async def test_editing_tasks_is_recorded_and_the_order_is_enforced(boot, contributor, world, monkeypatch):

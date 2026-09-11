@@ -2,6 +2,7 @@
 .env
 backend/.venv/
 backend/*.db
+/shiftleft.db
 # Local-dev vault encryption key (app/services/vault.py) - never committed, generated on first use.
 backend/.vault_key
 backend/**/__pycache__/

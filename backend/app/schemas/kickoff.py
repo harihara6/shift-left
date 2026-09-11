@@ -166,7 +166,7 @@ class SuggestionOut(BaseModel):
     confidence: Literal["strong", "possible"]
     why: str
     quotes: list[Quote]
-    by: Literal["claude", "rules"]
+    by: Literal["claude", "cursor", "rules"]
 
 
 class CustomCompliance(BaseModel):
@@ -240,7 +240,7 @@ class TaskOut(BaseModel):
     estimate: Estimate
     compliance: list[str]
     quotes: list[Quote]
-    origin: Literal["claude", "rules", "person"]
+    origin: Literal["claude", "cursor", "rules", "person"]
     edited_by: str | None = None
 
 
@@ -254,7 +254,7 @@ class PlanOut(BaseModel):
     open_questions: list[str]
     tasks: list[TaskOut]
     notes: list[str]
-    reader: Literal["claude", "rules"]
+    reader: Literal["claude", "cursor", "rules"]
     model: str
     drafted_by: str
     note: str

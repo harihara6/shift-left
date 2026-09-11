@@ -84,7 +84,7 @@
                 }
               </div>
             } @else {
-              <input type="text" [value]="field.value ?? ''" [attr.aria-label]="field.label"
+              <input type="text" [value]="field.value ?? ''" [placeholder]="field.placeholder" [attr.aria-label]="field.label"
                      (change)="saveField(connector, field.key, $any($event.target).value)" />
             }
           </div>

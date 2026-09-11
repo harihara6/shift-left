@@ -423,7 +423,7 @@ export interface OnboardingDraft {
   id: number;
   hint: string;
   status: string;
-  /** 'claude' or 'name-match' — how the assignment was arrived at. */
+  /** 'claude', 'cursor' or 'name-match' — how the assignment was arrived at. */
   mode: string;
   note: string;
   discovery_available: boolean;
@@ -674,7 +674,7 @@ export interface KickoffComplianceSuggestion {
   confidence: 'strong' | 'possible';
   why: string;
   quotes: KickoffQuote[];
-  by: 'claude' | 'rules';
+  by: 'claude' | 'cursor' | 'rules';
 }
 
 export interface CustomCompliance {
@@ -716,7 +716,7 @@ export interface KickoffTask {
   estimate: Estimate;
   compliance: string[];
   quotes: KickoffQuote[];
-  origin: 'claude' | 'rules' | 'person';
+  origin: 'claude' | 'cursor' | 'rules' | 'person';
   edited_by: string | null;
 }
 
@@ -736,7 +736,7 @@ export interface KickoffPlan {
   open_questions: string[];
   tasks: KickoffTask[];
   notes: string[];
-  reader: 'claude' | 'rules';
+  reader: 'claude' | 'cursor' | 'rules';
   model: string;
   drafted_by: string;
   note: string;

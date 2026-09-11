@@ -40,6 +40,35 @@ interface Row extends KickoffTaskInput {
 }
 
 const TYPES: TaskType[] = ['Story', 'Task', 'Spike'];
+
+interface Drafter {
+  mark: string;
+  name: string;
+  blurb: string;
+  working: string;
+}
+
+/** How each drafter reads on the page. Both AI drafters carry the AI mark (product rule 6). */
+const DRAFTERS: Record<string, Drafter> = {
+  claude: {
+    mark: '✦',
+    name: 'Claude',
+    blurb: 'Reads the PRD, every repo tree and spec, and the docs. Anthropic API.',
+    working: 'Claude is reading every input',
+  },
+  cursor: {
+    mark: '✦',
+    name: 'Cursor',
+    blurb: 'The same reading, on your Cursor plan: the Cursor CLI runs it, read-only, on this machine.',
+    working: 'Cursor is reading every input',
+  },
+  rules: {
+    mark: '≡',
+    name: 'Rule-based draft',
+    blurb: 'No AI: one story per requirement in the PRD. Never labelled as AI.',
+    working: 'Drafting from the inputs',
+  },
+};
 const ESTIMATES: Estimate[] = ['XS', 'S', 'M', 'L', 'XL'];
 
 /** The backend's slug for a custom compliance item (kickoff.py `_slug`). */
@@ -109,6 +138,7 @@ export class KickoffAnalysisStep {
   readonly plan = computed(() => this.analysis().plan);
   readonly providers = computed<ModelProvider[]>(() => this.status()?.providers ?? []);
   readonly provider = computed(() => this.providers().find((p) => p.key === this.providerKey()) ?? null);
+  readonly drafter = computed(() => this.drafterOf(this.providerKey()));
   readonly inputs = computed(() => this.analysis().steps.filter((s) => s.key !== 'plan'));
   readonly rows = computed<Row[]>(
     () =>
@@ -174,6 +204,10 @@ export class KickoffAnalysisStep {
       });
     });
     this.destroyRef.onDestroy(() => this.stopTimer());
+  }
+
+  drafterOf(key: string): Drafter {
+    return DRAFTERS[key] ?? { mark: '✦', name: key, blurb: '', working: 'Reading every input' };
   }
 
   pick(key: string): void {
@@ -414,7 +448,14 @@ export class KickoffAnalysisStep {
   originLabel(row: Row): string {
     const t = row.source;
     if (!t) return 'New · not saved';
-    const by = t.origin === 'claude' ? 'Claude' : t.origin === 'rules' ? 'Rules' : 'Added by a person';
+    const by =
+      t.origin === 'claude'
+        ? 'Claude'
+        : t.origin === 'cursor'
+          ? 'Cursor'
+          : t.origin === 'rules'
+            ? 'Rules'
+            : 'Added by a person';
     return t.edited_by ? `${by} · edited by ${t.edited_by}` : by;
   }
 

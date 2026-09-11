@@ -58,8 +58,8 @@
         <section class="card">
           <header class="card-head">
             <div class="card-title">What was found</div>
-            <span class="pill" [class.pill-warn]="d.mode !== 'claude'">
-              {{ d.mode === 'claude' ? 'Drafted by Claude' : 'Matched on name only' }}
+            <span class="pill" [class.pill-warn]="d.mode === 'name-match'">
+              {{ d.mode === 'claude' ? 'Drafted by Claude' : d.mode === 'cursor' ? 'Drafted through Cursor' : 'Matched on name only' }}
             </span>
           </header>
 
@@ -248,7 +248,7 @@
             </div>
             <div class="summary-row">
               <span class="label-caps">Drafted by</span>
-              <span>{{ d.mode === 'claude' ? 'Claude, from the evidence above' : 'Name matching' }}</span>
+              <span>{{ d.mode === 'claude' ? 'Claude, from the evidence above' : d.mode === 'cursor' ? 'A model on your Cursor plan, from the evidence above' : 'Name matching' }}</span>
             </div>
           </div>
 
