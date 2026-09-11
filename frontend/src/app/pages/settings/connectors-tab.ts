@@ -18,6 +18,7 @@ export class ConnectorsTab {
   readonly connectors = signal<ConnectorSummary[]>([]);
   readonly selected = signal<ConnectorDetail | null>(null);
   readonly testResult = signal<ConnectorTestResult | null>(null);
+  readonly testing = signal(false);
   readonly notice = signal('');
   readonly rotating = signal<string | null>(null);
   readonly newSecret = signal('');
@@ -50,6 +51,7 @@ export class ConnectorsTab {
 
   select(key: string): void {
     this.testResult.set(null);
+    this.testing.set(false);
     this.rotating.set(null);
     this.newSecret.set('');
     this.api.connector(key).subscribe({
@@ -106,9 +108,19 @@ export class ConnectorsTab {
   }
 
   test(connector: ConnectorDetail): void {
+    // A real network call to the source now, not an instant mock - the button reflects that
+    // instead of appearing to hang, and can't be double-clicked into two calls in flight.
+    this.testing.set(true);
+    this.testResult.set(null);
     this.api.testConnector(connector.key).subscribe({
-      next: (result) => this.testResult.set(result),
-      error: (err) => this.notice.set(errorMessage(err, 'The connection test could not run.')),
+      next: (result) => {
+        this.testing.set(false);
+        this.testResult.set(result);
+      },
+      error: (err) => {
+        this.testing.set(false);
+        this.notice.set(errorMessage(err, 'The connection test could not run.'));
+      },
     });
   }
 

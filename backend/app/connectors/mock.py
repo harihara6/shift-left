@@ -124,6 +124,35 @@ SLOT_OWNER = {
 }
 
 
+async def discover(key: str, capabilities: list[str], hint: str, limit: int = 10) -> list[Candidate]:
+    """Everything `key` can find under `hint`, shared by every connector - mock or live - that
+    declares the "discovery" capability. Onboarding's index is still fixture data regardless of
+    which class answers `test_connection`; a live connector reads it exactly the same way.
+    """
+    wanted = terms(hint)
+    if not wanted or DISCOVERY_CAPABILITY not in capabilities:
+        return []
+
+    found: list[Candidate] = []
+    for entry in DISCOVERY_INDEX:
+        matched = tuple(t for t in wanted if any(t in alias for alias in entry["aliases"]))
+        if not matched:
+            continue
+        for slot, (owner, url_template) in SLOT_OWNER.items():
+            if owner != key or slot not in entry:
+                continue
+            ref, title, detail = entry[slot]
+            found.append(
+                Candidate(
+                    connector_key=key, slot=slot, ref=ref, title=title,
+                    url=url_template.format(ref=ref),
+                    detail={**detail, "team": entry["name"], "owner": entry["owner"]},
+                    matched_on=matched,
+                )
+            )
+    return found[:limit]
+
+
 class MockConnector(Connector):
     def __init__(self, key: str, name: str, config: dict[str, Any], secrets: dict[str, str]) -> None:
         super().__init__(config, secrets)
@@ -170,31 +199,7 @@ class MockConnector(Connector):
         "here is something vaguely similar", because the first one means set the project up by
         hand and the second one means confirm a guess.
         """
-        wanted = terms(hint)
-        if not wanted or DISCOVERY_CAPABILITY not in await self.list_capabilities():
-            return []
-
-        found: list[Candidate] = []
-        for entry in DISCOVERY_INDEX:
-            matched = tuple(t for t in wanted if any(t in alias for alias in entry["aliases"]))
-            if not matched:
-                continue
-            for slot, (owner, url_template) in SLOT_OWNER.items():
-                if owner != self.key or slot not in entry:
-                    continue
-                ref, title, detail = entry[slot]
-                found.append(
-                    Candidate(
-                        connector_key=self.key,
-                        slot=slot,
-                        ref=ref,
-                        title=title,
-                        url=url_template.format(ref=ref),
-                        detail={**detail, "team": entry["name"], "owner": entry["owner"]},
-                        matched_on=matched,
-                    )
-                )
-        return found[:limit]
+        return await discover(self.key, await self.list_capabilities(), hint, limit)
 
     def map_to_canonical_model(self, raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return [{"source": self.key, "source_ref": r.get("key") or r.get("pr") or r.get("page_id"), "raw": r}

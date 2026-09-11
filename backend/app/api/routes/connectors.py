@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.connectors.registry import get_connector
+from app.connectors.registry import SHARED_CREDENTIALS, get_connector
 from app.core.security import CurrentUser, current_user, require_platform_admin
 from app.db.session import get_session
 from app.models.connector import ConnectorInstance, ConnectorType
@@ -24,7 +24,7 @@ from app.schemas.settings import (
     ConnectorTestResult,
     SecretRotate,
 )
-from app.services import audit
+from app.services import audit, vault
 from app.services.freshness import age_minutes, humanize_age, resolve
 
 router = APIRouter(prefix="/connectors", tags=["connectors"])
@@ -215,11 +215,11 @@ async def rotate_secret(
     if body.field_key not in _secret_keys(ctype):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not a credential field")
     instance = await _instance_or_new(session, ctype)
-    # A real vault write happens here. The reference is all that is kept.
-    instance.secret_refs = {
-        **(instance.secret_refs or {}),
-        body.field_key: f"vault://shiftleft/{connector_key}/{body.field_key}",
-    }
+    ref = f"vault://shiftleft/{connector_key}/{body.field_key}"
+    # The value is encrypted into the vault table (app/services/vault.py); only the reference
+    # is kept here, so a connector resolves it back only at the moment it actually calls out.
+    await vault.write(ref, body.value)
+    instance.secret_refs = {**(instance.secret_refs or {}), body.field_key: ref}
     await audit.record(
         session, actor=user.email, action="rotate_credential", category="credential",
         resource_type="connector_instance", resource_id=connector_key,
@@ -237,11 +237,16 @@ async def test_connector(
     """Reaches out to the source with the service's credentials, so it is an admin action."""
     ctype = await _type_or_404(session, connector_key)
     instance = await _instance_for(session, connector_key)
-    connector = get_connector(
-        ctype.key, ctype.name,
-        instance.config if instance else {},
-        instance.secret_refs if instance else {},
-    )
+    config = dict(instance.config) if instance else {}
+    secret_refs = dict(instance.secret_refs) if instance else {}
+    if shared_key := SHARED_CREDENTIALS.get(connector_key):
+        # This connector declares "Shares the X connection" and has no credential of its own -
+        # its own fields (if any) still win on a name clash.
+        shared = await _instance_for(session, shared_key)
+        if shared:
+            config = {**shared.config, **config}
+            secret_refs = {**shared.secret_refs, **secret_refs}
+    connector = get_connector(ctype.key, ctype.name, config, secret_refs)
     result = await connector.test_connection()
     if instance is not None:
         instance.last_error = None if result.ok else result.message

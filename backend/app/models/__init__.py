@@ -13,6 +13,7 @@ from app.models.metrics import MetricsSnapshot
 from app.models.onboarding import OnboardingSession
 from app.models.project import Project, ProjectAccess
 from app.models.rollout import DetectionAudit, RolloutSprint, RolloutState, RolloutSurface
+from app.models.secret import VaultSecret
 from app.models.template import ProjectTemplate, Template, TemplateWidget, WidgetBinding
 
 __all__ = [
@@ -37,6 +38,7 @@ __all__ = [
     "RolloutSurface",
     "Template",
     "TemplateWidget",
+    "VaultSecret",
     "WidgetBinding",
     "WidgetGuide",
 ]

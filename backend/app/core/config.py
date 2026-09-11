@@ -103,6 +103,13 @@ class Settings(BaseSettings):
     # prompt, so these models run in the editor, never on this server.
     cursor_api_key: SecretStr | None = None
 
+    # Encrypts every value behind a "vault://..." reference (app/services/vault.py) - what makes
+    # a credential typed into Settings -> Connectors resolvable again when a connector actually
+    # calls out, instead of a placeholder pointing nowhere. Local dev derives and persists its
+    # own key on first use so setup stays zero-config; every other environment must set this
+    # explicitly, or a fresh key on restart makes every rotated credential unreadable.
+    vault_encryption_key: SecretStr | None = None
+
     @property
     def is_production(self) -> bool:
         return self.environment == "production"
@@ -148,6 +155,11 @@ class Settings(BaseSettings):
             problems.append("SHIFTLEFT_CORS_ORIGINS cannot be '*' when credentials are allowed")
         if not self.platform_admins:
             problems.append("SHIFTLEFT_PLATFORM_ADMINS must name at least one operator")
+        if not self.vault_encryption_key:
+            problems.append(
+                "SHIFTLEFT_VAULT_ENCRYPTION_KEY must be set - a random per-boot key would make "
+                "every stored connector credential unrecoverable after the next restart"
+            )
         if problems:
             raise ValueError("Unsafe production configuration: " + "; ".join(problems))
         return self

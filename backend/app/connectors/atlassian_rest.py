@@ -73,11 +73,22 @@ def _message(response: httpx.Response, action: str) -> str:
 
 
 class AtlassianRest:
-    def __init__(self) -> None:
+    def __init__(
+        self, *, site: str | None = None, email: str | None = None, token: str | None = None,
+    ) -> None:
+        """Defaults to the service-wide settings (Feature Kickoff's path); pass `site`/`email`/
+        `token` to act as one connector instance's own configuration instead (Settings ->
+        Connectors' "Test connection" path) - the HTTP calls below are the same either way.
+        """
         settings = get_settings()
-        self.site = settings.atlassian_site_url.rstrip("/")
-        self._email = settings.atlassian_email
-        self._token = settings.atlassian_api_token
+        self.site = (site if site is not None else settings.atlassian_site_url).rstrip("/")
+        self._email = email if email is not None else settings.atlassian_email
+        if token is not None:
+            self._token = token
+        elif settings.atlassian_api_token:
+            self._token = settings.atlassian_api_token.get_secret_value()
+        else:
+            self._token = None
         self._spaces: dict[str, str] = {}
 
     @property
@@ -102,7 +113,7 @@ class AtlassianRest:
     async def _call(self, method: str, path: str, action: str, **kwargs) -> Any:
         if not self.available:
             raise AtlassianError(self.unavailable_reason)
-        auth = (self._email, self._token.get_secret_value() if self._token else "")
+        auth = (self._email, self._token or "")
         try:
             async with http.client(timeout=30.0) as c:
                 response = await c.request(
@@ -116,6 +127,18 @@ class AtlassianRest:
         if response.status_code == 204 or not response.content:
             return None
         return response.json()
+
+    # -- Connection tests --------------------------------------------------------------------
+
+    async def whoami(self) -> dict:
+        """Settings -> Connectors' "Test connection" for Jira: one authenticated read, so a
+        wrong token or email reads as a real refusal rather than an assumed success."""
+        return await self._call("GET", "/rest/api/3/myself", "Checking the Jira connection")
+
+    async def whoami_confluence(self) -> dict:
+        return await self._call(
+            "GET", "/wiki/rest/api/user/current", "Checking the Confluence connection"
+        )
 
     # -- Confluence ------------------------------------------------------------------------
 

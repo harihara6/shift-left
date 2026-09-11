@@ -42,11 +42,22 @@ class Created:
 
 
 class XrayCloud:
-    def __init__(self) -> None:
+    def __init__(
+        self, *, base_url: str | None = None, client_id: str | None = None,
+        client_secret: str | None = None,
+    ) -> None:
+        """Defaults to the service-wide settings (Feature Kickoff's path); pass the three
+        overrides to act with one connector instance's own API key instead (Settings ->
+        Connectors)."""
         settings = get_settings()
-        self.base = settings.xray_base_url.rstrip("/")
-        self._client_id = settings.xray_client_id
-        self._secret = settings.xray_client_secret
+        self.base = (base_url if base_url is not None else settings.xray_base_url).rstrip("/")
+        self._client_id = client_id if client_id is not None else settings.xray_client_id
+        if client_secret is not None:
+            self._secret = client_secret
+        elif settings.xray_client_secret:
+            self._secret = settings.xray_client_secret.get_secret_value()
+        else:
+            self._secret = None
         self._token: str | None = None
 
     @property
@@ -64,13 +75,23 @@ class XrayCloud:
             return self._token
         response = await c.post(f"{self.base}/api/v2/authenticate", json={
             "client_id": self._client_id,
-            "client_secret": self._secret.get_secret_value() if self._secret else "",
+            "client_secret": self._secret or "",
         })
         if response.status_code >= 400:
             raise XrayError(f"Xray refused the API key (HTTP {response.status_code})")
         # The token arrives as a JSON string.
         self._token = str(response.json())
         return self._token
+
+    async def test_auth(self) -> None:
+        """Settings -> Connectors' "Test connection": just the client-credentials exchange."""
+        if not self.available:
+            raise XrayError(self.unavailable_reason)
+        try:
+            async with http.client(timeout=15.0) as c:
+                await self._authenticate(c)
+        except httpx.HTTPError as exc:
+            raise XrayError(f"Couldn't reach Xray ({type(exc).__name__})") from exc
 
     async def _mutate(self, query: str, variables: dict, field: str, node: str) -> Created:
         if not self.available:

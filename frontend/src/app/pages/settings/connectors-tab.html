@@ -91,11 +91,15 @@
         }
         <p class="meta">{{ connector.rate_limits }}</p>
         <div class="widget-actions">
-          <button class="btn btn-primary" (click)="test(connector)">Test connection</button>
+          <button class="btn btn-primary" [disabled]="testing()" (click)="test(connector)">
+            {{ testing() ? 'Testing…' : 'Test connection' }}
+          </button>
           <button class="btn btn-danger" (click)="toggle(connector)">
             {{ connector.state === 'disabled' ? 'Enable' : 'Disable' }}
           </button>
-          @if (testResult(); as result) {
+          @if (testing()) {
+            <span class="test-result" role="status">Reaching out to {{ connector.name }}…</span>
+          } @else if (testResult(); as result) {
             <span class="test-result" [class.ok]="result.ok" role="status">{{ result.message }}</span>
           }
         </div>

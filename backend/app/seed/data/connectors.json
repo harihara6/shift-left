@@ -8,25 +8,23 @@
   "instances": 3,
   "desc": "Issues, changelog, story points, versions and links. The backbone of both evidence and flow.",
   "auth": [
-   "OAuth 2.0 (3LO) app — recommended",
-   "API token + service account",
-   "Personal access token (Data Center)"
+   "API token + account email (Atlassian Cloud) — recommended"
   ],
   "fields": [
    [
     "Site URL",
     "https://backbase.atlassian.net",
-    "Cloud site or Data Center base URL."
+    "The Atlassian Cloud site this instance reads from."
    ],
    [
-    "Service account",
+    "Account email",
     "svc-shiftleft@backbase.com",
-    "Used when a query runs on a schedule rather than on a user's behalf."
+    "The Atlassian account the API token below belongs to. Basic auth uses this pair together."
    ],
    [
     "API token",
     "secret",
-    "Stored in the vault, rotated every 90 days."
+    "Created at id.atlassian.com/manage-profile/security/api-tokens for the account above. Stored in the vault, rotated every 90 days."
    ],
    [
     "Project keys in scope",
@@ -51,24 +49,28 @@
   "instances": 2,
   "desc": "Requirements, test plans, HLD/LLD, threat models and NFR sign-off pages, discovered by label.",
   "auth": [
-   "OAuth 2.0 (3LO) app — recommended",
-   "API token + service account"
+   "API token + account email (Atlassian Cloud) — recommended"
   ],
   "fields": [
    [
     "Site URL",
     "https://backbase.atlassian.net/wiki",
-    "Same Atlassian site as Jira in most setups."
+    "Same Atlassian Cloud site as Jira in most setups."
+   ],
+   [
+    "Account email",
+    "svc-shiftleft@backbase.com",
+    "The Atlassian account the API token below belongs to."
+   ],
+   [
+    "API token",
+    "secret",
+    "An Atlassian Cloud API token - the same kind Jira uses, and often the same token if the account is shared. Stored in the vault."
    ],
    [
     "Spaces in scope",
     "ENG, ARCH, SEC",
     "CQL is restricted to these spaces."
-   ],
-   [
-    "API token",
-    "secret",
-    "Stored in the vault."
    ],
    [
     "Artifact label map",
@@ -88,24 +90,18 @@
   "instances": 1,
   "desc": "Test sets, executions, traceability to requirements, and automated results imported from CI.",
   "auth": [
-   "API key — client ID + client secret (Cloud)",
-   "Personal access token (Server / Data Center)"
+   "API key — client ID + client secret (Xray Cloud) — recommended"
   ],
   "fields": [
    [
-    "Edition",
-    "Xray Cloud",
-    "Cloud uses an API key pair; Server/DC uses a Jira PAT instead."
-   ],
-   [
     "Client ID",
     "32A27E69C0AC4E539C14…",
-    "From Xray Global Settings → API Keys."
+    "From Xray Global Settings → API Keys, on the Cloud app."
    ],
    [
     "Client secret",
     "secret",
-    "Exchanged for a bearer token that expires after 24h; refreshed automatically."
+    "Exchanged for a bearer token good for 24h; this connector refreshes it automatically. Stored in the vault."
    ],
    [
     "Test project keys",
@@ -125,38 +121,27 @@
   "instances": 1,
   "desc": "Pull requests, reviews, changed files, Actions runs, check results and deployments.",
   "auth": [
-   "GitHub App installation — recommended",
-   "Fine-grained personal access token"
+   "Fine-grained personal access token — recommended"
   ],
   "fields": [
    [
     "Organisation",
     "backbase",
-    "Installation is scoped to this org."
+    "Checked for reachability on test - the token still governs which repos are actually readable."
    ],
    [
-    "App installation ID",
-    "48219004",
-    "Created once by a platform admin."
-   ],
-   [
-    "Private key",
+    "Personal access token",
     "secret",
-    "Signs the app JWT; stored in the vault."
+    "A fine-grained PAT scoped to the repositories below. Stored in the vault, rotated on expiry."
    ],
    [
     "Repositories",
     "entitlements, payments-web, nucleus-ios, nucleus-android",
     "Only these repos are read."
-   ],
-   [
-    "Webhook secret",
-    "secret",
-    "Enables near-real-time PR and run updates instead of polling."
    ]
   ],
   "scopes": "contents:read · pull_requests:read · checks:read · actions:read · deployments:read",
-  "rate": "5,000 requests/hour per installation."
+  "rate": "5,000 requests/hour per token."
  },
  {
   "id": "bitbucket",
@@ -167,7 +152,6 @@
   "instances": 0,
   "desc": "Alternative source for pull requests and pipelines where a team has not migrated to GitHub.",
   "auth": [
-   "OAuth 2.0 consumer",
    "Repository access token"
   ],
   "fields": [
@@ -177,14 +161,9 @@
     "Bitbucket workspace slug."
    ],
    [
-    "Consumer key",
-    "—",
-    "From workspace settings → OAuth consumers."
-   ],
-   [
-    "Consumer secret",
+    "Repository access token",
     "secret",
-    "Stored in the vault."
+    "Scoped read access token from workspace settings → Access tokens. Stored in the vault."
    ],
    [
     "Repositories",
@@ -215,7 +194,7 @@
    [
     "User token",
     "secret",
-    "Generated for a read-only service user."
+    "Generated for a read-only service user. Stored in the vault."
    ],
    [
     "Project keys",
@@ -240,7 +219,7 @@
   "instances": 1,
   "desc": "Workflow runs, durations, first-attempt pass rate, and the artifacts that carry NFR evidence.",
   "auth": [
-   "Shares the GitHub App installation"
+   "Shares GitHub's connection"
   ],
   "fields": [
    [
@@ -260,7 +239,7 @@
    ]
   ],
   "scopes": "actions:read · checks:read",
-  "rate": "Shared with the GitHub installation budget."
+  "rate": "Shared with the GitHub token's budget."
  },
  {
   "id": "jenkins",
@@ -271,8 +250,7 @@
   "instances": 0,
   "desc": "For teams still on Jenkins pipelines rather than Actions.",
   "auth": [
-   "User + API token",
-   "Bearer token (with the plugin)"
+   "Username + API token"
   ],
   "fields": [
    [
@@ -288,17 +266,12 @@
    [
     "API token",
     "secret",
-    "From the user's configure page."
+    "From the user's configure page. Stored in the vault."
    ],
    [
     "Jobs / folders",
     "—",
     "Folder path prefixes to ingest."
-   ],
-   [
-    "CSRF crumb",
-    "enabled",
-    "Required when CSRF protection is on."
    ]
   ],
   "scopes": "Overall/Read · Job/Read",
@@ -319,7 +292,7 @@
    [
     "API key",
     "secret",
-    "Workspace-level key from LinearB settings."
+    "Workspace-level key from LinearB settings → API keys. Stored in the vault."
    ],
    [
     "Team IDs",
@@ -375,8 +348,7 @@
   "instances": 1,
   "desc": "Delivery channel for unacknowledged high-severity findings, so they don't wait to be noticed.",
   "auth": [
-   "Slack app — bot token",
-   "Incoming webhook"
+   "Bot token (xoxb-)"
   ],
   "fields": [
    [
@@ -387,7 +359,7 @@
    [
     "Bot token",
     "secret",
-    "xoxb- token from the installed app."
+    "xoxb- token from the installed Slack app, with chat:write and channels:read. Stored in the vault."
    ],
    [
     "Default channel",
@@ -412,8 +384,7 @@
   "instances": 1,
   "desc": "Release regressions and crash-rate signals feeding the post-deploy detection metric.",
   "auth": [
-   "Internal integration token",
-   "OAuth application"
+   "Internal integration token"
   ],
   "fields": [
    [
@@ -424,7 +395,7 @@
    [
     "Auth token",
     "secret",
-    "Internal integration token, read scopes only."
+    "Internal integration token, read scopes only. Stored in the vault."
    ],
    [
     "Projects",
@@ -449,19 +420,18 @@
   "instances": 0,
   "desc": "Optional paging target for release-blocking findings. Deferred in v1 — Slack and JSM cover the launch case.",
   "auth": [
-   "REST API key",
-   "Events API v2 routing key"
+   "REST API key"
   ],
   "fields": [
    [
     "API key",
     "—",
-    "Read-only REST key for service lookup."
+    "Read-only REST API key, from Integrations → API access keys."
    ],
    [
     "Routing key",
     "—",
-    "Events API v2 key for the target service."
+    "Events API v2 key for the target service - used only when a finding actually pages, not for the connection test."
    ],
    [
     "Services",
@@ -481,7 +451,6 @@
   "instances": 1,
   "desc": "Presence of visual design for a feature — file and frame existence only, never file content.",
   "auth": [
-   "OAuth 2.0",
    "Personal access token"
   ],
   "fields": [
@@ -493,7 +462,7 @@
    [
     "Access token",
     "secret",
-    "Read-only token for a service account."
+    "Read-only personal access token for a service account. Stored in the vault."
    ],
    [
     "File keys",
@@ -528,13 +497,13 @@
    ],
    [
     "API key",
-    "—",
-    "Organisation-level key."
+    "secret",
+    "Organisation-level key. Stored in the vault."
    ],
    [
     "Application key",
-    "—",
-    "Scoped to a read-only role."
+    "secret",
+    "Scoped to a read-only role. Stored in the vault."
    ],
    [
     "Monitors / SLOs",
@@ -554,13 +523,13 @@
   "instances": 2,
   "desc": "SAST and dependency findings. Presence and status only — finding content stays in the source tool.",
   "auth": [
-   "Service account token per scanner"
+   "Snyk service account token"
   ],
   "fields": [
    [
     "Scanners",
     "CodeQL (via GitHub), Snyk",
-    "Each scanner is a separate instance."
+    "CodeQL rides on the GitHub connector's security_events:read scope - no separate credential. Only Snyk needs one below."
    ],
    [
     "Snyk org ID",
@@ -568,9 +537,9 @@
     "From Snyk organisation settings."
    ],
    [
-    "Token",
+    "Snyk token",
     "secret",
-    "Read-only service account."
+    "Read-only service account token, from Snyk account settings → API token. Stored in the vault."
    ],
    [
     "Severity floor",
