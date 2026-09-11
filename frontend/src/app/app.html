@@ -10,9 +10,12 @@
 
     <div class="rail-field">
       <label class="rail-label" for="project">Project</label>
-      <select id="project" [ngModel]="projectId()" (ngModelChange)="projectId.set($event)">
+      <select id="project" [ngModel]="projectId()" (ngModelChange)="projectId.set($event)"
+              [disabled]="!projects().length">
         @for (project of projects(); track project.id) {
           <option [value]="project.id">{{ project.name }}</option>
+        } @empty {
+          <option value="">No projects yet</option>
         }
       </select>
     </div>
@@ -66,14 +69,32 @@
     </header>
 
     <div class="body">
-      @if (loadError(); as message) {
-        <p class="card empty-state" role="alert">{{ message }}</p>
-      } @else if (!projectId() && screen() !== 'settings') {
-        <p class="card empty-state">
-          No project is visible to you. Access is project-scoped — ask an admin for a grant.
-        </p>
+      @if (screen() === 'settings') {
+        <!-- Always reachable: it is where projects are set up, so it can't depend on having one. -->
+        <sl-settings (projectsChanged)="loadProjects($event ?? undefined)" />
+      } @else if (loadError(); as message) {
+        <div class="card empty-state" role="alert">
+          <p>{{ message }}</p>
+          <div class="empty-actions">
+            <button class="btn" (click)="loadProjects()">Try again</button>
+            <button class="btn" (click)="go('settings', true)">Open Settings</button>
+          </div>
+        </div>
+      } @else if (!projectsLoaded()) {
+        <p class="card empty-state">Loading your projects…</p>
+      } @else if (!projectId()) {
+        <div class="card empty-state">
+          <p>
+            No projects yet, or none you can see. Set one up in Settings, where you become its admin.
+            To join an existing project, ask its admin for a grant.
+          </p>
+          <div class="empty-actions">
+            <button class="btn btn-primary" (click)="go('settings', true)">Set up a project</button>
+          </div>
+        </div>
       } @else {
         @switch (screen()) {
+          @case ('kickoff') { <sl-kickoff [projectId]="projectId()" /> }
           @case ('discipline') {
             <sl-feature-readiness [projectId]="projectId()" (openFlow)="go('delivery', true)" />
           }
@@ -84,7 +105,6 @@
             <sl-team-insights [projectId]="projectId()" (comparisonChange)="comparison.set($event)"
                               (openEvidence)="go('discipline', true)" />
           }
-          @case ('settings') { <sl-settings /> }
         }
       }
     </div>

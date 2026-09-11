@@ -42,7 +42,12 @@
         <span class="project-meta mono">{{ project.key }} · {{ project.dashboards }} dashboards</span>
       </button>
     } @empty {
-      <p class="meta">No projects are visible to you. Access is project-scoped — ask an admin for a grant.</p>
+      @if (loaded() && !loadFailed()) {
+        <p class="meta">
+          No projects yet, or none you can see. Create one above and you become its admin. To join an
+          existing project, ask its admin for a grant.
+        </p>
+      }
     }
 
     <p class="rail-note">
@@ -54,6 +59,9 @@
   <div class="detail">
     @if (notice(); as message) {
       <p class="notice" role="status">{{ message }}</p>
+    }
+    @if (loadFailed()) {
+      <button class="btn" (click)="load()">Try again</button>
     }
 
     @if (selected(); as project) {
@@ -200,8 +208,10 @@
           project it lives in. Every grant and revoke is an immutable audit entry.
         </p>
       </section>
-    } @else {
-      <p class="card empty">Select a project, or create one.</p>
+    } @else if (loaded() && !loadFailed()) {
+      <p class="card empty">
+        {{ projects().length ? 'Select a project, or create one.' : 'Create the first project: give it the Jira key, a name and an owner. Or set it up from Jira & Confluence, which finds the sources for you.' }}
+      </p>
     }
   </div>
 </div>

@@ -11,7 +11,13 @@ import {
   ConnectorTestResult,
   FeatureReadiness,
   FilterOptions,
+  Kickoff,
+  KickoffChoice,
+  KickoffConnections,
+  KickoffSummary,
+  ModelOptions,
   PeriodSelection,
+  PrdList,
   PerspectiveGuide,
   ProjectDetail,
   ProjectSummary,
@@ -179,6 +185,58 @@ export class Api {
   /** Always allowed for an admin, never without a reason. */
   rollbackRollout(projectId: string, note: string): Observable<RolloutBoard> {
     return this.http.post<RolloutBoard>(`${API}/projects/${projectId}/rollout/rollback`, { note });
+  }
+
+  /** PRD pages the kickoff can start from. The project's own space is listed first. */
+  kickoffPrds(projectId: string, query = ''): Observable<PrdList> {
+    const params = query ? new HttpParams().set('q', query) : undefined;
+    return this.http.get<PrdList>(`${API}/projects/${projectId}/kickoff/prds`, { params });
+  }
+
+  /** Where reads and writes go, from configuration. Never carries a credential. */
+  kickoffConnections(projectId: string): Observable<KickoffConnections> {
+    return this.http.get<KickoffConnections>(`${API}/projects/${projectId}/kickoff/connections`);
+  }
+
+  /** Fetched from each provider on request, never a hardcoded list. */
+  kickoffModels(projectId: string): Observable<ModelOptions> {
+    return this.http.get<ModelOptions>(`${API}/projects/${projectId}/kickoff/models`);
+  }
+
+  myKickoffs(projectId: string): Observable<KickoffSummary[]> {
+    return this.http.get<KickoffSummary[]>(`${API}/projects/${projectId}/kickoff`);
+  }
+
+  /** Reads the PRD and extracts its facts. Writes nothing but the session. */
+  startKickoff(projectId: string, body: { page_id: string; provider: string; model: string }): Observable<Kickoff> {
+    return this.http.post<Kickoff>(`${API}/projects/${projectId}/kickoff`, body);
+  }
+
+  kickoff(projectId: string, id: number): Observable<Kickoff> {
+    return this.http.get<Kickoff>(`${API}/projects/${projectId}/kickoff/${id}`);
+  }
+
+  /** A person correcting what was read. Every rule re-resolves from the corrected facts. */
+  updateKickoffFacts(projectId: string, id: number, facts: { key: string; values: string[] }[]): Observable<Kickoff> {
+    return this.http.put<Kickoff>(`${API}/projects/${projectId}/kickoff/${id}/facts`, { facts });
+  }
+
+  /** Leaving a recommended action out is refused without a reason. Runs the selected checks. */
+  chooseKickoffActions(projectId: string, id: number, choices: KickoffChoice[]): Observable<Kickoff> {
+    return this.http.put<Kickoff>(`${API}/projects/${projectId}/kickoff/${id}/actions`, { choices });
+  }
+
+  updateKickoffPlan(
+    projectId: string,
+    id: number,
+    body: { decisions?: Record<string, string>; excluded?: string[] },
+  ): Observable<Kickoff> {
+    return this.http.put<Kickoff>(`${API}/projects/${projectId}/kickoff/${id}/plan`, body);
+  }
+
+  /** The confirmation, then the writes (or a dry run). Also retries a plan that partly failed. */
+  applyKickoff(projectId: string, id: number): Observable<Kickoff> {
+    return this.http.post<Kickoff>(`${API}/projects/${projectId}/kickoff/${id}/apply`, {});
   }
 
   guide(perspective: string): Observable<PerspectiveGuide> {

@@ -1,0 +1,68 @@
+{
+  "provenance": "The pinned standards registry and the reviewed vendor register Feature Kickoff checks against, in both modes. Standards are pinned to the version named here and never recalled from a model's memory; a standard with no pinned version reads as not checked. Vendors are added by the partnership owner after reading the vendor's published docs, with the date they were read. Change this file by pull request, reviewed by the architecture owner.",
+  "standards": [
+    {
+      "key": "berlin_group",
+      "name": "Berlin Group NextGenPSD2",
+      "pinned": true,
+      "version": "Implementation Guidelines, downloads page of 2 Dec 2025",
+      "source": "https://www.berlin-group.org/nextgenpsd2-downloads",
+      "licence": "Guidelines CC BY-ND 4.0; OpenAPI files CC BY 4.0",
+      "clauses": [
+        {"key": "consent", "label": "Consent resource for account access", "look_for": ["consent"]},
+        {"key": "sca", "label": "SCA approach declared: redirect, decoupled or embedded", "look_for": ["redirect", "decoupled", "embedded", "sca"]},
+        {"key": "tpp_identity", "label": "TPP identified by an eIDAS certificate", "look_for": ["eidas", "qwac"]}
+      ]
+    },
+    {
+      "key": "obie",
+      "name": "UK Open Banking Read/Write API",
+      "pinned": true,
+      "version": "Read/Write API v4.0.1, DCR v3.3",
+      "source": "https://standards.openbanking.org.uk/api-specifications/",
+      "licence": "Published openly by Open Banking (confirm terms)",
+      "conformance": "Open Banking runs functional, security and DCR conformance tools. Passing them is its own piece of work, never something this check asserts.",
+      "clauses": [
+        {"key": "consent", "label": "Account access consent resource", "look_for": ["consent"]},
+        {"key": "permissions", "label": "Permissions scoped per data cluster (accounts, balances, transactions)", "look_for": ["permission", "data cluster"]},
+        {"key": "fapi", "label": "FAPI security profile: mTLS and signed request objects", "look_for": ["fapi"]},
+        {"key": "dcr", "label": "Dynamic Client Registration for TPP onboarding", "look_for": ["dynamic client registration", "dcr"]}
+      ]
+    },
+    {
+      "key": "fdx",
+      "name": "FDX API",
+      "pinned": false,
+      "version": "",
+      "source": "https://financialdataexchange.org/",
+      "licence": "Membership required for the full specification",
+      "not_pinned_reason": "The FDX specification needs membership, and Backbase's access is not confirmed, so nothing is pinned to check against.",
+      "clauses": []
+    },
+    {
+      "key": "iso20022",
+      "name": "ISO 20022",
+      "pinned": true,
+      "version": "Message definitions from the iso20022.org catalogue: pain.001, pacs.008, pacs.002",
+      "source": "https://www.iso20022.org/catalogue-messages",
+      "licence": "Free to download",
+      "clauses": [
+        {"key": "parties", "label": "pain.001 carries debtor, creditor account (IBAN) and amount", "look_for": ["iban"]},
+        {"key": "status", "label": "pacs.002 status report maps to the status the customer sees", "look_for": ["completed", "rejected", "pending"]},
+        {"key": "remittance", "label": "Remittance information (unstructured, 140 characters)", "look_for": ["remittance", "payment reference"]}
+      ]
+    },
+    {
+      "key": "bian",
+      "name": "BIAN Service Landscape",
+      "pinned": true,
+      "version": "Service Landscape v14.0",
+      "source": "https://bian.org/",
+      "licence": "Portal open to members and non-members (confirm terms)",
+      "clauses": [
+        {"key": "service_domain", "label": "Each new API is mapped to a BIAN service domain", "look_for": ["service domain", "bian"]}
+      ]
+    }
+  ],
+  "vendors": []
+}

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import { Api } from '../../core/api';
@@ -41,6 +41,12 @@ export class ProjectsTab {
   readonly renaming = signal(false);
   readonly renameDraft = signal('');
 
+  /** Tells the shell its project list is stale; carries the project to select, if any. */
+  readonly changed = output<string | null>();
+  /** False until the list first answers, so the empty state never shows while loading. */
+  readonly loaded = signal(false);
+  readonly loadFailed = signal(false);
+
   readonly roles = ['viewer', 'contributor', 'admin'];
   readonly sources = ['SSO group', 'Explicit grant'];
 
@@ -51,16 +57,30 @@ export class ProjectsTab {
     this.load();
   }
 
-  private load(selectId?: string): void {
+  load(selectId?: string): void {
     this.api.projects().subscribe({
       next: (projects) => {
         this.projects.set(projects);
+        this.loaded.set(true);
+        this.loadFailed.set(false);
         const next = projects.find((p) => p.id === selectId) ?? projects[0];
         if (next) this.select(next.id);
         else this.selected.set(null);
+        // A fresh install: the only useful next step is creating the first project.
+        if (!projects.length) this.creating.set(true);
       },
-      error: (err) => this.notice.set(errorMessage(err, 'Your projects could not be loaded.')),
+      error: (err) => {
+        this.loaded.set(true);
+        this.loadFailed.set(true);
+        this.notice.set(errorMessage(err, 'Your projects could not be loaded.'));
+      },
     });
+  }
+
+  /** Reload here, and tell the shell so its project picker catches up. */
+  private reload(selectId?: string): void {
+    this.load(selectId);
+    this.changed.emit(selectId ?? null);
   }
 
   select(id: string): void {
@@ -82,7 +102,7 @@ export class ProjectsTab {
   onGuidedCreate(result: OnboardingResult): void {
     this.guiding.set(false);
     this.notice.set(result.note);
-    this.load(result.project.id);
+    this.reload(result.project.id);
   }
 
   createProject(): void {
@@ -95,7 +115,7 @@ export class ProjectsTab {
         this.creating.set(false);
         this.draft.set({ key: '', name: '', owner: '' });
         this.notice.set(`Created ${project.name}. You are its admin — grant access to anyone else who needs it.`);
-        this.load(project.id);
+        this.reload(project.id);
       },
       error: (err) => {
         this.busy.set(false);
@@ -108,7 +128,7 @@ export class ProjectsTab {
     this.renaming.set(false);
     if (!name.trim() || name === project.name) return;
     this.api.renameProject(project.id, name.trim()).subscribe({
-      next: () => this.load(project.id),
+      next: () => this.reload(project.id),
       error: (err) => this.notice.set(writeRefusal(err, 'Could not rename the project.').message),
     });
   }
@@ -119,7 +139,7 @@ export class ProjectsTab {
         this.notice.set(
           `Duplicated into ${copy.name}. Templates and their bindings were copied; access grants were not — who may see a new project is always an explicit decision.`,
         );
-        this.load(copy.id);
+        this.reload(copy.id);
       },
       error: (err) => this.notice.set(writeRefusal(err, 'Could not duplicate the project.').message),
     });
@@ -129,7 +149,7 @@ export class ProjectsTab {
     this.api.archiveProject(project.id).subscribe({
       next: () => {
         this.notice.set(`${project.name} archived. Its dashboards are hidden; the audit trail is kept.`);
-        this.load();
+        this.reload();
       },
       error: (err) => this.notice.set(writeRefusal(err, 'Could not archive the project.').message),
     });

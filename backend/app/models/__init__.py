@@ -8,6 +8,7 @@ from app.models.evidence import (
     NormalizedArtifact,
 )
 from app.models.guide import PerspectiveGuide, WidgetGuide
+from app.models.kickoff import KickoffSession
 from app.models.metrics import MetricsSnapshot
 from app.models.onboarding import OnboardingSession
 from app.models.project import Project, ProjectAccess
@@ -23,6 +24,7 @@ __all__ = [
     "ConnectorType",
     "DetectionAudit",
     "FeatureEvidence",
+    "KickoffSession",
     "MetricsSnapshot",
     "NormalizedArtifact",
     "OnboardingSession",

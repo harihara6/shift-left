@@ -80,7 +80,15 @@ Build order here departs from the PRD's phasing at the owner's direction — Tea
 3. **Shift-left Rollout** (Evidence) — tracks `docs/PROPOSAL-ShiftLeft-Pivot.md`: stage path with computed exit
    criteria, detection accuracy vs manual audit, surfaces at the point of work, warning outcomes. Thresholds are
    named constants in `backend/app/services/rollout_rules.py`; change the proposal first, then the constant.
-4. Everything else follows the PRD phasing.
+4. **Feature Kickoff** (Evidence) — tracks `docs/PROPOSAL-PRD-Intake.md`: PRD → facts (quoted) →
+   actions resolved by rules → read-only checks → plan → named confirmation. Rules are named in
+   `backend/app/services/kickoff_rules.py`; change the proposal first, then the rule. Reads are
+   example pages or live (`SHIFTLEFT_KICKOFF_SOURCES`), writes a dry run or live
+   (`SHIFTLEFT_KICKOFF_WRITE_MODE`), never mixed. Live writes use Jira/Confluence REST and Xray
+   GraphQL, never Rovo MCP (its edits are lossy). The product index parser
+   (`backend/app/connectors/product_index_parser.py`) is written in the environment that can
+   reach software.backbase.eu; until then the index reads as unavailable, never as empty.
+5. Everything else follows the PRD phasing.
 
 **Data strategy for this pass:** the prototype's seed data (`DECKS`, `PROJECT_CFG`, `TEMPLATE_DEFS`, `CONNECTORS`,
 `ACCESS_MODEL` in `design/ShiftLeft Platform.dc.html`) is ported into Postgres seeds *behind the real API contract*.

@@ -9,6 +9,7 @@ from app.api.routes import (
     access_model,
     connectors,
     insights,
+    kickoff,
     onboarding,
     projects,
     readiness,
@@ -80,6 +81,7 @@ app.include_router(rollout.router, prefix=api)
 app.include_router(insights.router, prefix=api)
 app.include_router(access_model.router, prefix=api)
 app.include_router(onboarding.router, prefix=api)
+app.include_router(kickoff.router, prefix=api)
 
 
 @app.get("/health", tags=["ops"])

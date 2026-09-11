@@ -527,3 +527,224 @@ export interface RolloutBoard {
   charts: ChartSpec[];
   guide: WidgetGuide[];
 }
+
+// --- Feature Kickoff (backend/app/schemas/kickoff.py) ---------------------------------------------
+
+export interface KickoffLink {
+  label: string;
+  url: string;
+}
+
+export interface KickoffQuote {
+  text: string;
+  section: string;
+}
+
+export interface PrdPage {
+  page_id: string;
+  title: string;
+  space: string;
+  url: string;
+  version: number;
+  updated: string;
+  author: string;
+  own_project: boolean;
+}
+
+export interface PrdList {
+  pages: PrdPage[];
+  note: string;
+  /** False when the live source can't be read; `note` says why. */
+  available: boolean;
+}
+
+export interface KickoffConnection {
+  key: string;
+  name: string;
+  direction: 'read' | 'write';
+  /** 'configured' is from configuration alone: nothing is called to check it. */
+  state: 'example' | 'configured' | 'not_configured' | 'not_built' | 'dry_run';
+  note: string;
+}
+
+export interface KickoffConnections {
+  sources: 'fixtures' | 'live';
+  write_mode: 'dry-run' | 'live';
+  connections: KickoffConnection[];
+}
+
+export interface ModelProvider {
+  key: string;
+  name: string;
+  available: boolean;
+  note: string;
+  models: { id: string; display_name: string }[];
+  default_model: string;
+}
+
+export interface ModelOptions {
+  providers: ModelProvider[];
+  default_provider: string;
+}
+
+export interface KickoffFact {
+  key: string;
+  label: string;
+  values: string[];
+  value_labels: string[];
+  /** 'stated' (quoted from the PRD), 'not_stated', or 'confirmed' (set by a person). */
+  status: string;
+  quotes: KickoffQuote[];
+  confirmed_by: string | null;
+  /** Empty for free-text facts. */
+  allowed: { value: string; label: string }[];
+}
+
+export type KickoffOutcome = 'applies' | 'not_applicable' | 'undetermined';
+
+export interface KickoffAction {
+  key: string;
+  label: string;
+  group: string;
+  group_label: string;
+  target: string;
+  description: string;
+  outcome: KickoffOutcome;
+  outcome_label: string;
+  reason: string;
+  quotes: KickoffQuote[];
+  question: string;
+  recommended: boolean;
+  selected: boolean;
+  skip_reason: string;
+  skip_flagged: boolean;
+}
+
+export interface KickoffDrawnFrom {
+  kind: string;
+  text: string;
+  url: string;
+  section: string;
+}
+
+export interface KickoffSuggestion {
+  key: string;
+  label: string;
+  why: string;
+  target: string;
+  source: 'context' | 'check';
+  kind: string;
+  decision: 'pending' | 'accepted' | 'dismissed';
+  drawn_from: KickoffDrawnFrom[];
+}
+
+export type FindingStatus = 'ok' | 'gap' | 'blocker' | 'not_checked';
+
+export interface KickoffFinding {
+  id: string;
+  status: FindingStatus;
+  title: string;
+  detail: string;
+  link: KickoffLink | null;
+  quote: KickoffQuote | null;
+}
+
+export interface KickoffCheck {
+  key: string;
+  label: string;
+  note: string;
+  findings: KickoffFinding[];
+}
+
+export interface KickoffPlanItem {
+  id: string;
+  group: string;
+  kind: string;
+  title: string;
+  detail: string;
+  project: string;
+  labels: string[];
+  drawn_from: KickoffDrawnFrom[];
+  diff: {
+    op: 'add' | 'change';
+    field?: string;
+    label?: string;
+    row?: string;
+    before?: string[];
+    after?: string[];
+    fields?: Record<string, string>;
+  } | null;
+  included: boolean;
+}
+
+export interface KickoffCoverage {
+  artifact: string;
+  name: string;
+  gate: string;
+  state: 'covered' | 'waiver_draft' | 'not_applicable' | 'not_covered';
+  item_id: string | null;
+  note: string;
+}
+
+export interface KickoffPlan {
+  items: KickoffPlanItem[];
+  coverage: KickoffCoverage[];
+  notes: string[];
+  catalog_version: number;
+  /** The product index isn't in Confluence: its version is what it states, or a content hash. */
+  index_version: string;
+}
+
+export type KickoffResultStatus =
+  | 'dry_run' | 'skipped' | 'created' | 'updated' | 'exists' | 'handoff' | 'failed';
+
+export interface KickoffResult {
+  item_id: string;
+  group: string;
+  title: string;
+  status: KickoffResultStatus;
+  message: string;
+  link: KickoffLink | null;
+}
+
+export interface Kickoff {
+  id: number;
+  project_id: string;
+  status: 'context' | 'planned' | 'applying' | 'partial' | 'applied';
+  page: PrdPage;
+  provider: string;
+  model: string;
+  reader: string;
+  drafted_by: string;
+  note: string;
+  source_note: string;
+  source_mode: 'fixtures' | 'live';
+  write_mode: 'dry-run' | 'live';
+  facts: KickoffFact[];
+  tier: { tier: string; reason: string; undetermined: boolean; quotes: KickoffQuote[] };
+  actions: KickoffAction[];
+  suggestions: KickoffSuggestion[];
+  checks: KickoffCheck[];
+  headline: RagState | null;
+  checked_at: string | null;
+  plan: KickoffPlan | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  results: KickoffResult[];
+  created_at: string | null;
+}
+
+export interface KickoffSummary {
+  id: number;
+  page_title: string;
+  status: string;
+  model: string;
+  created_at: string | null;
+  approved_by: string | null;
+}
+
+export interface KickoffChoice {
+  key: string;
+  selected: boolean;
+  skip_reason: string;
+}

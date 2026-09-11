@@ -78,6 +78,7 @@ GUIDE_KEYS = {
     "portfolio": ["hotspots", "cell_colouring"],
     "signal": ["completeness_trend", "dora", "counter_metric"],
     "rollout": ["gating_path", "rollout_tiles", "surfaces", "detectors", "rollout_charts"],
+    "kickoff": ["prd_source", "facts", "actions", "checks", "plan", "confirm"],
 }
 
 

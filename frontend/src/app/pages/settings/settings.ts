@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, output, signal } from '@angular/core';
 
 import { Api } from '../../core/api';
 import { PerspectiveGuide } from '../../core/models';
@@ -25,7 +25,7 @@ type Tab = 'projects' | 'connectors' | 'access';
       </nav>
 
       @switch (active()) {
-        @case ('projects') { <sl-projects-tab /> }
+        @case ('projects') { <sl-projects-tab (changed)="projectsChanged.emit($event)" /> }
         @case ('connectors') { <sl-connectors-tab /> }
         @case ('access') { <sl-access-tab /> }
       }
@@ -51,6 +51,9 @@ type Tab = 'projects' | 'connectors' | 'access';
 })
 export class Settings {
   private readonly api = inject(Api);
+
+  /** A project was created, duplicated, renamed or archived: the shell's project list is stale. */
+  readonly projectsChanged = output<string | null>();
 
   readonly tabs: { key: Tab; label: string }[] = [
     { key: 'projects', label: 'Projects' },

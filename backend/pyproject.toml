@@ -13,6 +13,8 @@ dependencies = [
   "pydantic>=2.7",
   "pydantic-settings>=2.3",
   "httpx>=0.27",
+  # Feature Kickoff reads OpenAPI specs, which are usually YAML.
+  "pyyaml>=6",
   # 3.1 moved the formatter to pythonjsonlogger.json, which app/core/logging.py imports.
   "python-json-logger>=3.1",
 ]

@@ -1,0 +1,625 @@
+<div class="page">
+  <div class="record-banner">
+    <p class="record-text">
+      <span class="record-tag">Kickoff</span>
+      Take a PRD from Confluence to a checked, tagged plan. What runs is decided from what the PRD
+      says, every decision shows its reason, and nothing is written until you confirm.
+    </p>
+    <div class="record-actions">
+      @if (connections(); as c) {
+        @if (c.sources === 'fixtures') { <span class="pill pill-watch">Example pages</span> }
+        @if (c.write_mode === 'live') {
+          <span class="pill pill-live">Create writes to Jira, Xray and Confluence</span>
+        } @else {
+          <span class="pill pill-watch">Create is a dry run</span>
+        }
+      }
+      <button class="btn" (click)="showGuide()">How this page works</button>
+    </div>
+  </div>
+
+  <nav class="steps" aria-label="Kickoff steps">
+    <ol>
+      @for (item of steps; track item.id; let i = $index) {
+        <li>
+          <button class="step" [class.active]="step() === item.id"
+                  [attr.aria-current]="step() === item.id ? 'step' : null"
+                  [disabled]="!canGo(item.id)" (click)="go(item.id)">
+            <span class="mono num" aria-hidden="true">{{ i + 1 }}</span>{{ item.label }}
+          </button>
+        </li>
+      }
+    </ol>
+  </nav>
+
+  <p class="sr-only" role="status" aria-live="polite">{{ announcement() }}</p>
+
+  @if (refusal(); as refused) {
+    <div class="notice notice-poor" role="alert">
+      <p><span aria-hidden="true">✕</span> {{ refused.message }}</p>
+      @if (refused.blockers.length) {
+        <ul class="blockers">
+          @for (blocker of refused.blockers; track blocker) { <li>{{ blocker }}</li> }
+        </ul>
+      }
+    </div>
+  }
+
+  @if (session(); as s) {
+    <div class="session-strip">
+      <a class="mono" [href]="s.page.url" target="_blank" rel="noopener">{{ s.page.title }} · v{{ s.page.version }} ↗</a>
+      <span class="pill" [class.pill-watch]="s.reader !== 'claude'">Drafted by {{ s.drafted_by }}</span>
+      @if (s.source_mode === 'fixtures') { <span class="pill pill-watch">Example pages</span> }
+      <span class="meta">{{ s.note }}</span>
+    </div>
+  }
+
+  <!-- 1. PRD and model ------------------------------------------------------------------------ -->
+  @if (step() === 'source') {
+    <section class="card" aria-labelledby="prd-title">
+      <header class="card-head">
+        <div class="card-title" id="prd-title">Which PRD?</div>
+        <form class="search" (ngSubmit)="loadPrds()">
+          <label class="sr-only" for="prd-search">Search PRD pages</label>
+          <input id="prd-search" type="text" name="q" placeholder="Search by title or space"
+                 [ngModel]="query()" (ngModelChange)="query.set($event)" autocomplete="off" />
+          <button class="btn" type="submit">Search</button>
+        </form>
+      </header>
+      @if (prds(); as list) {
+        @if (!list.available) {
+          <p class="notice notice-poor foot-note" role="alert"><span aria-hidden="true">✕</span> {{ list.note }}</p>
+        }
+        <fieldset class="prd-list">
+          <legend class="sr-only">PRD pages</legend>
+          @for (page of list.pages; track page.page_id) {
+            <label class="prd" [class.on]="pageId() === page.page_id">
+              <input type="radio" name="prd" [value]="page.page_id" [checked]="pageId() === page.page_id"
+                     (change)="pageId.set(page.page_id)" />
+              <span class="prd-text">
+                <span class="prd-title">{{ page.title }}</span>
+                <span class="meta">
+                  <span class="mono">{{ page.space }}</span> · v<span class="mono">{{ page.version }}</span>
+                  · updated <span class="mono">{{ page.updated }}</span> by {{ page.author }}
+                  @if (!page.own_project) { · <em>another project's space</em> }
+                </span>
+              </span>
+              <a class="drill mono" [href]="page.url" target="_blank" rel="noopener"
+                 (click)="$event.stopPropagation()">Open ↗</a>
+            </label>
+          } @empty {
+            @if (list.available) {
+              <p class="empty">No PRD page matches. Try the title as it's written in Confluence.</p>
+            }
+          }
+        </fieldset>
+        @if (list.available) { <p class="meta foot-note">{{ list.note }}</p> }
+      }
+    </section>
+
+    @if (connections(); as c) {
+      <details class="card connections">
+        <summary class="card-head">
+          <span class="card-title">Where this reads and writes</span>
+          <span class="meta">{{ c.sources === 'live' ? 'Live pages' : 'Example pages' }} ·
+            {{ c.write_mode === 'live' ? 'live writes' : 'dry run' }}</span>
+        </summary>
+        <ul class="connection-list">
+          @for (conn of c.connections; track conn.key) {
+            <li class="connection">
+              <span class="state-pill" [class]="'state-pill tone-' + connectionTone(conn).tone">
+                <span class="glyph" aria-hidden="true">{{ connectionTone(conn).glyph }}</span>{{ connectionTone(conn).label }}
+              </span>
+              <span class="connection-text">
+                <span class="action-name">{{ conn.name }} <span class="pill">{{ conn.direction === 'read' ? 'Reads' : 'Writes' }}</span></span>
+                <span class="meta">{{ conn.note }}</span>
+              </span>
+            </li>
+          }
+        </ul>
+      </details>
+    }
+
+    <section class="card panel" aria-labelledby="model-title">
+      <div class="card-title" id="model-title">Who reads it?</div>
+      @if (models(); as options) {
+        <div class="model-row">
+          <label>
+            <span class="label-caps">Provider</span>
+            <select [ngModel]="providerKey()" (ngModelChange)="pickProvider($event)">
+              @for (p of options.providers; track p.key) {
+                <option [value]="p.key" [disabled]="!p.available">
+                  {{ p.name }}{{ p.available ? '' : ' — unavailable' }}
+                </option>
+              }
+            </select>
+          </label>
+          <label>
+            <span class="label-caps">Model</span>
+            <select [ngModel]="model()" (ngModelChange)="model.set($event)" [disabled]="!provider()?.available">
+              @for (m of provider()?.models ?? []; track m.id) {
+                <option [value]="m.id">{{ m.display_name }}</option>
+              }
+            </select>
+          </label>
+        </div>
+        <ul class="providers">
+          @for (p of options.providers; track p.key) {
+            <li>
+              <span class="glyph" [class]="'glyph tone-' + (p.available ? 'good' : 'missing')" aria-hidden="true">
+                {{ p.available ? '✓' : '—' }}
+              </span>
+              <span><strong>{{ p.name }}</strong> <span class="sr-only">{{ p.available ? 'available' : 'unavailable' }}</span>
+                <span class="meta">{{ p.note }}</span>
+                @if (!p.available && p.models.length) {
+                  <span class="meta mono">{{ p.models.length }} listed: {{ modelNames(p) }}</span>
+                }
+              </span>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="meta">Loading the models this account can use…</p>
+      }
+      <div class="foot">
+        <button class="btn btn-primary" [disabled]="busy() || !pageId() || !model()" (click)="start()">
+          {{ busy() ? 'Reading the PRD…' : 'Read this PRD' }}
+        </button>
+      </div>
+    </section>
+
+    @if (recent().length) {
+      <section class="card" aria-labelledby="recent-title">
+        <header class="card-head"><div class="card-title" id="recent-title">Your recent kickoffs</div></header>
+        <ul class="recent">
+          @for (r of recent(); track r.id) {
+            <li>
+              <button class="row-button" (click)="resume(r.id)">
+                <span>{{ r.page_title }}</span>
+                <span class="meta">{{ r.approved_by ? 'Confirmed by ' + r.approved_by + (r.status === 'partial' ? ', some items failed' : '') : r.status }} · {{ r.model }}</span>
+              </button>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+  }
+
+  <!-- 2. What the PRD says -------------------------------------------------------------------- -->
+  @if (step() === 'context' && session(); as s) {
+    <section class="card" aria-labelledby="facts-title">
+      <header class="card-head">
+        <div class="card-title" id="facts-title">What the PRD says</div>
+        <div class="meta">Everything after this is computed from these facts. Correct any that are wrong.</div>
+      </header>
+      <ul class="facts">
+        @for (fact of s.facts; track fact.key) {
+          <li class="fact">
+            <div class="fact-head">
+              <span class="label-caps">{{ fact.label }}</span>
+              <span class="state-pill" [class]="'state-pill tone-' + factTone(fact).tone">
+                <span class="glyph" aria-hidden="true">{{ factTone(fact).glyph }}</span>{{ factTone(fact).label }}
+              </span>
+            </div>
+            @if (editing() === fact.key) {
+              <div class="fact-edit">
+                @if (fact.allowed.length) {
+                  <fieldset class="chips">
+                    <legend class="sr-only">{{ fact.label }}</legend>
+                    @for (option of fact.allowed; track option.value) {
+                      <label class="chip" [class.on]="draftValues().includes(option.value)">
+                        <input type="checkbox" [checked]="draftValues().includes(option.value)"
+                               (change)="toggleDraftValue(option.value)" />
+                        {{ option.label }}
+                      </label>
+                    }
+                  </fieldset>
+                } @else {
+                  <label>
+                    <span class="sr-only">{{ fact.label }}, comma separated</span>
+                    <input type="text" [ngModel]="draftText()" (ngModelChange)="draftText.set($event)"
+                           placeholder="Comma separated" />
+                  </label>
+                }
+                <div class="foot">
+                  <button class="btn" (click)="editing.set(null)">Cancel</button>
+                  <button class="btn btn-primary" [disabled]="busy()" (click)="saveFact(fact)"
+                          [attr.aria-label]="'Confirm ' + fact.label">Confirm</button>
+                </div>
+              </div>
+            } @else {
+              <div class="fact-value">
+                @if (fact.value_labels.length) {
+                  @for (v of fact.value_labels; track v) { <span class="chip chip-static">{{ v }}</span> }
+                } @else {
+                  <span class="meta">Not stated. Rules that need it will run and ask.</span>
+                }
+                <button class="btn btn-small" (click)="edit(fact)" [attr.aria-label]="'Correct ' + fact.label">Correct</button>
+              </div>
+            }
+            @for (q of fact.quotes; track q.text) {
+              <blockquote class="quote"><span class="label-caps">{{ q.section }}</span> {{ q.text }}</blockquote>
+            }
+            @if (fact.confirmed_by) { <div class="meta">Confirmed by <span class="mono">{{ fact.confirmed_by }}</span></div> }
+          </li>
+        }
+      </ul>
+    </section>
+
+    <section class="card panel" aria-labelledby="tier-title">
+      <div class="card-title" id="tier-title">Risk tier: {{ s.tier.tier }}</div>
+      <p class="reason">{{ s.tier.reason }}</p>
+      @if (s.tier.undetermined) {
+        <p class="warn-text"><span aria-hidden="true">?</span> Undetermined, so the higher tier applies until the kind of change is stated.</p>
+      }
+    </section>
+
+    @if (questions().length) {
+      <section class="card panel" aria-labelledby="questions-title">
+        <div class="card-title" id="questions-title">Questions the PRD doesn't answer</div>
+        <p class="meta">Until they're answered, the checks they affect run anyway. Answer them by correcting a fact above.</p>
+        <ul class="questions">
+          @for (a of questions(); track a.key) {
+            <li><span class="glyph tone-watch" aria-hidden="true">?</span><span><strong>{{ a.label }}:</strong> {{ a.question }}</span></li>
+          }
+        </ul>
+      </section>
+    }
+
+    <div class="foot">
+      <button class="btn" (click)="go('source')">Back</button>
+      <button class="btn btn-primary" (click)="go('actions')">Choose what to do</button>
+    </div>
+  }
+
+  <!-- 3. What to do --------------------------------------------------------------------------- -->
+  @if (step() === 'actions' && session(); as s) {
+    @for (group of actionGroups(); track group.label) {
+      <section class="card" [attr.aria-label]="group.label">
+        <header class="card-head"><div class="card-title">{{ group.label }}</div></header>
+        <ul class="actions">
+          @for (a of group.actions; track a.key) {
+            <li class="action" [class.off]="!isSelected(a)">
+              <button class="switch" role="switch" [attr.aria-checked]="isSelected(a)" [class.on]="isSelected(a)"
+                      [attr.aria-label]="a.label" [disabled]="confirmed()" (click)="toggleAction(a)">
+                <span class="knob"></span>
+              </button>
+              <div class="action-text">
+                <div class="action-head">
+                  <span class="action-name">{{ a.label }}</span>
+                  <span class="pill">{{ a.target }}</span>
+                  <span class="state-pill" [class]="'state-pill tone-' + outcomeTone(a).tone">
+                    <span class="glyph" aria-hidden="true">{{ outcomeTone(a).glyph }}</span>{{ outcomeTone(a).label }}
+                  </span>
+                </div>
+                <div class="meta">{{ a.description }}</div>
+                <p class="reason">{{ a.reason }}</p>
+                @for (q of a.quotes; track q.text) {
+                  <blockquote class="quote"><span class="label-caps">{{ q.section }}</span> {{ q.text }}</blockquote>
+                }
+                @if (a.question) { <p class="warn-text"><span aria-hidden="true">?</span> {{ a.question }}</p> }
+                @if (needsReason(a)) {
+                  <label class="skip">
+                    <span class="label-caps">Why leave it out? This goes on the feasibility record.</span>
+                    <input type="text" [ngModel]="reasonFor(a)" (ngModelChange)="setReason(a, $event)"
+                           placeholder="A reason someone reviewing this later would accept" />
+                  </label>
+                  @if (a.skip_flagged) {
+                    <p class="warn-text"><span aria-hidden="true">!</span> Not an acceptable rationale. It's recorded, and flagged as a planning signal.</p>
+                  }
+                }
+              </div>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    @if (contextSuggestions().length) {
+      <section class="card" aria-labelledby="next-title">
+        <header class="card-head">
+          <div class="card-title" id="next-title">Recommended next steps</div>
+          <div class="meta">From the risk tier and the data this PRD carries</div>
+        </header>
+        <ul class="suggestions">
+          @for (sg of contextSuggestions(); track sg.key) {
+            <li class="suggestion" [class.accepted]="sg.decision === 'accepted'" [class.dismissed]="sg.decision === 'dismissed'">
+              <div class="suggestion-text">
+                <span class="action-name">{{ sg.label }}</span>
+                <span class="meta">{{ sg.why }}</span>
+              </div>
+              <div class="suggestion-actions">
+                @if (sg.decision === 'pending') {
+                  <button class="btn" [disabled]="busy() || confirmed()" (click)="decide(sg, 'accepted')">Add to plan</button>
+                  <button class="btn" [disabled]="busy() || confirmed()" (click)="decide(sg, 'dismissed')">Dismiss</button>
+                } @else {
+                  <span class="meta">{{ sg.decision === 'accepted' ? 'Added' : 'Dismissed' }}</span>
+                  <button class="btn btn-small" [disabled]="busy() || confirmed()" (click)="decide(sg, 'pending')">Undo</button>
+                }
+              </div>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    <div class="foot">
+      <button class="btn" (click)="go('context')">Back</button>
+      <button class="btn btn-primary" [disabled]="busy() || confirmed()" (click)="runChecks()">
+        {{ busy() ? 'Running checks…' : 'Run checks and draft the plan' }}
+      </button>
+    </div>
+  }
+
+  <!-- 4. Checks ------------------------------------------------------------------------------- -->
+  @if (step() === 'checks' && session(); as s) {
+    @if (s.headline; as headline) {
+      <section class="card panel headline" aria-labelledby="headline-title">
+        <div class="headline-head">
+          <div class="card-title" id="headline-title">What the checks found</div>
+          <sl-rag [state]="headline" />
+        </div>
+        <ul class="reasons">
+          @for (r of headline.reasons; track r) { <li>{{ r }}</li> }
+        </ul>
+        <p class="meta">There is no "feasible" verdict. This lists what was found and what wasn't looked at.</p>
+      </section>
+    }
+
+    @for (check of s.checks; track check.key) {
+      <section class="card" [attr.aria-label]="check.label">
+        <header class="card-head">
+          <div class="card-title">{{ check.label }}</div>
+          <div class="meta">{{ check.note }}</div>
+        </header>
+        <ul class="findings">
+          @for (f of check.findings; track f.id) {
+            <li class="finding">
+              <span class="state-pill" [class]="'state-pill tone-' + findingTone(f.status).tone">
+                <span class="glyph" aria-hidden="true">{{ findingTone(f.status).glyph }}</span>{{ findingTone(f.status).label }}
+              </span>
+              <div class="finding-text">
+                <span class="action-name">{{ f.title }}</span>
+                @if (f.detail) { <span class="meta">{{ f.detail }}</span> }
+                @if (f.quote) { <blockquote class="quote"><span class="label-caps">{{ f.quote.section }}</span> {{ f.quote.text }}</blockquote> }
+                @if (f.link) { <a class="drill mono" [href]="f.link.url" target="_blank" rel="noopener">{{ f.link.label }} ↗</a> }
+              </div>
+            </li>
+          }
+        </ul>
+      </section>
+    } @empty {
+      <p class="card empty">No checks were selected, so nothing was verified.</p>
+    }
+
+    @if (checkSuggestions().length) {
+      <section class="card" aria-labelledby="found-next-title">
+        <header class="card-head">
+          <div class="card-title" id="found-next-title">Recommended from the findings</div>
+        </header>
+        <ul class="suggestions">
+          @for (sg of checkSuggestions(); track sg.key) {
+            <li class="suggestion" [class.accepted]="sg.decision === 'accepted'" [class.dismissed]="sg.decision === 'dismissed'">
+              <div class="suggestion-text">
+                <span class="action-name">{{ sg.label }}</span>
+                <span class="meta">{{ sg.why }}</span>
+              </div>
+              <div class="suggestion-actions">
+                @if (sg.decision === 'pending') {
+                  <button class="btn" [disabled]="busy() || confirmed()" (click)="decide(sg, 'accepted')">Add to plan</button>
+                  <button class="btn" [disabled]="busy() || confirmed()" (click)="decide(sg, 'dismissed')">Dismiss</button>
+                } @else {
+                  <span class="meta">{{ sg.decision === 'accepted' ? 'Added' : 'Dismissed' }}</span>
+                  <button class="btn btn-small" [disabled]="busy() || confirmed()" (click)="decide(sg, 'pending')">Undo</button>
+                }
+              </div>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    <div class="foot">
+      <button class="btn" (click)="go('actions')">Back</button>
+      <button class="btn btn-primary" (click)="go('plan')">Review the plan</button>
+    </div>
+  }
+
+  <!-- 5. Plan --------------------------------------------------------------------------------- -->
+  @if (step() === 'plan' && session(); as s) {
+    @if (s.plan; as plan) {
+      <section class="card panel" aria-labelledby="plan-title">
+        <div class="plan-summary">
+          <div class="card-title" id="plan-title">The plan: {{ includedCount() }} item(s) to create</div>
+          <span class="pill" [class.pill-watch]="s.reader !== 'claude'">
+            {{ s.reader === 'claude' ? 'AI-drafted by ' + s.drafted_by : 'Drafted by the rule-based reader' }}, reviewed by you
+          </span>
+        </div>
+        <ul class="counts">
+          @for (g of groups; track g.key) {
+            @if (itemsIn(g.key).length) {
+              <li><span class="mono">{{ includedIn(g.key) }}</span> {{ g.label }}</li>
+            }
+          }
+        </ul>
+        @for (note of plan.notes; track note) { <p class="meta">{{ note }}</p> }
+      </section>
+
+      @for (g of groups; track g.key) {
+        @if (itemsIn(g.key).length) {
+          <section class="card" [attr.aria-label]="g.label">
+            <header class="card-head">
+              <div class="card-title">{{ g.label }}</div>
+              @if (g.key === 'software_catalog') { <div class="meta">A diff against v{{ plan.catalog_version }}. Rows nobody changed are never rewritten.</div> }
+              @if (g.key === 'product_index') {
+                <div class="meta">{{ plan.index_version ? 'A diff against the index read at ' + plan.index_version + '.' : 'The index couldn\'t be read, so each row says so.' }}</div>
+              }
+              @if (g.key === 'waivers') { <div class="meta">Scoped out is not passed: each needs an owner and a rationale.</div> }
+            </header>
+            <ul class="items">
+              @for (item of itemsIn(g.key); track item.id) {
+                <li class="item" [class.off]="!item.included">
+                  <label class="item-check">
+                    <input type="checkbox" [checked]="item.included" [disabled]="busy() || confirmed()" (change)="toggleItem(item)" />
+                    <span class="sr-only">Include {{ item.title }}</span>
+                  </label>
+                  <div class="item-text">
+                    <div class="action-head">
+                      <span class="pill">{{ item.kind }}</span>
+                      <span class="action-name">{{ item.title }}</span>
+                      @if (item.project) { <span class="mono meta">{{ item.project }}</span> }
+                    </div>
+                    @if (item.detail) { <div class="meta">{{ item.detail }}</div> }
+                    @if (item.labels.length) {
+                      <div class="labels">
+                        @for (l of item.labels; track l) { <span class="mono label">{{ l }}</span> }
+                      </div>
+                    }
+                    @if (item.diff; as diff) {
+                      <div class="diff">
+                        @if (diff.op === 'change') {
+                          <div class="diff-row"><span class="label-caps">{{ diff.label || diff.field }} before</span><span class="mono">{{ diff.before?.join(', ') || 'none' }}</span></div>
+                          <div class="diff-row diff-add"><span class="label-caps">after</span><span class="mono">{{ diff.after?.join(', ') }}</span></div>
+                        } @else {
+                          @for (f of diffFields(item); track f.key) {
+                            <div class="diff-row diff-add"><span class="label-caps">+ {{ f.key }}</span><span>{{ f.value }}</span></div>
+                          }
+                        }
+                      </div>
+                    }
+                    <details class="why">
+                      <summary>Why this is here</summary>
+                      <ul>
+                        @for (d of item.drawn_from; track $index) {
+                          <li>
+                            <span class="label-caps">{{ d.kind }}</span>
+                            @if (d.url) { <a [href]="d.url" target="_blank" rel="noopener">{{ d.text }} ↗</a> } @else { {{ d.text }} }
+                          </li>
+                        }
+                      </ul>
+                    </details>
+                  </div>
+                </li>
+              }
+            </ul>
+          </section>
+        }
+      }
+
+      <section class="card" aria-labelledby="coverage-title">
+        <header class="card-head">
+          <div class="card-title" id="coverage-title">Evidence coverage for {{ s.tier.tier }}</div>
+          <div class="meta">Every artifact in the checklist is covered, drafted as a waiver, or ruled out with a reason</div>
+        </header>
+        <div class="table" role="table" aria-labelledby="coverage-title">
+          <div class="grid-row grid-head cov" role="row">
+            <span role="columnheader">Artifact</span><span role="columnheader">Gate</span>
+            <span role="columnheader">State</span><span role="columnheader">In this plan</span>
+          </div>
+          @for (c of plan.coverage; track c.artifact) {
+            <div class="grid-row cov" role="row">
+              <span role="cell">{{ c.name }}</span>
+              <span role="cell" class="meta">{{ c.gate }}</span>
+              <span role="cell">
+                <span class="state-pill" [class]="'state-pill tone-' + coverageTone(c.state).tone">
+                  <span class="glyph" aria-hidden="true">{{ coverageTone(c.state).glyph }}</span>{{ coverageTone(c.state).label }}
+                </span>
+              </span>
+              <span role="cell" class="meta">{{ c.note || itemTitle(c.item_id) }}</span>
+            </div>
+          }
+        </div>
+      </section>
+
+      <div class="foot">
+        <button class="btn" (click)="go('checks')">Back</button>
+        <button class="btn btn-primary" (click)="go('create')">Continue to confirm</button>
+      </div>
+    }
+  }
+
+  <!-- 6. Confirm ------------------------------------------------------------------------------ -->
+  @if (step() === 'create' && session(); as s) {
+    @if (!confirmed()) {
+      <section class="card panel" aria-labelledby="confirm-title">
+        <div class="card-title" id="confirm-title">Confirm and create</div>
+        <div class="summary">
+          @for (g of groups; track g.key) {
+            @if (itemsIn(g.key).length) {
+              <div class="summary-row"><span class="label-caps">{{ g.label }}</span><span class="mono">{{ includedIn(g.key) }}</span></div>
+            }
+          }
+          <div class="summary-row"><span class="label-caps">Drafted by</span><span>{{ s.drafted_by }}</span></div>
+          <div class="summary-row"><span class="label-caps">PRD</span><span class="mono">{{ s.page.title }} · v{{ s.page.version }}</span></div>
+        </div>
+        @if (live()) {
+          <p class="notice">
+            Confirming records you as the person who confirmed this plan, then creates it: Jira issues
+            and Xray tests in {{ projectKey(s) }}, pages under the PRD, and the catalog rows (only if the
+            catalog hasn't changed since the plan was drafted). Work for another team and product index
+            rows are handed off with what to do. Every item's result is listed next.
+          </p>
+        } @else {
+          <p class="notice">
+            Dry run: confirming records you as the person who confirmed this plan, and lists exactly
+            what would be created. Nothing is written to Jira, Xray or Confluence.
+          </p>
+        }
+        <div class="foot">
+          <button class="btn" (click)="go('plan')">Back</button>
+          <button class="btn btn-primary" [disabled]="busy() || !includedCount()" (click)="apply()">
+            {{ busy() ? (live() ? 'Creating…' : 'Confirming…') : (live() ? 'Confirm and create' : 'Confirm and create (dry run)') }}
+          </button>
+        </div>
+      </section>
+    } @else {
+      @if (s.status === 'partial') {
+        <div class="notice notice-poor" role="status">
+          <p>
+            <span aria-hidden="true">✕</span> {{ failedCount() }} item(s) failed; each says why. Everything
+            else stands. Retrying applies the same confirmed plan to the failed items only, and finds what
+            already exists instead of creating it twice.
+          </p>
+        </div>
+      } @else if (s.status === 'applying') {
+        <p class="notice" role="status">This plan is being applied. Reload in a moment to see each result.</p>
+      }
+      <section class="card" aria-labelledby="results-title">
+        <header class="card-head">
+          <div class="card-title" id="results-title">Confirmed by {{ s.approved_by }}</div>
+          <div class="meta mono">{{ s.approved_at | date: 'yyyy-MM-dd HH:mm' : 'UTC' }} UTC · {{ s.write_mode === 'live' ? 'live' : 'dry run' }}</div>
+        </header>
+        <ul class="counts result-counts">
+          @for (c of resultCounts(); track c.tone.label) {
+            <li><span class="glyph" [class]="'glyph tone-' + c.tone.tone" aria-hidden="true">{{ c.tone.glyph }}</span>
+              <span class="mono">{{ c.count }}</span> {{ c.tone.label }}</li>
+          }
+        </ul>
+        <ul class="results">
+          @for (r of s.results; track r.item_id) {
+            <li class="result" [class.off]="r.status === 'skipped'">
+              <span class="state-pill" [class]="'state-pill tone-' + resultTone(r.status).tone">
+                <span class="glyph" aria-hidden="true">{{ resultTone(r.status).glyph }}</span>{{ resultTone(r.status).label }}
+              </span>
+              <span class="result-text">
+                <span>{{ r.message }}</span>
+                @if (r.status === 'handoff' || r.status === 'failed') { <span class="meta">{{ r.title }}</span> }
+              </span>
+              @if (r.link) { <a class="drill mono" [href]="r.link.url" target="_blank" rel="noopener">{{ r.link.label }} ↗</a> }
+            </li>
+          }
+        </ul>
+      </section>
+      <div class="foot">
+        @if (s.status === 'partial') {
+          <button class="btn" [disabled]="busy()" (click)="apply()">{{ busy() ? 'Retrying…' : 'Retry the failed items' }}</button>
+        }
+        <button class="btn btn-primary" (click)="startOver()">Kick off another PRD</button>
+      </div>
+    }
+  }
+</div>
+
+@if (openGuide() && guide(); as g) {
+  <sl-guide-modal [guide]="g" (closed)="openGuide.set(false)" />
+}

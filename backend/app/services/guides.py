@@ -27,6 +27,7 @@ RENDERED_WIDGETS: dict[str, list[str]] = {
     "delivery": ["glance", "epics", "stories", "maint", "prs"],
     "settings": ["projects", "widget_bindings", "connectors", "access"],
     "rollout": ["gating_path", "rollout_tiles", "surfaces", "detectors", "rollout_charts"],
+    "kickoff": ["prd_source", "facts", "actions", "checks", "plan", "confirm"],
 }
 
 

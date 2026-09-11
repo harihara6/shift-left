@@ -1,5 +1,8 @@
 import { HttpErrorResponse } from '@angular/common/http';
 
+/** Statuses a gateway in front of the API answers with when the API itself didn't. */
+const GATEWAY = new Set([502, 503, 504]);
+
 /** A refusal from the API, in the API's own words, plus any unmet criteria it listed. */
 export interface Refusal {
   message: string;
@@ -13,10 +16,18 @@ export interface Refusal {
  */
 export function refusal(err: unknown, fallback: string): Refusal {
   if (!(err instanceof HttpErrorResponse)) return { message: fallback, blockers: [] };
-  if (err.status === 0) {
-    return { message: 'The service could not be reached. Try again in a moment.', blockers: [] };
-  }
   const detail = err.error?.detail;
+  // No answer at all, or a gateway (the dev server's proxy, nginx) saying the API behind it
+  // didn't answer. The API's own 503s carry a detail and are shown in its words below.
+  if (err.status === 0 || (GATEWAY.has(err.status) && !detail)) {
+    const status = err.status ? ` (HTTP ${err.status})` : '';
+    return {
+      message:
+        `The ShiftLeft API isn't answering${status}. If you run it yourself, check the backend is ` +
+        'up: make backend serves it on port 8000, which the dev server forwards /api to.',
+      blockers: [],
+    };
+  }
   if (typeof detail === 'string') return { message: detail, blockers: [] };
   if (detail && typeof detail === 'object' && 'message' in detail) {
     return {
@@ -28,7 +39,8 @@ export function refusal(err: unknown, fallback: string): Refusal {
     const fields = detail.map((d: { msg?: string }) => d?.msg).filter(Boolean);
     if (fields.length) return { message: fields.join('; '), blockers: [] };
   }
-  return { message: fallback, blockers: [] };
+  // Say what came back, so "could not be loaded" is never the whole story.
+  return { message: `${fallback} The API answered HTTP ${err.status}.`, blockers: [] };
 }
 
 /** `refusal(...).message`, for callers that only show one line. */

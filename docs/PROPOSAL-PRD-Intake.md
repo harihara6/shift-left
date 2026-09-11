@@ -5,6 +5,59 @@
 **Does not change:** the evidence policy (PRD §6), the waiver model, the product rules on honesty (missing is never green, reasons not scores, AI drafts / humans accept)
 **Decision owner:** TBD (same sign-off as the pivot proposal)
 
+> **Update, 11 Sep 2026: a UI first.** The owner chose to run intake inside ShiftLeft as the
+> **Feature Kickoff** tab (under Evidence), not only as a Cursor skill. That brings forward the
+> server-side path that §8 describes: approval, rule resolution and the audit trail are enforced by
+> the API, not by a runbook. The model is chosen per run from a pluggable provider, Claude first,
+> with Cursor listed as not connected until its connector exists. Slice 1 is built: the whole flow
+> end to end on fixtures, with a dry-run create. Slice 2 adds live Jira, Confluence and Xray writes;
+> slice 3 adds live GitHub and standards readers. The Cursor skill (§8.2) stays an option as a
+> second client of the same API.
+> For now the rules of §3.2 are named in code (`backend/app/services/kickoff_rules.py`, with the
+> tests in `backend/tests/test_kickoff.py`); they move to `intake-policy.yaml` with the pivot's
+> policy pack.
+>
+> **Update, 11 Sep 2026 (later): live readers and writers built (slices 2 and 3).** Two switches,
+> `SHIFTLEFT_KICKOFF_SOURCES` (`fixtures` | `live`) and `SHIFTLEFT_KICKOFF_WRITE_MODE`
+> (`dry-run` | `live`). Live writes refuse to start unless reads are live too, and a session that
+> read example pages can never write live. Production refuses fixtures. What changed from the
+> plan above, and why:
+>
+> - **Writes go through Jira and Confluence REST, not Rovo MCP.** Rovo converts page bodies to
+>   Markdown and back, which drops tables, macros and panels
+>   ([atlassian-mcp-server#60](https://github.com/atlassian/atlassian-mcp-server/issues/60)); the
+>   software catalog is a table on a shared page. REST edits one table's rows in storage format and
+>   leaves every other byte alone, and Confluence refuses a save whose version isn't next. This
+>   also matches the codebase's boundary: Rovo MCP for discovery, REST for everything else.
+>   Xray goes through its GraphQL API, with PRD text passed as variables, never in the query.
+> - **Reads:** PRDs are Confluence pages labelled `sl-requirements`, read in storage format; the
+>   software catalog is the first table on its page with Component and Repository columns (§6.1);
+>   each service's OpenAPI spec is read from GitHub at the commit the branch pointed to; standards
+>   and reviewed vendors come from a registry file (`kickoff_registry.json`). What the checks read
+>   is frozen on the session, so the plan and the apply work from exactly that.
+> - **Product index:** it lives at `software.backbase.eu` (under `/product/index`), outside
+>   Confluence and out of reach of the build machine. The reader fetches
+>   `SHIFTLEFT_PRODUCT_INDEX_URL` and hands the page to `app/connectors/product_index_parser.py`,
+>   which is a contract with no body yet, to be written in the environment that can reach the site.
+>   Until then the index reads as unavailable (never as empty): index rows are still drafted, say
+>   that the index couldn't be read, and are handed off on apply. There is no index writer; if the
+>   site is generated from a repository, a pull request with the new row is the natural one (§11).
+> - **Apply** runs a preflight (issue types, required fields) before the first write, commits the
+>   confirmation and the frozen plan, then writes. Every item ends created, updated, already there,
+>   handed off with what to do, or failed with why. A partial failure is retried against the same
+>   frozen plan; every issue carries `sl-kickoff-<id>` and every page is looked up by title, so a
+>   retry finds what exists instead of duplicating it.
+> - **The write boundary:** an API token acts as one account, so writes stay in the kickoff's own
+>   Jira project and space, plus the configured catalog page. Work for another team (a dependency
+>   ticket in the owning team's project) is handed off as a drafted request, which settles open
+>   decision 5 by default until the owner says otherwise.
+> - **Issue links are verified.** Atlassian documents that the API's inward/outward field names
+>   carry no reliable direction, so each link (test → epic, dependency → epic) is read back and
+>   remade the other way round if Jira recorded it reversed.
+> - **Cursor:** its API lists the team's models (`GET /v1/models`) but only launches agents on
+>   repositories and has no call that answers a prompt, so Cursor models are listed on the page and
+>   run in the editor, not on the server.
+
 ---
 
 ## 1. Decision requested
@@ -119,11 +172,11 @@ Other markets (Australia CDR, Brazil Open Finance) are added as rules when a PRD
 
 ## 4. The flow, with two stops
 
-Steps 1–6 are the **Plan** phase and step 7 is the **Execute** phase. Each can run on a different model, chosen from a live list before the run (§8.2).
+Steps 1–6 are the **Plan** phase and step 7 is the **Execute** phase. Each can run on a different model, chosen from a live list before the run (§8.1).
 
 | # | Step | Writes anything? |
 |---|---|---|
-| 0 | **Choose run options**: *Plan only*, *Plan then execute*, or *Execute an approved plan*, and a model for each phase, from the models the signed-in Cursor account can use (§8.2) | No |
+| 0 | **Choose run options**: *Plan only*, *Plan then execute*, or *Execute an approved plan*, and a model for each phase, from the models the signed-in Cursor account can use (§8.1) | No |
 | 1 | **Read the PRD**: Confluence page via Rovo MCP, or a local file | No |
 | 2 | **Extract facts** with quotes (§3.1) | No |
 | 3 | **Stop 1: confirm context.** Shows facts, resolved rules (applies / n/a / undetermined) and open questions. The person corrects facts and answers questions; rules re-resolve. Cheap by design: expensive checks never run on a wrong region. | No |
@@ -170,10 +223,10 @@ The model never judges a standard from memory or a live web search. Specs are pi
 | **Jira: evidence tasks** | One per artifact due for the feature's tier (PRD §6): test plan, HLD, LLD, threat model, performance, accessibility, … | A gate label (Ready / Done); a link to the artifact's Confluence template. **Threat model is a status-only placeholder** |
 | **Jira: waiver drafts** | For artifacts the tier allows scoping down (minor, config): never skipped silently, drafted as a waiver with owner and rationale **left blank for a person to fill** | Rationales on the deny-list (`SHIFTLEFT_WAIVER_RATIONALE_DENYLIST`, e.g. "capacity pressure") are flagged. *New capability* offers no scope-down |
 | **Jira: dependency and spike tickets** | From `blocker` and `gap` findings, and from unknowns | "Is blocked by" links to the feature epic |
-| **Xray** | A Test Plan; Tests drafted from the AC, linked to their stories, so traceability exists from day one | `@L1–@L4` level tags |
+| **Xray** | A Test Plan; Tests drafted from the AC, linked to the epic (Xray's *Test* link), so traceability exists from day one | `@L1–@L4` level tags, left for the SDET |
 | **Confluence: feasibility record** | One page per PRD: the facts with quotes, the full rule table (**including n/a with reasons**), every finding with links | Page Properties (Jira key, status); label `sl-feasibility` |
 | **Software catalog** (Confluence page) | A **diff**: new component or API, owner, dependencies, standards alignment, link to the epic | See §6.1 |
-| **Product index** | A diff of the product features added or changed | Same adapter as the catalog; target to be confirmed (§11) |
+| **Product index** | A row for the feature, unless the index already lists it | Read from `software.backbase.eu` through a parser still to be written; no writer yet, so rows are handed off (§11) |
 
 All labels and tags are the conventions in CLAUDE.md, which are **proposed, not observed**. Confirm them with the teams before the spike.
 
@@ -187,6 +240,14 @@ The software catalog and product index are pages other people edit. Intake treat
 - The mechanism is one adapter with two targets. A third catalog is configuration, not code.
 
 This works best if the catalog page is structured: a fixed table or Page Properties per entry. Free-form prose pages can be read, but a diff against them is fragile. See §11.
+
+**As built:** the catalog is the first table on its page whose header names a component and a
+repository. Accepted headers (case-insensitive): *Component* / *Service* / *Name*, *Owner* /
+*Team*, *Jira project*, *Repository* / *Repo*, *Spec path* / *OpenAPI*, *Branch*, *Status*,
+*Planned operations*, *Depends on*, *Standards* (`confluence_storage.CATALOG_COLUMNS`). A new API
+is added as a row; an operation a blocker says doesn't exist yet goes into the service's
+*Planned operations* cell. A change the table has no column for is handed off, not forced. A page
+with a nested table, or none this can read, is refused rather than guessed at.
 
 ---
 
@@ -231,7 +292,7 @@ Before drafting any Jira ticket, intake reads the target project's issue types a
 
 That is weaker than a server-side check. It is acceptable for a spike run by a handful of named people. **If the spike succeeds, rule resolution and apply move into the ShiftLeft engine**, beside `ActionRecord` and `services/audit.py`, and the skill becomes a thin client of it.
 
-### 8.2 Run options: model and mode, chosen before the run
+### 8.1 Run options: model and mode, chosen before the run
 
 Before anything runs, the person picks **what to run** and **which model runs each phase**. The model list is fetched live from their Cursor account, never hardcoded.
 
@@ -271,13 +332,13 @@ So the dynamic picker lives in a **launcher** that drives the Cursor CLI. The sk
 
 **Later, server-side.** When apply moves into the ShiftLeft engine (§8), the same choice comes from the Cloud Agents API (`GET /v1/models`, then `model.id` on the run). The picker can then sit in the Jira panel or the ShiftLeft UI, not only in a terminal.
 
-### 8.1 Skill layout
+### 8.2 Skill layout
 
 ```text
 .cursor/
   mcp.json                        # rovo, github — env references, no secrets inline
   agents/
-    prd-intake-planner.md         # readonly: true — editor path for the Plan phase (§8.2)
+    prd-intake-planner.md         # readonly: true — editor path for the Plan phase (§8.1)
   skills/prd-intake/
     SKILL.md                      # the flow, the two stops, the untrusted-input rule
     references/
@@ -296,7 +357,7 @@ So the dynamic picker lives in a **launcher** that drives the Cursor CLI. The sk
       feasibility-page.md
       catalog-adapter.md          # software catalog + product index
     scripts/
-      run.py                      # launcher: live model list, run option, per-phase model (§8.2)
+      run.py                      # launcher: live model list, run option, per-phase model (§8.1)
       resolve_rules.py            # facts → applies / n/a / undetermined; no model involved
       validate_plan.py            # schema check; refuses without approved_by
       xray.py                     # idempotent test plan + tests
@@ -348,7 +409,7 @@ Each outcome in both tables carries the PRD quote in the real output. None of th
 **Question it answers:** does intake pick the right work for a given PRD, and are its drafts good enough that people accept them?
 
 - **Inputs:** two **already-delivered** PRDs from **different regions** (so the ground truth is known: which tickets, dependencies and standards work turned out to be needed), plus one live PRD.
-- **Week 1:** fact schema, `intake-policy.yaml` with the §3.2 rules, `resolve_rules.py`, the Internal API and standards checks for the regions of the chosen PRDs, and draft generation. Also the launcher (§8.2), verifying the three open CLI behaviours. Run the Plan phase on each delivered PRD **with two different models** from the live list, and compare them on the measures below. **No writes.**
+- **Week 1:** fact schema, `intake-policy.yaml` with the §3.2 rules, `resolve_rules.py`, the Internal API and standards checks for the regions of the chosen PRDs, and draft generation. Also the launcher (§8.1), verifying the three open CLI behaviours. Run the Plan phase on each delivered PRD **with two different models** from the live list, and compare them on the measures below. **No writes.**
 - **Week 2:** Stop 2 and apply into a **sandbox Jira project and a copy of the catalog page**, plus the Xray script. Then the live PRD, end to end, with its team.
 
 **Measures** (thresholds are proposals; the decision owner signs them off):
@@ -373,10 +434,11 @@ Each outcome in both tables carries the PRD quote in the real output. None of th
 | An incomplete rule set gives false confidence | High | Undetermined applies; n/a always shown with its reason; architecture owns and reviews `intake-policy.yaml` |
 | Facts mis-extracted from the PRD | High | Every fact needs a verbatim quote; Stop 1 is a human confirming them before anything runs |
 | Catalog pages aren't machine-readable | Medium | Propose a fixed table or Page Properties format for the software catalog before the spike |
-| Rovo MCP write groups not enabled | Medium | Needs the org admin; intake still produces drafts and the feasibility record without it |
+| Write credentials act as one account, not the person | Medium | Writes stay inside the kickoff's own project and space plus the catalog page; other teams' work is handed off; every issue and page names who confirmed it. Per-person OAuth (3LO) is the production path (open decision 9) |
 | Standards licensing (FDX membership, BIAN terms) | Medium | Unpinned standards read `not checked`; confirm access before relying on them |
-| Duplicate tickets on re-run | Medium | `prd-intake-<id>` marker; apply updates existing items |
-| Jira schemas differ across projects | Medium | Read issue-type metadata first; fail at Stop 2, not mid-apply |
+| Duplicate tickets on re-run | Medium | Built: every issue carries `sl-kickoff-<id>` and is looked up before it's created; pages are looked up by title; a retry applies the frozen plan to failed items only |
+| Jira schemas differ across projects | Medium | Built: a preflight reads issue types and required fields and refuses before the first write |
+| The product index parser breaks when the site changes | Medium | A parser failure reads as "couldn't be read", never as an empty index; index rows are handed off, not written |
 | Approval enforced by a skill, not a server | Medium | Explicit invocation only, manual tool approval, `validate_plan.py`; move apply server-side after the spike |
 | People start treating the draft as the plan without reading it | Medium | Stop 2 shows the rule table and findings first, then the tickets; the approver is named on every ticket |
 | A weaker model picked for the Plan phase misses applicable items | Medium | Rules are deterministic, so the model only affects fact extraction and drafting; Stop 1 catches wrong facts; the model is recorded so the spike can compare models on the same PRD |
@@ -384,14 +446,15 @@ Each outcome in both tables carries the PRD quote in the real output. None of th
 
 **Open decisions**
 
-1. **Product index:** where it lives and who owns it. It holds product feature details; the target system is not yet confirmed.
-2. **Software catalog:** the page's structure, and its owner (who reviews catalog diffs).
+1. **Product index:** it lives at `software.backbase.eu` (under `/product/index`). Still open: the parser (written in the environment that can reach it), who owns the index, and how rows get written (a pull request, if the site is built from a repository).
+2. **Software catalog:** its owner (who reviews catalog diffs), and whether the table format in §6.1 is the one to standardise on.
 3. Who owns `intake-policy.yaml`: architecture, or the ETL guild alongside the evidence policy.
 4. The list of regions and markets, and which market standard applies per country (for example STET rather than NextGenPSD2 in France).
-5. Whether intake may create dependency tickets in other teams' projects, or only draft requests.
+5. Whether intake may create dependency tickets in other teams' projects, or only draft requests. *Built as: drafted and handed off, until decided.*
 6. Xray: one test plan per epic or per release.
 7. Is Backbase an FDX member? This decides whether FDX checks are possible at all.
 8. Whether people run intake through the CLI launcher (dynamic model choice) or only in the editor (the picker the person already has). Both are proposed; the CLI needs installing and signing in per person.
+9. Whose identity writes: one service account (built, with the boundary above), or each person's own Atlassian OAuth token, so writes follow their own permissions.
 
 ---
 
@@ -404,6 +467,10 @@ Each outcome in both tables carries the PRD quote in the real output. None of th
 - Cursor CLI parameters (`--model`, `--list-models`, `--mode`): https://cursor.com/docs/cli/reference/parameters
 - Cursor Plan Mode: https://cursor.com/docs/agent/plan-mode
 - Cursor Cloud Agents API (`GET /v1/models`): https://cursor.com/docs/cloud-agent/api/endpoints
+- Rovo MCP edits lose rich content (tables, macros): https://github.com/atlassian/atlassian-mcp-server/issues/60
+- Jira issue linking model (inward/outward carry no API-level direction): https://developer.atlassian.com/cloud/jira/platform/issue-linking-model/
+- Xray Cloud authentication (`/api/v2/authenticate`): https://docs.getxray.app/display/XRAYCLOUD/Authentication+-+REST+v2
+- Xray Cloud GraphQL `createTest`: https://us.xray.cloud.getxray.app/doc/graphql/createtest.doc.html
 - Berlin Group NextGenPSD2 downloads and licences: https://www.berlin-group.org/nextgenpsd2-downloads
 - UK Open Banking API specifications: https://standards.openbanking.org.uk/api-specifications/
 - BIAN: https://bian.org/
