@@ -1,252 +1,367 @@
-"""Feature Kickoff: take a PRD from Confluence to a checked, tagged plan a named person confirms.
+"""Feature Kickoff: seven steps from a PRD to an ordered backlog, saved as an analysis.
 
-Every endpoint is project-scoped and needs a contributor: kickoff drafts work into the project's
-backlog. A session reads the PRD with its actor's own permissions, so it is readable only by
-whoever ran it (and platform admins). Anyone else gets a 404 that reveals nothing.
-
-Only `POST …/apply` writes. The confirmation is committed before the first external write, and
-in dry-run mode nothing external is written at all.
+Access is the project's (product rule 8): anyone with a role on the project can open its analyses,
+and a contributor can change them, run them and create their tasks in Jira. Creating in Jira is
+the only external write, and it is recorded against the person who pressed the button.
 """
 
-import logging
-
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import CurrentUser, current_user, require
 from app.db.session import get_session
-from app.models.kickoff import KickoffSession
+from app.models.kickoff import KickoffAnalysis
 from app.models.project import Project
 from app.schemas.kickoff import (
-    ActionsUpdate,
-    Connections,
-    FactsUpdate,
-    KickoffOut,
-    KickoffSummary,
-    ModelOptions,
-    PlanUpdate,
-    PrdList,
-    StartRequest,
+    AnalysisOut,
+    AnalysisSummary,
+    BacklogRequest,
+    CatalogOut,
+    ComplianceApproval,
+    KickoffStatus,
+    PlanEdit,
+    PrdRequest,
+    ProvidersUpdate,
+    RunRequest,
+    TitleUpdate,
+    UrlsUpdate,
 )
 from app.services import audit
 from app.services import kickoff as service
-from app.services import kickoff_write as writing
-from app.services.kickoff_sources import SourceUnavailable
 
-logger = logging.getLogger("shiftleft.kickoff")
 router = APIRouter(prefix="/projects", tags=["kickoff"])
+BASE = "/{project_id}/kickoff"
+ONE = BASE + "/analyses/{analysis_id}"
 
 
 def _refused(exc: service.Refused) -> HTTPException:
     return HTTPException(status.HTTP_409_CONFLICT, {"message": exc.message, "blockers": exc.blockers})
 
 
-def _unavailable(exc: SourceUnavailable) -> HTTPException:
-    return HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, f"A source couldn't be read: {exc}")
-
-
-async def _own(session: AsyncSession, project: Project, session_id: int, user: CurrentUser) -> KickoffSession:
-    row = await session.get(KickoffSession, session_id)
-    if (
-        row is None or row.project_id != project.id
-        or (row.actor != user.email and not user.is_platform_admin)
-    ):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Kickoff not found")
+async def _analysis(session: AsyncSession, project: Project, analysis_id: int) -> KickoffAnalysis:
+    row = await session.get(KickoffAnalysis, analysis_id)
+    if row is None or row.project_id != project.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Analysis not found")
     return row
 
 
-async def _view(session: AsyncSession, row: KickoffSession, project: Project) -> KickoffOut:
-    return service.view(row, project, await service.artifacts(session))
+async def _saved(session: AsyncSession, row: KickoffAnalysis) -> AnalysisOut:
+    await session.commit()
+    await session.refresh(row)
+    return service.view(row)
 
 
-@router.get("/{project_id}/kickoff/prds", response_model=PrdList)
-async def list_prds(
-    q: str = Query(default="", max_length=120),
-    project: Project = Depends(require("contributor")),
-) -> PrdList:
-    return await service.list_prds(project, q)
-
-
-@router.get("/{project_id}/kickoff/connections", response_model=Connections)
-async def list_connections(project: Project = Depends(require("contributor"))) -> Connections:
-    """Where reads and writes go, from configuration. Never returns a credential."""
-    return service.connections()
-
-
-@router.get("/{project_id}/kickoff/models", response_model=ModelOptions)
-async def list_models(project: Project = Depends(require("contributor"))) -> ModelOptions:
-    """Fetched from each provider at request time; never a hardcoded list."""
-    return await service.model_options()
-
-
-@router.get("/{project_id}/kickoff", response_model=list[KickoffSummary])
-async def my_kickoffs(
-    project: Project = Depends(require("contributor")),
-    user: CurrentUser = Depends(current_user),
+@router.get(BASE + "/status", response_model=KickoffStatus)
+async def kickoff_status(
+    project: Project = Depends(require("viewer")),
     session: AsyncSession = Depends(get_session),
-) -> list[KickoffSummary]:
+) -> KickoffStatus:
+    """Where each step reads and writes, from configuration. Never returns a credential."""
+    return await service.status(session)
+
+
+@router.get(BASE + "/catalog", response_model=CatalogOut)
+async def kickoff_catalog(project: Project = Depends(require("viewer"))) -> CatalogOut:
+    return service.catalog()
+
+
+@router.get(BASE + "/analyses", response_model=list[AnalysisSummary])
+async def list_analyses(
+    project: Project = Depends(require("viewer")),
+    session: AsyncSession = Depends(get_session),
+) -> list[AnalysisSummary]:
     rows = (
         await session.execute(
-            select(KickoffSession)
-            .where(KickoffSession.project_id == project.id, KickoffSession.actor == user.email)
-            .order_by(KickoffSession.id.desc())
-            .limit(10)
+            select(KickoffAnalysis)
+            .where(KickoffAnalysis.project_id == project.id)
+            .order_by(KickoffAnalysis.updated_at.desc(), KickoffAnalysis.id.desc())
+            .limit(100)
         )
     ).scalars()
-    return [
-        KickoffSummary(id=r.id, page_title=r.page_title, status=r.status, model=service.drafted_by(r),
-                       created_at=service.as_utc(r.created_at), approved_by=r.approved_by)
-        for r in rows
-    ]
+    return [service.summary(r) for r in rows]
 
 
-@router.post("/{project_id}/kickoff", response_model=KickoffOut, status_code=status.HTTP_201_CREATED)
-async def start(
-    body: StartRequest,
+@router.post(BASE + "/analyses", response_model=AnalysisOut, status_code=status.HTTP_201_CREATED)
+async def create_analysis(
+    body: PrdRequest,
     project: Project = Depends(require("contributor")),
     user: CurrentUser = Depends(current_user),
     session: AsyncSession = Depends(get_session),
-) -> KickoffOut:
-    """Read the PRD and extract its facts. Creates nothing but the session."""
+) -> AnalysisOut:
+    """Step 1: read the PRD. Creates the analysis and nothing else."""
     try:
-        row = await service.start(session, project, user.email, body.page_id, body.provider, body.model)
-    except LookupError as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "PRD page not found") from exc
+        row = await service.create(session, project, user.email, body.prd_url)
     except service.Refused as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, exc.message) from exc
-    except SourceUnavailable as exc:
-        raise _unavailable(exc) from exc
+        raise _refused(exc) from exc
     await session.flush()
     await audit.record(
-        session, actor=user.email, action="kickoff_start", resource_type="kickoff_session",
-        resource_id=str(row.id), project_id=project.id,
-        detail={"page_id": row.page_id, "page_version": row.page_version, "provider": row.provider,
-                "model": row.model, "reader": row.reader, "sources": row.data["source_mode"]},
-        note="Read-only: the PRD was read and its facts extracted. Nothing was written anywhere.",
+        session,
+        actor=user.email,
+        action="kickoff_analysis_create",
+        resource_type="kickoff_analysis",
+        resource_id=str(row.id),
+        project_id=project.id,
+        detail={
+            "page_id": row.inputs["prd"]["page_id"],
+            "version": row.inputs["prd"]["version"],
+            "via": row.inputs["prd"]["via"],
+        },
+        note="Read-only: the PRD was read. Nothing was written outside ShiftLeft.",
     )
-    await session.commit()
-    await session.refresh(row)
-    return await _view(session, row, project)
+    return await _saved(session, row)
 
 
-@router.get("/{project_id}/kickoff/{session_id}", response_model=KickoffOut)
-async def get_kickoff(
-    session_id: int,
+@router.get(ONE, response_model=AnalysisOut)
+async def get_analysis(
+    analysis_id: int,
+    project: Project = Depends(require("viewer")),
+    session: AsyncSession = Depends(get_session),
+) -> AnalysisOut:
+    return service.view(await _analysis(session, project, analysis_id))
+
+
+@router.patch(ONE, response_model=AnalysisOut)
+async def rename_analysis(
+    analysis_id: int,
+    body: TitleUpdate,
     project: Project = Depends(require("contributor")),
     user: CurrentUser = Depends(current_user),
     session: AsyncSession = Depends(get_session),
-) -> KickoffOut:
-    return await _view(session, await _own(session, project, session_id, user), project)
+) -> AnalysisOut:
+    row = await _analysis(session, project, analysis_id)
+    service.rename(row, user.email, body.title)
+    return await _saved(session, row)
 
 
-@router.put("/{project_id}/kickoff/{session_id}/facts", response_model=KickoffOut)
-async def update_facts(
-    session_id: int,
-    body: FactsUpdate,
+@router.delete(ONE, status_code=status.HTTP_204_NO_CONTENT)
+async def delete_analysis(
+    analysis_id: int,
     project: Project = Depends(require("contributor")),
     user: CurrentUser = Depends(current_user),
     session: AsyncSession = Depends(get_session),
-) -> KickoffOut:
-    """A person correcting what was read. Every rule re-resolves from the corrected facts."""
-    row = await _own(session, project, session_id, user)
-    try:
-        service.update_facts(row, body.facts, user.email)
-    except service.Refused as exc:
-        raise _refused(exc) from exc
-    await session.commit()
-    await session.refresh(row)
-    return await _view(session, row, project)
-
-
-@router.put("/{project_id}/kickoff/{session_id}/actions", response_model=KickoffOut)
-async def choose_actions(
-    session_id: int,
-    body: ActionsUpdate,
-    project: Project = Depends(require("contributor")),
-    user: CurrentUser = Depends(current_user),
-    session: AsyncSession = Depends(get_session),
-) -> KickoffOut:
-    """Record what to do and run the selected checks. Leaving a recommended action out needs a reason."""
-    row = await _own(session, project, session_id, user)
-    try:
-        await service.choose(row, body.choices)
-    except service.Refused as exc:
-        raise _refused(exc) from exc
-    await session.commit()
-    await session.refresh(row)
-    return await _view(session, row, project)
-
-
-@router.put("/{project_id}/kickoff/{session_id}/plan", response_model=KickoffOut)
-async def decide(
-    session_id: int,
-    body: PlanUpdate,
-    project: Project = Depends(require("contributor")),
-    user: CurrentUser = Depends(current_user),
-    session: AsyncSession = Depends(get_session),
-) -> KickoffOut:
-    row = await _own(session, project, session_id, user)
-    try:
-        service.decide(row, project, await service.artifacts(session), body)
-    except service.Refused as exc:
-        raise _refused(exc) from exc
-    await session.commit()
-    await session.refresh(row)
-    return await _view(session, row, project)
-
-
-@router.post("/{project_id}/kickoff/{session_id}/apply", response_model=KickoffOut)
-async def apply(
-    session_id: int,
-    project: Project = Depends(require("contributor")),
-    user: CurrentUser = Depends(current_user),
-    session: AsyncSession = Depends(get_session),
-) -> KickoffOut:
-    """The confirmation, then the writes. Also the retry, for a plan whose items partly failed.
-
-    Order matters: preflight (nothing written if it fails), then the confirmation and the frozen
-    plan are committed, then the writes run and every item's result is recorded.
-    """
-    row = await _own(session, project, session_id, user)
-    defs = await service.artifacts(session)
-    try:
-        plan, previous = service.prepare_apply(row, project, defs)
-    except service.Refused as exc:
-        raise _refused(exc) from exc
-    items = plan["items"]
-    writer = writing.writer(service.write_mode())
-    context = service.write_context(row, project, defs, user.email)
-    problems = await writer.preflight(items, context)
-    if problems:
-        raise _refused(service.Refused("Nothing was written: fix these first.", problems))
-    retry = bool(previous)
-    try:
-        await service.claim(session, row, user.email, plan, writer.mode)
-    except service.Refused as exc:
-        await session.rollback()
-        raise _refused(exc) from exc
-    await session.commit()
-
-    try:
-        results = await writer.apply(items, previous, service.write_context(row, project, defs, user.email))
-    except Exception as exc:  # the writer broke: record what is known rather than leave it "applying"
-        logger.exception("Kickoff %s: the writer stopped", row.id)
-        reason = f"the apply stopped unexpectedly ({type(exc).__name__})."
-        results = service.interrupted(items, previous, reason)
-    summary = service.finish_apply(row, items, results)
+) -> Response:
+    """Deletes the analysis in ShiftLeft. Anything already created in Jira stays in Jira."""
+    row = await _analysis(session, project, analysis_id)
     await audit.record(
-        session, actor=user.email, action="kickoff_retry" if retry else "kickoff_apply",
-        resource_type="kickoff_session", resource_id=str(row.id), project_id=project.id,
-        detail={**summary, "page_id": row.page_id, "page_version": row.page_version,
-                "model": row.model, "reader": row.reader},
-        note=(
-            "A drafted plan counts toward nothing until a named person confirms it. This entry is "
-            + ("a retry of the failed items of that confirmed plan." if retry else "that confirmation.")
-            + (" Dry run: nothing was written to Jira, Xray or Confluence." if writer.mode == "dry-run" else
-               " Live: results per item are on the kickoff.")
-        ),
+        session,
+        actor=user.email,
+        action="kickoff_analysis_delete",
+        resource_type="kickoff_analysis",
+        resource_id=str(row.id),
+        project_id=project.id,
+        detail={"title": row.title, "status": row.status, "backlog": (row.backlog or {}).get("project_key")},
+        note="The analysis was deleted. Tickets it created in Jira, if any, were not touched.",
     )
+    await session.delete(row)
     await session.commit()
-    await session.refresh(row)
-    return await _view(session, row, project)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.put(ONE + "/prd", response_model=AnalysisOut)
+async def set_prd(
+    analysis_id: int,
+    body: PrdRequest,
+    project: Project = Depends(require("contributor")),
+    user: CurrentUser = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> AnalysisOut:
+    """Step 1 again: read the page afresh, or a different page."""
+    row = await _analysis(session, project, analysis_id)
+    try:
+        await service.read_prd(session, row, user.email, body.prd_url)
+    except service.Refused as exc:
+        raise _refused(exc) from exc
+    return await _saved(session, row)
+
+
+async def _repos(
+    role: str, analysis_id: int, body: UrlsUpdate, project: Project, user: CurrentUser, session: AsyncSession
+) -> AnalysisOut:
+    row = await _analysis(session, project, analysis_id)
+    try:
+        await service.set_repos(session, row, role, body.urls, body.refresh, user.email)
+    except service.Refused as exc:
+        raise _refused(exc) from exc
+    return await _saved(session, row)
+
+
+@router.put(ONE + "/repos", response_model=AnalysisOut)
+async def set_repos(
+    analysis_id: int,
+    body: UrlsUpdate,
+    project: Project = Depends(require("contributor")),
+    user: CurrentUser = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> AnalysisOut:
+    """Step 2: the repos the feature is coded in, read from GitHub."""
+    return await _repos("repos", analysis_id, body, project, user, session)
+
+
+@router.put(ONE + "/dependencies", response_model=AnalysisOut)
+async def set_dependencies(
+    analysis_id: int,
+    body: UrlsUpdate,
+    project: Project = Depends(require("contributor")),
+    user: CurrentUser = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> AnalysisOut:
+    """Step 3: the repos the feature relies on. An empty list is a valid answer."""
+    return await _repos("dependencies", analysis_id, body, project, user, session)
+
+
+@router.post(ONE + "/compliance/suggest", response_model=AnalysisOut)
+async def suggest_compliance(
+    analysis_id: int,
+    project: Project = Depends(require("contributor")),
+    user: CurrentUser = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> AnalysisOut:
+    """Step 4a: propose compliance from the PRD. Proposes only; approving is the next call."""
+    row = await _analysis(session, project, analysis_id)
+    try:
+        await service.suggest_compliance(row, user.email)
+    except service.Refused as exc:
+        raise _refused(exc) from exc
+    return await _saved(session, row)
+
+
+@router.put(ONE + "/compliance", response_model=AnalysisOut)
+async def approve_compliance(
+    analysis_id: int,
+    body: ComplianceApproval,
+    project: Project = Depends(require("contributor")),
+    user: CurrentUser = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> AnalysisOut:
+    """Step 4b: the approved selection, recorded against the person approving it."""
+    row = await _analysis(session, project, analysis_id)
+    try:
+        service.approve_compliance(row, user.email, body)
+    except service.Refused as exc:
+        raise _refused(exc) from exc
+    await audit.record(
+        session,
+        actor=user.email,
+        action="kickoff_compliance_approve",
+        resource_type="kickoff_analysis",
+        resource_id=str(row.id),
+        project_id=project.id,
+        detail={"selected": body.selected, "custom": [c.name for c in body.custom]},
+    )
+    return await _saved(session, row)
+
+
+@router.put(ONE + "/api-docs", response_model=AnalysisOut)
+async def set_api_docs(
+    analysis_id: int,
+    body: UrlsUpdate,
+    project: Project = Depends(require("contributor")),
+    user: CurrentUser = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> AnalysisOut:
+    """Step 5: our API docs, read from the URLs given."""
+    row = await _analysis(session, project, analysis_id)
+    await service.set_docs(row, body.urls, body.refresh, user.email)
+    return await _saved(session, row)
+
+
+@router.put(ONE + "/third-parties", response_model=AnalysisOut)
+async def set_third_parties(
+    analysis_id: int,
+    body: ProvidersUpdate,
+    project: Project = Depends(require("contributor")),
+    user: CurrentUser = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> AnalysisOut:
+    """Step 6: the third-party providers relied on, and their docs."""
+    row = await _analysis(session, project, analysis_id)
+    try:
+        await service.set_providers(row, body, user.email)
+    except service.Refused as exc:
+        raise _refused(exc) from exc
+    return await _saved(session, row)
+
+
+@router.post(ONE + "/run", response_model=AnalysisOut)
+async def run_analysis(
+    analysis_id: int,
+    body: RunRequest,
+    project: Project = Depends(require("contributor")),
+    user: CurrentUser = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> AnalysisOut:
+    """Step 7: draft the plan. Replaces the previous draft, including edits made to it."""
+    row = await _analysis(session, project, analysis_id)
+    try:
+        await service.run(row, user.email, body.provider, body.model)
+    except service.Refused as exc:
+        raise _refused(exc) from exc
+    await audit.record(
+        session,
+        actor=user.email,
+        action="kickoff_analysis_run",
+        resource_type="kickoff_analysis",
+        resource_id=str(row.id),
+        project_id=project.id,
+        detail={
+            "run": row.runs,
+            "reader": row.plan["reader"],
+            "model": row.plan["model"],
+            "tasks": len(row.plan["tasks"]),
+        },
+        note="A draft. It counts toward nothing until a named person creates it in the backlog.",
+    )
+    return await _saved(session, row)
+
+
+@router.put(ONE + "/plan", response_model=AnalysisOut)
+async def edit_plan(
+    analysis_id: int,
+    body: PlanEdit,
+    project: Project = Depends(require("contributor")),
+    user: CurrentUser = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> AnalysisOut:
+    row = await _analysis(session, project, analysis_id)
+    try:
+        service.edit_plan(row, user.email, body)
+    except service.Refused as exc:
+        raise _refused(exc) from exc
+    return await _saved(session, row)
+
+
+@router.post(ONE + "/backlog", response_model=AnalysisOut)
+async def create_backlog(
+    analysis_id: int,
+    body: BacklogRequest,
+    project: Project = Depends(require("contributor")),
+    user: CurrentUser = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> AnalysisOut:
+    """Create the epic and tasks in Jira, in order. Also the retry for tasks that failed."""
+    row = await _analysis(session, project, analysis_id)
+    try:
+        result = await service.create_backlog(session, row, user.email, body.backlog_url)
+    except service.Refused as exc:
+        raise _refused(exc) from exc
+    counts: dict[str, int] = {}
+    for ticket in [result["epic"], *result["tickets"]]:
+        counts[ticket["status"]] = counts.get(ticket["status"], 0) + 1
+    await audit.record(
+        session,
+        actor=user.email,
+        action="kickoff_backlog_create",
+        resource_type="kickoff_analysis",
+        resource_id=str(row.id),
+        project_id=project.id,
+        detail={
+            "project_key": result["project_key"],
+            "counts": counts,
+            "attempt": result["attempts"],
+            "reader": row.plan["reader"],
+            "model": row.plan["model"],
+        },
+        note="The named acceptance of an AI or rule-based draft: its tasks were created in Jira.",
+    )
+    return await _saved(session, row)

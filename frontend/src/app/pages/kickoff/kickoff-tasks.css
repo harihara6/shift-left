@@ -1,0 +1,68 @@
+/* Step 7's task editor: the ordered Jira tasks, editable before they're created. */
+
+.tasks-card { gap: 16px; }
+.tasks-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.tasks-head .sub-title { font-size: 16px; margin-bottom: 3px; }
+.epic-field { display: flex; flex-direction: column; gap: 5px; }
+.epic-field input { font-weight: 600; font-size: 14.5px; }
+
+.tasks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; counter-reset: none; }
+.task {
+  display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 14px; align-items: start;
+  border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; background: var(--surface);
+}
+.task:hover { border-color: #d7d9e2; }
+.task.editing { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); grid-template-columns: 40px minmax(0, 1fr); }
+.task-num {
+  width: 36px; height: 36px; border-radius: 10px; background: var(--rail); color: #fff; display: flex;
+  align-items: center; justify-content: center; font-size: 14px; font-weight: 600;
+}
+.task-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.task-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.task-head .type-chip, .task-head .pill, .task-head .state-pill { flex-shrink: 0; }
+.task-title {
+  flex: 1 1 200px; min-width: 0; background: none; border: none; padding: 0; text-align: left; cursor: pointer;
+  font-size: 14.5px; font-weight: 600; color: var(--ink); line-height: 1.4;
+}
+.task-title:hover { color: var(--accent); }
+.type-chip {
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; padding: 3px 8px;
+  border-radius: 6px; background: var(--neutral-bg); color: var(--ink-2); border: 1px solid var(--border);
+}
+.type-chip[data-type='Spike'] { border-style: dashed; }
+.task-tags { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.task-detail {
+  display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 10px;
+  background: var(--surface-sunken); font-size: 13.5px; line-height: 1.55; color: var(--ink-2);
+}
+.task-detail p { margin: 0; }
+.jira-key { background: var(--good-bg); color: var(--good); }
+.task-actions { display: flex; gap: 4px; align-items: center; }
+.icon-btn {
+  width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface);
+  cursor: pointer; font-size: 14px; color: var(--ink-2);
+}
+.icon-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.icon-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.task-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.task-form label { display: flex; flex-direction: column; gap: 5px; }
+.task-form .wide { grid-column: 1 / -1; }
+.task-form textarea { font-family: var(--sans); font-size: 13.5px; }
+.picks { border: 1px solid var(--border-soft); border-radius: 10px; padding: 10px 12px; margin: 0; display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.picks legend { padding: 0 4px; }
+.pick { flex-direction: row !important; align-items: center; gap: 7px !important; font-size: 13px; }
+.form-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+.save-bar {
+  position: sticky; bottom: 12px; display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  flex-wrap: wrap; padding: 14px 18px; border-radius: 14px; background: var(--rail); color: #fff; font-size: 13.5px;
+  box-shadow: 0 16px 40px rgba(18, 19, 22, 0.25);
+}
+.save-bar .btn:not(.btn-primary) { background: transparent; color: #e8e9ec; border-color: #3a3d45; }
+
+@media (max-width: 720px) {
+  .task { grid-template-columns: minmax(0, 1fr); }
+  .task-num { display: none; }
+  .task-form { grid-template-columns: minmax(0, 1fr); }
+}

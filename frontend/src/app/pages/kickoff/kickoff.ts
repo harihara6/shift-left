@@ -1,4 +1,4 @@
-import { DatePipe } from '@angular/common';
+import { DatePipe, DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -9,6 +9,7 @@ import {
   effect,
   inject,
   input,
+  output,
   signal,
   untracked,
 } from '@angular/core';
@@ -18,25 +19,24 @@ import { Observable } from 'rxjs';
 import { Api } from '../../core/api';
 import { Refusal, errorMessage, refusal, writeRefusal } from '../../core/errors';
 import {
-  FindingStatus,
-  Kickoff,
-  KickoffAction,
+  ComplianceFramework,
+  CustomCompliance,
+  KickoffAnalysis,
+  KickoffAnalysisSummary,
+  KickoffCatalog,
+  KickoffComplianceSuggestion,
   KickoffConnection,
-  KickoffConnections,
-  KickoffFact,
-  KickoffPlanItem,
-  KickoffResultStatus,
-  KickoffSuggestion,
-  KickoffSummary,
-  ModelOptions,
-  ModelProvider,
+  KickoffDoc,
+  KickoffRepo,
+  KickoffStatus,
+  KickoffStepKey,
   PerspectiveGuide,
-  PrdList,
+  ProviderCatalogEntry,
 } from '../../core/models';
 import { GuideModal } from '../../ui/guide-modal';
-import { RagBadge } from '../../ui/rag-badge';
+import { KickoffAnalysisStep } from './kickoff-analysis';
 
-type Step = 'source' | 'context' | 'actions' | 'checks' | 'plan' | 'create';
+type RepoRole = 'repos' | 'dependencies';
 
 interface Tone {
   glyph: string;
@@ -44,30 +44,68 @@ interface Tone {
   tone: string;
 }
 
-/** Plan groups, in the order the plan is read. */
-const GROUPS: { key: string; label: string }[] = [
-  { key: 'jira', label: 'Jira backlog' },
-  { key: 'xray', label: 'Xray' },
-  { key: 'confluence', label: 'Confluence pages' },
-  { key: 'software_catalog', label: 'Software catalog' },
-  { key: 'product_index', label: 'Product index' },
-  { key: 'waivers', label: 'Waiver drafts' },
-];
+/** What each step asks, in the order they're taken. The API decides what's done. */
+const STEP_COPY: Record<KickoffStepKey, { title: string; lede: string; optional?: boolean }> = {
+  prd: {
+    title: 'The PRD',
+    lede:
+      'The Confluence page this feature is specified in. Everything after this is planned from what it ' +
+      'says, and every quote in the analysis points back at a line of it.',
+  },
+  repos: {
+    title: 'Where the code goes',
+    lede:
+      "The GitHub repos you'll build this feature in. Each is read at a pinned commit: its file tree, " +
+      'languages, README and any API specs.',
+  },
+  dependencies: {
+    title: 'What you rely on',
+    lede:
+      "Other teams' repos this feature calls or builds on. The analysis checks whether their APIs already " +
+      'offer what the PRD needs, and flags what you must ask them for.',
+    optional: true,
+  },
+  compliance: {
+    title: 'Compliance',
+    lede:
+      'Which regulations and standards this feature must meet. Proposed from the PRD, each with the lines ' +
+      'that triggered it. You approve the list, pick by hand, or approve that none apply.',
+  },
+  api_docs: {
+    title: 'Our API docs',
+    lede:
+      'Links to the API docs this feature changes or extends. OpenAPI files are read as operations; any ' +
+      'other page as text.',
+    optional: true,
+  },
+  third_parties: {
+    title: 'Third-party APIs',
+    lede:
+      'Providers the feature depends on, such as Salt Edge or Ninth Wave. Add each with its docs so the ' +
+      'plan covers access, authentication and failure modes.',
+    optional: true,
+  },
+  plan: {
+    title: 'The analysis',
+    lede:
+      'Claude reads everything above and says what work is pending in which repo, what you need from ' +
+      'others, and the Jira tasks in the order to do them. Edit them, then create them in your backlog.',
+  },
+};
 
 /**
- * Feature Kickoff: take a PRD from Confluence to a checked, tagged plan, and confirm it.
+ * Feature Kickoff: a PRD taken, in seven steps, to an ordered backlog.
  *
- * Nothing on this page decides anything. What applies, why, what the checks found and what the
- * plan contains all arrive from the API with their reasons; the page shows them and sends the
- * person's choices back. Every write is authorized server-side, and the one that creates things
- * is the last step, recorded against whoever confirms it.
+ * Each step saves as it goes, so an analysis can be left and reopened, changed and run again.
+ * Nothing here decides anything: what's done, what blocks a run, what the analysis found and what
+ * was created all come from the API with their reasons.
  */
 @Component({
   selector: 'sl-kickoff',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, FormsModule, GuideModal, RagBadge],
+  imports: [DatePipe, DecimalPipe, FormsModule, GuideModal, KickoffAnalysisStep, NgTemplateOutlet],
   templateUrl: './kickoff.html',
-  styleUrls: ['./kickoff.css', './kickoff-plan.css'],
+  styleUrls: ['./kickoff-shared.css', './kickoff.css', './kickoff-steps.css'],
 })
 export class KickoffPage {
   private readonly api = inject(Api);
@@ -75,313 +113,464 @@ export class KickoffPage {
   private readonly injector = inject(Injector);
 
   readonly projectId = input.required<string>();
+  /** Connections are set up in Settings; the page links there rather than hiding the gap. */
+  readonly openSettings = output<void>();
 
-  readonly steps: { id: Step; label: string }[] = [
-    { id: 'source', label: 'PRD' },
-    { id: 'context', label: 'What it says' },
-    { id: 'actions', label: 'What to do' },
-    { id: 'checks', label: 'Checks' },
-    { id: 'plan', label: 'Plan' },
-    { id: 'create', label: 'Confirm' },
+  readonly copy = STEP_COPY;
+  readonly journey: { key: KickoffStepKey; label: string }[] = [
+    { key: 'prd', label: 'PRD' },
+    { key: 'repos', label: 'Repos' },
+    { key: 'dependencies', label: 'Dependencies' },
+    { key: 'compliance', label: 'Compliance' },
+    { key: 'api_docs', label: 'API docs' },
+    { key: 'third_parties', label: 'Third parties' },
+    { key: 'plan', label: 'Analysis' },
   ];
-  readonly groups = GROUPS;
 
-  readonly step = signal<Step>('source');
-  readonly busy = signal(false);
+  readonly status = signal<KickoffStatus | null>(null);
+  readonly catalog = signal<KickoffCatalog | null>(null);
+  readonly analyses = signal<KickoffAnalysisSummary[] | null>(null);
+  readonly analysis = signal<KickoffAnalysis | null>(null);
+  readonly step = signal<KickoffStepKey>('prd');
+  /** Which action is in flight, so only its button says so. */
+  readonly busy = signal<string | null>(null);
   readonly refusal = signal<Refusal | null>(null);
-  /** Announced politely, so every result of a write is heard, not only seen. */
+  /** Announced politely, so every result is heard, not only seen. */
   readonly announcement = signal('');
 
-  // Step 1 ------------------------------------------------------------------------------------
-  readonly prds = signal<PrdList | null>(null);
-  readonly query = signal('');
-  readonly pageId = signal('');
-  readonly models = signal<ModelOptions | null>(null);
-  readonly providerKey = signal('');
-  readonly model = signal('');
-  readonly recent = signal<KickoffSummary[]>([]);
-  /** Where reads and writes go. Shown before anything runs, so nobody mistakes examples for live. */
-  readonly connections = signal<KickoffConnections | null>(null);
+  readonly newPrdUrl = signal('');
+  readonly confirmDelete = signal<number | null>(null);
+  readonly editingTitle = signal(false);
+  readonly titleDraft = signal('');
+  readonly prdUrl = signal('');
+  readonly showLines = signal(false);
+  readonly drafts = signal<Record<string, string>>({});
 
-  readonly provider = computed<ModelProvider | null>(
-    () => this.models()?.providers.find((p) => p.key === this.providerKey()) ?? null,
-  );
+  // Compliance: the person's working selection, saved when they approve it.
+  readonly selected = signal<string[]>([]);
+  readonly custom = signal<CustomCompliance[]>([]);
+  readonly customName = signal('');
+  readonly customNote = signal('');
+  readonly showAllFrameworks = signal(false);
 
-  // The session --------------------------------------------------------------------------------
-  readonly session = signal<Kickoff | null>(null);
-
-  // Step 2: fact edits, keyed by fact. Absent means "as read".
-  readonly editing = signal<string | null>(null);
-  readonly draftValues = signal<string[]>([]);
-  readonly draftText = signal('');
-
-  // Step 3: the person's choices, keyed by action. Absent means "as recommended".
-  readonly choices = signal<Record<string, { selected: boolean; reason: string }>>({});
+  readonly providerName = signal('');
+  readonly providerDocs = signal('');
 
   readonly openGuide = signal(false);
   readonly guide = signal<PerspectiveGuide | null>(null);
 
-  readonly actionGroups = computed(() => {
-    const actions = this.session()?.actions ?? [];
-    const labels = [...new Set(actions.map((a) => a.group_label))];
-    return labels.map((label) => ({ label, actions: actions.filter((a) => a.group_label === label) }));
+  readonly stepIndex = computed(() => this.journey.findIndex((s) => s.key === this.step()));
+  readonly steps = computed(() => this.analysis()?.steps ?? []);
+  readonly doneCount = computed(() => this.steps().filter((s) => s.done).length);
+  readonly frameworks = computed(() => this.catalog()?.frameworks ?? []);
+  readonly suggestedKeys = computed(
+    () => new Set(this.analysis()?.compliance.suggestions.map((s) => s.key).filter(Boolean) ?? []),
+  );
+  readonly otherFrameworks = computed(() =>
+    this.frameworks().filter((f) => !this.suggestedKeys().has(f.key)),
+  );
+  /** The working selection differs from what was approved: it needs approving again. */
+  readonly complianceChanged = computed(() => {
+    const c = this.analysis()?.compliance;
+    if (!c?.approved_by) return true;
+    const same = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
+    return (
+      !same(this.selected(), c.selected) ||
+      !same(
+        this.custom().map((x) => x.name),
+        c.custom.map((x) => x.name),
+      )
+    );
   });
-  readonly questions = computed(
-    () => this.session()?.actions.filter((a) => a.outcome === 'undetermined' && a.question) ?? [],
+  readonly approvedCount = computed(() => this.selected().length + this.custom().length);
+  readonly providerKeys = computed(
+    () => new Set(this.analysis()?.third_parties.providers.map((p) => p.key).filter(Boolean) ?? []),
   );
-  readonly contextSuggestions = computed(
-    () => this.session()?.suggestions.filter((s) => s.source === 'context') ?? [],
-  );
-  readonly checkSuggestions = computed(
-    () => this.session()?.suggestions.filter((s) => s.source === 'check') ?? [],
-  );
-  readonly includedCount = computed(() => this.session()?.plan?.items.filter((i) => i.included).length ?? 0);
-  /** Confirmed by a named person: the plan is frozen, whatever happened to its writes. */
-  readonly confirmed = computed(() => ['applying', 'partial', 'applied'].includes(this.session()?.status ?? ''));
-  readonly live = computed(() => (this.session()?.write_mode ?? this.connections()?.write_mode) === 'live');
-  readonly failedCount = computed(() => this.session()?.results.filter((r) => r.status === 'failed').length ?? 0);
-  readonly resultCounts = computed(() => {
-    const counts = new Map<KickoffResultStatus, number>();
-    for (const r of this.session()?.results ?? []) counts.set(r.status, (counts.get(r.status) ?? 0) + 1);
-    return [...counts.entries()].map(([status, count]) => ({ tone: this.resultTone(status), count }));
+  readonly mentionedProviders = computed(() => {
+    const a = this.analysis();
+    if (!a) return [];
+    return (this.catalog()?.providers ?? []).filter(
+      (p) => a.third_parties.mentioned[p.key] && !this.providerKeys().has(p.key),
+    );
   });
+  readonly needsSetup = computed(
+    () => this.status()?.connections.filter((c) => c.state === 'not_configured') ?? [],
+  );
 
   constructor() {
     effect(() => {
       const id = this.projectId();
-      // A project switch discards everything that belonged to the project you just left.
+      // A project switch closes whatever belonged to the project you just left.
       untracked(() => this.reset(id));
     });
   }
 
   private reset(projectId: string): void {
-    this.session.set(null);
-    this.step.set('source');
-    this.pageId.set('');
-    this.query.set('');
+    this.analysis.set(null);
+    this.analyses.set(null);
     this.refusal.set(null);
-    this.choices.set({});
+    this.newPrdUrl.set('');
     if (!projectId) return;
-    this.loadPrds();
-    this.api.kickoffConnections(projectId).subscribe({
-      next: (c) => this.connections.set(c),
-      error: () => this.connections.set(null),
+    this.api.kickoffStatus(projectId).subscribe({
+      next: (s) => this.status.set(s),
+      error: () => this.status.set(null),
     });
-    this.api.kickoffModels(projectId).subscribe({
-      next: (options) => {
-        this.models.set(options);
-        this.pickProvider(options.default_provider);
+    this.api.kickoffCatalog(projectId).subscribe({
+      next: (c) => this.catalog.set(c),
+      error: () => this.catalog.set(null),
+    });
+    this.loadAnalyses();
+  }
+
+  loadAnalyses(): void {
+    this.api.kickoffAnalyses(this.projectId()).subscribe({
+      next: (rows) => this.analyses.set(rows),
+      error: (err) => {
+        this.analyses.set([]);
+        this.refusal.set(refusal(err, 'Saved analyses could not be loaded.'));
       },
-      error: (err) => this.refusal.set(writeRefusal(err, 'The model list could not be loaded.')),
-    });
-    this.api.myKickoffs(projectId).subscribe({
-      next: (rows) => this.recent.set(rows),
-      error: () => this.recent.set([]),
     });
   }
 
-  loadPrds(): void {
-    this.api.kickoffPrds(this.projectId(), this.query().trim()).subscribe({
-      next: (list) => {
-        this.prds.set(list);
-        if (!this.pageId() && list.pages[0]?.own_project) this.pageId.set(list.pages[0].page_id);
+  // --- Home ----------------------------------------------------------------------------------------
+
+  start(): void {
+    const url = this.newPrdUrl().trim();
+    if (!url) return;
+    this.run('start', this.api.createKickoffAnalysis(this.projectId(), url), (a) => {
+      this.newPrdUrl.set('');
+      this.show('prd');
+      return `Read “${a.prd?.title}”, version ${a.prd?.version}. The analysis is saved.`;
+    });
+  }
+
+  open(id: number): void {
+    this.refusal.set(null);
+    this.api.kickoffAnalysis(this.projectId(), id).subscribe({
+      next: (a) => {
+        this.adopt(a);
+        const next = a.plan ? 'plan' : (a.steps.find((s) => !s.done)?.key ?? 'plan');
+        this.show(next);
       },
-      error: (err) => this.refusal.set(writeRefusal(err, 'PRD pages could not be listed.')),
+      error: (err) => this.refusal.set(refusal(err, 'That analysis could not be opened.')),
     });
   }
 
-  pickProvider(key: string): void {
-    this.providerKey.set(key);
-    const provider = this.models()?.providers.find((p) => p.key === key);
-    this.model.set(provider?.default_model || provider?.models[0]?.id || '');
+  close(): void {
+    this.analysis.set(null);
+    this.refusal.set(null);
+    this.editingTitle.set(false);
+    this.loadAnalyses();
+    afterNextRender(() => this.host.nativeElement.scrollIntoView({ block: 'start' }), {
+      injector: this.injector,
+    });
   }
 
-  // --- Navigation --------------------------------------------------------------------------------
-
-  canGo(step: Step): boolean {
-    const s = this.session();
-    if (step === 'source') return true;
-    if (!s) return false;
-    if (step === 'context' || step === 'actions') return true;
-    return s.status !== 'context';
+  remove(id: number): void {
+    this.busy.set(`delete-${id}`);
+    this.api.deleteKickoffAnalysis(this.projectId(), id).subscribe({
+      next: () => {
+        this.busy.set(null);
+        this.confirmDelete.set(null);
+        this.announcement.set('Analysis deleted. Anything it created in Jira is still in Jira.');
+        this.loadAnalyses();
+      },
+      error: (err) => {
+        this.busy.set(null);
+        this.refusal.set(writeRefusal(err, 'The analysis could not be deleted.'));
+      },
+    });
   }
 
-  go(step: Step): void {
-    if (this.canGo(step)) {
-      this.refusal.set(null);
-      this.show(step);
-    }
+  // --- Navigation -----------------------------------------------------------------------------------
+
+  go(step: KickoffStepKey): void {
+    this.refusal.set(null);
+    this.show(step);
   }
 
-  /** A new step starts at its top, with focus on the stepper, so nobody lands mid-page. */
-  private show(step: Step): void {
+  next(): void {
+    const i = this.stepIndex();
+    if (i < this.journey.length - 1) this.go(this.journey[i + 1].key);
+  }
+
+  prev(): void {
+    const i = this.stepIndex();
+    if (i > 0) this.go(this.journey[i - 1].key);
+  }
+
+  /** A new step starts at its top, with focus on its heading, so nobody lands mid-page. */
+  private show(step: KickoffStepKey): void {
     this.step.set(step);
+    this.showLines.set(false);
     afterNextRender(
       () => {
         const host = this.host.nativeElement;
         host.scrollIntoView({ block: 'start' });
-        host.querySelector<HTMLElement>('.step[aria-current="step"]')?.focus({ preventScroll: true });
+        host.querySelector<HTMLElement>('.step-title')?.focus({ preventScroll: true });
       },
       { injector: this.injector },
     );
   }
 
-  // --- Step 1: read ------------------------------------------------------------------------------
-
-  start(): void {
-    if (!this.pageId() || !this.providerKey() || !this.model()) return;
-    this.write(
-      this.api.startKickoff(this.projectId(), {
-        page_id: this.pageId(),
-        provider: this.providerKey(),
-        model: this.model(),
-      }),
-      (s) => {
-        this.show('context');
-        return `Read ${s.page.title}. ${s.facts.filter((f) => f.status === 'stated').length} facts found, each quoted.`;
-      },
-    );
+  stepState(key: KickoffStepKey): 'done' | 'current' | 'todo' {
+    if (this.step() === key) return 'current';
+    return this.steps().find((s) => s.key === key)?.done ? 'done' : 'todo';
   }
 
-  resume(id: number): void {
-    this.api.kickoff(this.projectId(), id).subscribe({
-      next: (s) => {
-        this.adopt(s);
-        this.show(this.confirmed() ? 'create' : s.status === 'planned' ? 'plan' : 'context');
-      },
-      error: (err) => this.refusal.set(refusal(err, 'That kickoff could not be opened.')),
+  stepSummary(key: KickoffStepKey): string {
+    return this.steps().find((s) => s.key === key)?.summary ?? '';
+  }
+
+  // --- Title ------------------------------------------------------------------------------------------
+
+  editTitle(): void {
+    this.titleDraft.set(this.analysis()?.title ?? '');
+    this.editingTitle.set(true);
+  }
+
+  saveTitle(): void {
+    const a = this.analysis();
+    const title = this.titleDraft().trim();
+    if (!a || !title || title === a.title) {
+      this.editingTitle.set(false);
+      return;
+    }
+    this.run('rename', this.api.renameKickoffAnalysis(this.projectId(), a.id, title), () => {
+      this.editingTitle.set(false);
+      return `Renamed to “${title}”.`;
     });
   }
 
-  // --- Step 2: facts -----------------------------------------------------------------------------
+  // --- Step 1: the PRD ---------------------------------------------------------------------------------
 
-  edit(fact: KickoffFact): void {
-    this.editing.set(fact.key);
-    this.draftValues.set([...fact.values]);
-    this.draftText.set(fact.values.join(', '));
-  }
-
-  toggleDraftValue(value: string): void {
-    this.draftValues.update((values) =>
-      values.includes(value) ? values.filter((v) => v !== value) : [...values, value],
-    );
-  }
-
-  saveFact(fact: KickoffFact): void {
-    const s = this.session();
-    if (!s) return;
-    const values = fact.allowed.length
-      ? this.draftValues()
-      : this.draftText().split(',').map((v) => v.trim()).filter(Boolean);
-    this.write(this.api.updateKickoffFacts(this.projectId(), s.id, [{ key: fact.key, values }]), () => {
-      this.editing.set(null);
-      this.choices.set({});
-      return `${fact.label} recorded as confirmed by you. Every rule was re-resolved.`;
+  rereadPrd(): void {
+    const a = this.analysis();
+    const url = (this.prdUrl() || a?.prd?.url || '').trim();
+    if (!a || !url) return;
+    this.run('prd', this.api.readKickoffPrd(this.projectId(), a.id, url), (next) => {
+      return `Read “${next.prd?.title}”, version ${next.prd?.version}.`;
     });
   }
 
-  // --- Step 3: actions ---------------------------------------------------------------------------
+  // --- Steps 2, 3 and 5: lists of links ---------------------------------------------------------------
 
-  isSelected(action: KickoffAction): boolean {
-    return this.choices()[action.key]?.selected ?? action.selected;
+  draft(key: string): string {
+    return this.drafts()[key] ?? '';
   }
 
-  reasonFor(action: KickoffAction): string {
-    return this.choices()[action.key]?.reason ?? action.skip_reason;
+  setDraft(key: string, value: string): void {
+    this.drafts.update((d) => ({ ...d, [key]: value }));
   }
 
-  toggleAction(action: KickoffAction): void {
-    const selected = !this.isSelected(action);
-    this.choices.update((all) => ({ ...all, [action.key]: { selected, reason: this.reasonFor(action) } }));
+  repos(role: RepoRole): KickoffRepo[] {
+    return this.analysis()?.[role].repos ?? [];
   }
 
-  setReason(action: KickoffAction, reason: string): void {
-    this.choices.update((all) => ({
-      ...all,
-      [action.key]: { selected: this.isSelected(action), reason },
-    }));
-  }
-
-  needsReason(action: KickoffAction): boolean {
-    return action.recommended && !this.isSelected(action);
-  }
-
-  runChecks(): void {
-    const s = this.session();
-    if (!s) return;
-    const choices = s.actions.map((a) => ({
-      key: a.key,
-      selected: this.isSelected(a),
-      skip_reason: this.isSelected(a) ? '' : this.reasonFor(a).trim(),
-    }));
-    this.write(this.api.chooseKickoffActions(this.projectId(), s.id, choices), (next) => {
-      this.choices.set({});
-      this.show('checks');
-      const count = next.checks.reduce((n, c) => n + c.findings.length, 0);
-      return `Checks ran: ${count} finding(s). The plan is drafted and nothing has been written.`;
+  addRepo(role: RepoRole): void {
+    const url = this.draft(role).trim();
+    if (!url) return;
+    const urls = [...this.repos(role).map((r) => r.url), ...url.split(/[\s,]+/).filter(Boolean)];
+    this.saveRepos(role, urls, false, () => {
+      this.setDraft(role, '');
+      const added = this.repos(role).at(-1);
+      return added?.ok ? `Read ${added.full_name} at ${added.commit}.` : `Couldn't read it: ${added?.error}`;
     });
   }
 
-  // --- Suggestions and the plan ------------------------------------------------------------------
-
-  decide(suggestion: KickoffSuggestion, decision: 'accepted' | 'dismissed' | 'pending'): void {
-    const s = this.session();
-    if (!s) return;
-    this.write(
-      this.api.updateKickoffPlan(this.projectId(), s.id, { decisions: { [suggestion.key]: decision } }),
-      () =>
-        decision === 'accepted'
-          ? `Added: ${suggestion.label}.`
-          : decision === 'dismissed'
-            ? `Dismissed: ${suggestion.label}.`
-            : `Undecided: ${suggestion.label}.`,
+  removeRepo(role: RepoRole, url: string): void {
+    this.saveRepos(
+      role,
+      this.repos(role)
+        .map((r) => r.url)
+        .filter((u) => u !== url),
+      false,
+      () => 'Removed.',
     );
   }
 
-  toggleItem(item: KickoffPlanItem): void {
-    const s = this.session();
-    if (!s?.plan) return;
-    const excluded = s.plan.items.filter((i) => (i.id === item.id ? i.included : !i.included)).map((i) => i.id);
-    this.write(this.api.updateKickoffPlan(this.projectId(), s.id, { excluded }), () =>
-      item.included ? `Left out: ${item.title}.` : `Included: ${item.title}.`,
+  refreshRepos(role: RepoRole): void {
+    this.saveRepos(role, this.repos(role).map((r) => r.url), true, () => 'Read every repo again at its latest commit.');
+  }
+
+  skipDependencies(): void {
+    this.saveRepos('dependencies', [], false, () => {
+      this.next();
+      return 'No dependencies: saved.';
+    });
+  }
+
+  private saveRepos(role: RepoRole, urls: string[], refresh: boolean, done: () => string): void {
+    const a = this.analysis();
+    if (!a) return;
+    this.run(role, this.api.setKickoffRepos(this.projectId(), a.id, role, urls, refresh), done);
+  }
+
+  docs(): KickoffDoc[] {
+    return this.analysis()?.api_docs.docs ?? [];
+  }
+
+  addDoc(): void {
+    const url = this.draft('api_docs').trim();
+    if (!url) return;
+    this.saveDocs([...this.docs().map((d) => d.url), ...url.split(/[\s,]+/).filter(Boolean)], false, () => {
+      this.setDraft('api_docs', '');
+      const added = this.docs().at(-1);
+      return added?.ok ? `Read ${added.title}.` : `Couldn't read it: ${added?.error}`;
+    });
+  }
+
+  removeDoc(url: string): void {
+    this.saveDocs(
+      this.docs()
+        .map((d) => d.url)
+        .filter((u) => u !== url),
+      false,
+      () => 'Removed.',
     );
   }
 
-  itemsIn(group: string): KickoffPlanItem[] {
-    return this.session()?.plan?.items.filter((i) => i.group === group) ?? [];
+  refreshDocs(): void {
+    this.saveDocs(this.docs().map((d) => d.url), true, () => 'Read every doc again.');
   }
 
-  includedIn(group: string): number {
-    return this.itemsIn(group).filter((i) => i.included).length;
+  private saveDocs(urls: string[], refresh: boolean, done: () => string): void {
+    const a = this.analysis();
+    if (!a) return;
+    this.run('api_docs', this.api.setKickoffDocs(this.projectId(), a.id, urls, refresh), done);
   }
 
-  itemTitle(id: string | null): string {
-    if (!id) return '—';
-    return this.session()?.plan?.items.find((i) => i.id === id)?.title ?? id;
+  skipDocs(): void {
+    this.saveDocs([], false, () => {
+      this.next();
+      return 'No API docs: saved.';
+    });
   }
 
-  /** The confirmation, and the retry of a plan whose items partly failed: the same frozen plan. */
-  apply(): void {
-    const s = this.session();
-    if (!s) return;
-    const retry = s.status === 'partial';
-    this.write(this.api.applyKickoff(this.projectId(), s.id), (next) => {
-      this.api.myKickoffs(this.projectId()).subscribe({ next: (rows) => this.recent.set(rows) });
-      const count = (...statuses: KickoffResultStatus[]) =>
-        next.results.filter((r) => statuses.includes(r.status)).length;
-      if (next.write_mode === 'dry-run') {
-        return `Dry run confirmed by ${next.approved_by}: ${count('dry_run')} item(s) would be created, ${count('skipped')} left out. Nothing was written.`;
+  // --- Step 4: compliance ---------------------------------------------------------------------------
+
+  suggest(): void {
+    const a = this.analysis();
+    if (!a) return;
+    this.run('suggest', this.api.suggestKickoffCompliance(this.projectId(), a.id), (next) => {
+      const strong = next.compliance.suggestions.filter((s) => s.confidence === 'strong');
+      if (!next.compliance.approved_by) {
+        this.selected.set(strong.map((s) => s.key).filter(Boolean));
       }
-      const summary =
-        `${count('created', 'updated', 'exists')} done, ${count('handoff')} handed off, ` +
-        `${count('failed')} failed, ${count('skipped')} left out.`;
-      return `${retry ? 'Retried' : `Confirmed by ${next.approved_by}`}: ${summary}`;
+      return `${next.compliance.suggestions.length} proposed, ${strong.length} strongly. Review and approve.`;
     });
   }
 
-  startOver(): void {
-    this.reset(this.projectId());
+  isSelected(key: string): boolean {
+    return this.selected().includes(key);
   }
+
+  toggle(key: string): void {
+    this.selected.update((all) => (all.includes(key) ? all.filter((k) => k !== key) : [...all, key]));
+  }
+
+  /** A proposal outside the catalog is taken as a custom item, with the model's reason as its note. */
+  toggleOther(s: KickoffComplianceSuggestion): void {
+    const have = this.custom().some((c) => c.name === s.name);
+    this.custom.update((all) =>
+      have ? all.filter((c) => c.name !== s.name) : [...all, { name: s.name, note: s.why.slice(0, 500) }],
+    );
+  }
+
+  hasCustom(name: string): boolean {
+    return this.custom().some((c) => c.name === name);
+  }
+
+  addCustom(): void {
+    const name = this.customName().trim();
+    if (!name || this.hasCustom(name)) return;
+    this.custom.update((all) => [...all, { name, note: this.customNote().trim() }]);
+    this.customName.set('');
+    this.customNote.set('');
+  }
+
+  removeCustom(name: string): void {
+    this.custom.update((all) => all.filter((c) => c.name !== name));
+  }
+
+  approve(): void {
+    const a = this.analysis();
+    if (!a) return;
+    this.run(
+      'approve',
+      this.api.approveKickoffCompliance(this.projectId(), a.id, this.selected(), this.custom()),
+      (next) => {
+        const n = next.compliance.selected.length + next.compliance.custom.length;
+        return n ? `${n} approved by ${next.compliance.approved_by}.` : `Approved: none apply.`;
+      },
+    );
+  }
+
+  framework(key: string): ComplianceFramework | undefined {
+    return this.frameworks().find((f) => f.key === key);
+  }
+
+  // --- Step 6: third parties ----------------------------------------------------------------------------
+
+  private providerList(): { key: string; name: string; docs_url: string }[] {
+    return (this.analysis()?.third_parties.providers ?? []).map((p) => ({
+      key: p.key,
+      name: p.name,
+      docs_url: p.docs_url,
+    }));
+  }
+
+  addCatalogProvider(p: ProviderCatalogEntry): void {
+    if (this.providerKeys().has(p.key)) return;
+    this.saveProviders([...this.providerList(), { key: p.key, name: p.name, docs_url: p.docs_url }], () =>
+      p.docs_url ? `Added ${p.name} and read its docs.` : `Added ${p.name}. Paste its docs link to read them.`,
+    );
+  }
+
+  addCustomProvider(): void {
+    const name = this.providerName().trim();
+    if (!name) return;
+    this.saveProviders(
+      [...this.providerList(), { key: '', name, docs_url: this.providerDocs().trim() }],
+      () => {
+        this.providerName.set('');
+        this.providerDocs.set('');
+        return `Added ${name}.`;
+      },
+    );
+  }
+
+  removeProvider(name: string): void {
+    this.saveProviders(
+      this.providerList().filter((p) => p.name !== name),
+      () => `Removed ${name}.`,
+    );
+  }
+
+  setProviderDocs(name: string, url: string): void {
+    const list = this.providerList();
+    const current = list.find((p) => p.name === name);
+    if (!current || current.docs_url === url.trim()) return;
+    this.saveProviders(
+      list.map((p) => (p.name === name ? { ...p, docs_url: url.trim() } : p)),
+      () => `Read ${name}'s docs.`,
+    );
+  }
+
+  skipProviders(): void {
+    this.saveProviders([], () => {
+      this.next();
+      return 'No third-party APIs: saved.';
+    });
+  }
+
+  private saveProviders(providers: { key: string; name: string; docs_url: string }[], done: () => string): void {
+    const a = this.analysis();
+    if (!a) return;
+    this.run('third_parties', this.api.setKickoffProviders(this.projectId(), a.id, providers), done);
+  }
+
+  // --- Guide ------------------------------------------------------------------------------------------
 
   showGuide(): void {
     if (this.guide()) {
@@ -397,109 +586,75 @@ export class KickoffPage {
     });
   }
 
-  // --- Presentation (tone is always colour plus glyph) ---------------------------------------------
+  // --- Presentation (tone is always colour plus glyph) ---------------------------------------------------
 
-  outcomeTone(action: KickoffAction): Tone {
-    if (action.outcome === 'applies') return { glyph: '✓', label: action.outcome_label, tone: 'good' };
-    if (action.outcome === 'undetermined') return { glyph: '?', label: action.outcome_label, tone: 'watch' };
-    return { glyph: '—', label: action.outcome_label, tone: 'neutral' };
+  connectionTone(c: KickoffConnection): Tone {
+    if (c.state === 'ready') return { glyph: '✓', label: c.via ? `Connected · ${c.via}` : 'Connected', tone: 'good' };
+    if (c.state === 'fallback') return { glyph: '!', label: 'Limited', tone: 'watch' };
+    return { glyph: '?', label: 'Not connected', tone: 'missing' };
   }
 
-  findingTone(status: FindingStatus): Tone {
-    switch (status) {
-      case 'ok':
-        return { glyph: '✓', label: 'OK', tone: 'good' };
-      case 'gap':
-        return { glyph: '!', label: 'Gap', tone: 'watch' };
-      case 'blocker':
-        return { glyph: '✕', label: 'Blocker', tone: 'poor' };
-      default:
-        return { glyph: '?', label: 'Not checked', tone: 'missing' };
-    }
-  }
-
-  factTone(fact: KickoffFact): Tone {
-    if (fact.status === 'confirmed') return { glyph: '✓', label: 'Confirmed by you', tone: 'good' };
-    if (fact.status === 'stated') return { glyph: '“', label: 'Stated in the PRD', tone: 'neutral' };
-    return { glyph: '?', label: 'Not in the PRD', tone: 'watch' };
-  }
-
-  coverageTone(state: string): Tone {
-    if (state === 'covered') return { glyph: '✓', label: 'Covered', tone: 'good' };
-    if (state === 'waiver_draft') return { glyph: '—', label: 'Waiver draft', tone: 'neutral' };
-    if (state === 'not_applicable') return { glyph: '—', label: 'Not applicable', tone: 'neutral' };
-    return { glyph: '?', label: 'Not covered', tone: 'missing' };
-  }
-
-  resultTone(status: KickoffResultStatus): Tone {
+  statusTone(status: string, stale = false): Tone {
+    if (stale) return { glyph: '!', label: 'Inputs changed', tone: 'watch' };
     switch (status) {
       case 'created':
-        return { glyph: '✓', label: 'Created', tone: 'good' };
-      case 'updated':
-        return { glyph: '✓', label: 'Updated', tone: 'good' };
-      case 'exists':
-        return { glyph: '✓', label: 'Already there', tone: 'good' };
-      case 'handoff':
-        return { glyph: '↗', label: 'Handed off', tone: 'watch' };
-      case 'failed':
-        return { glyph: '✕', label: 'Failed', tone: 'poor' };
-      case 'dry_run':
-        return { glyph: '○', label: 'Dry run', tone: 'neutral' };
+        return { glyph: '✓', label: 'In Jira', tone: 'good' };
+      case 'partial':
+        return { glyph: '✕', label: 'Partly created', tone: 'poor' };
+      case 'analysed':
+        return { glyph: '◆', label: 'Analysed', tone: 'accent' };
       default:
-        return { glyph: '—', label: 'Left out', tone: 'neutral' };
+        return { glyph: '○', label: 'Draft', tone: 'neutral' };
     }
   }
 
-  /** Configured is from configuration alone; it never claims a connection was tested. */
-  connectionTone(c: KickoffConnection): Tone {
-    switch (c.state) {
-      case 'configured':
-        return { glyph: '✓', label: 'Configured', tone: 'neutral' };
-      case 'example':
-        return { glyph: '!', label: 'Example data', tone: 'watch' };
-      case 'dry_run':
-        return { glyph: '○', label: 'Dry run', tone: 'watch' };
-      case 'not_built':
-        return { glyph: '?', label: 'Not built yet', tone: 'missing' };
-      default:
-        return { glyph: '?', label: 'Not configured', tone: 'missing' };
+  confidenceTone(s: KickoffComplianceSuggestion): Tone {
+    return s.confidence === 'strong'
+      ? { glyph: '✓', label: 'Strong', tone: 'good' }
+      : { glyph: '?', label: 'Possible', tone: 'watch' };
+  }
+
+  languages(repo: KickoffRepo): string {
+    return repo.languages.map((l) => `${l.name} ${Math.round(l.share * 100)}%`).join(' · ');
+  }
+
+  specOperations(repo: KickoffRepo): number {
+    return repo.specs.reduce((n, s) => n + s.operation_count, 0);
+  }
+
+  // --- Writes ------------------------------------------------------------------------------------------
+
+  adopt(a: KickoffAnalysis): void {
+    const before = this.analysis();
+    this.analysis.set(a);
+    this.prdUrl.set(a.prd?.url ?? '');
+    const c = a.compliance;
+    // A different analysis, or a new approval: the working selection starts from the record.
+    if (!before || before.id !== a.id || before.compliance.approved_at !== c.approved_at) {
+      this.selected.set(
+        c.approved_by
+          ? [...c.selected]
+          : c.suggestions.filter((s) => s.confidence === 'strong' && s.key).map((s) => s.key),
+      );
+      this.custom.set(c.custom.map((x) => ({ ...x })));
     }
   }
 
-  modelNames(provider: ModelProvider): string {
-    const names = provider.models.slice(0, 4).map((m) => m.display_name).join(', ');
-    return provider.models.length > 4 ? `${names}…` : names;
+  onAnalysisChange(a: KickoffAnalysis): void {
+    this.adopt(a);
   }
 
-  /** The project's own Jira key: the plan's epic carries it. */
-  projectKey(s: Kickoff): string {
-    return s.plan?.items.find((i) => i.group === 'jira')?.project ?? 'this project';
-  }
-
-  diffFields(item: KickoffPlanItem): { key: string; value: string }[] {
-    return Object.entries(item.diff?.fields ?? {}).map(([key, value]) => ({
-      key: key.replace(/_/g, ' '),
-      value,
-    }));
-  }
-
-  // --- Writes ------------------------------------------------------------------------------------
-
-  private adopt(s: Kickoff): void {
-    this.session.set(s);
-  }
-
-  private write(call: Observable<Kickoff>, done: (s: Kickoff) => string): void {
-    this.busy.set(true);
+  private run(label: string, call: Observable<KickoffAnalysis>, done: (a: KickoffAnalysis) => string): void {
+    this.busy.set(label);
     this.refusal.set(null);
     call.subscribe({
-      next: (s) => {
-        this.adopt(s);
-        this.busy.set(false);
-        this.announcement.set(done(s));
+      next: (a) => {
+        this.adopt(a);
+        this.busy.set(null);
+        this.announcement.set(done(a));
       },
       error: (err) => {
-        this.busy.set(false);
+        this.busy.set(null);
         // The API's refusal in the API's words, with its reasons as a list.
         const refused = writeRefusal(err, errorMessage(err, 'That step was refused.'));
         this.refusal.set(refused);

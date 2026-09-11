@@ -1,6 +1,8 @@
 # Proposal — PRD intake: from a PRD to a checked, tagged, traceable backlog
 
-**Status:** Draft for review
+**Status:** Superseded on 11 Sep 2026 by the seven-step Feature Kickoff (PRD, repos, dependencies,
+compliance, API docs, third-party APIs, analysis → backlog; see CLAUDE.md build order §4). Kept for
+the reasoning behind quoting, named acceptance and REST-not-MCP writes, which carry forward.
 **Extends (if accepted):** [PROPOSAL-ShiftLeft-Pivot.md](PROPOSAL-ShiftLeft-Pivot.md) §6 (a new surface, at PRD time) and §8 *Start*
 **Does not change:** the evidence policy (PRD §6), the waiver model, the product rules on honesty (missing is never green, reasons not scores, AI drafts / humans accept)
 **Decision owner:** TBD (same sign-off as the pivot proposal)

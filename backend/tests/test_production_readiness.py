@@ -20,7 +20,6 @@ SAFE_PRODUCTION = {
     "seed_on_startup": False,
     "auto_create_schema": False,
     "cors_origins": ["https://shiftleft.backbase.com"],
-    "kickoff_sources": "live",
     "vault_encryption_key": "gAAAAA-not-a-real-fernet-key-just-long-enough-for-a-test",
 }
 
@@ -45,22 +44,12 @@ def test_a_safe_production_configuration_starts():
         ({"auto_create_schema": True}, "alembic upgrade head"),
         ({"cors_origins": ["*"]}, "CORS_ORIGINS"),
         ({"platform_admins": []}, "PLATFORM_ADMINS"),
-        ({"kickoff_sources": "fixtures"}, "KICKOFF_SOURCES"),
         ({"vault_encryption_key": None}, "VAULT_ENCRYPTION_KEY"),
     ],
 )
 def test_production_refuses_a_configuration_that_is_only_safe_locally(override, complaint):
     with pytest.raises(ValidationError, match=complaint):
         _settings(**override)
-
-
-def test_live_kickoff_writes_are_refused_from_example_pages_in_any_environment():
-    from app.core.config import Settings
-
-    with pytest.raises(ValidationError, match="KICKOFF_WRITE_MODE"):
-        Settings(_env_file=None, environment="development", kickoff_write_mode="live")
-    live = Settings(_env_file=None, kickoff_sources="live", kickoff_write_mode="live")
-    assert live.kickoff_write_mode == "live"
 
 
 def test_development_keeps_its_one_command_defaults():

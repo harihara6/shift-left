@@ -1,53 +1,28 @@
 from datetime import datetime
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.schemas.common import RagState
-
-
-class Link(BaseModel):
-    label: str
-    url: str
+AnalysisStatus = Literal["draft", "analysed", "created", "partial"]
+StepKey = Literal["prd", "repos", "dependencies", "compliance", "api_docs", "third_parties", "plan"]
 
 
 class Quote(BaseModel):
+    line: int
     text: str
     section: str = ""
 
 
-class PrdPage(BaseModel):
-    page_id: str
-    title: str
-    space: str
-    url: str
-    version: int
-    updated: str
-    author: str
-    # The PRD belongs to the project the kickoff runs in. Others are listed, never hidden.
-    own_project: bool = False
+# --- Where it reads and writes -------------------------------------------------------------------------
 
 
-class PrdList(BaseModel):
-    pages: list[PrdPage]
-    note: str
-    # False when the live source can't be read; `note` says why. Never an empty list posing as none.
-    available: bool = True
-
-
-class Connection(BaseModel):
+class ConnectionOut(BaseModel):
     key: str
     name: str
-    direction: Literal["read", "write"]
-    # "configured" is from configuration alone: nothing is called to check it.
-    state: Literal["example", "configured", "not_configured", "not_built", "dry_run"]
+    # ready: a credential is configured (nothing was called to check it). fallback: works, with less.
+    state: Literal["ready", "fallback", "not_configured"]
+    via: str
     note: str
-
-
-class Connections(BaseModel):
-    sources: Literal["fixtures", "live"]
-    write_mode: Literal["dry-run", "live"]
-    connections: list[Connection]
 
 
 class ModelOption(BaseModel):
@@ -64,194 +39,366 @@ class ModelProvider(BaseModel):
     default_model: str = ""
 
 
-class ModelOptions(BaseModel):
+class KickoffStatus(BaseModel):
+    connections: list[ConnectionOut]
     providers: list[ModelProvider]
     default_provider: str
 
 
-class StartRequest(BaseModel):
-    page_id: str = Field(min_length=1, max_length=64)
+class FrameworkOut(BaseModel):
+    key: str
+    name: str
+    region: str
+    category: str
+    summary: str
+    source: str
+    obligations: list[str]
+
+
+class ProviderCatalogOut(BaseModel):
+    key: str
+    name: str
+    region: str
+    category: str
+    summary: str
+    website: str
+    docs_url: str
+
+
+class CatalogOut(BaseModel):
+    frameworks: list[FrameworkOut]
+    providers: list[ProviderCatalogOut]
+
+
+# --- The steps' inputs, as read -------------------------------------------------------------------------
+
+
+class PrdOut(BaseModel):
+    url: str
+    page_id: str
+    title: str
+    space: str
+    version: int
+    updated: str
+    via: Literal["rest", "mcp"]
+    via_label: str
+    word_count: int
+    sections: list[str]
+    lines: list[str]
+    read_at: datetime
+    read_by: str
+
+
+class LanguageShare(BaseModel):
+    name: str
+    share: float
+
+
+class SpecOut(BaseModel):
+    path: str
+    url: str
+    ok: bool
+    error: str = ""
+    title: str = ""
+    version: str = ""
+    operation_count: int = 0
+    operations: list[str] = Field(default_factory=list)
+    deprecated: list[str] = Field(default_factory=list)
+
+
+class RepoOut(BaseModel):
+    # As typed in the step; `html_url` is the repo's own address on GitHub.
+    url: str
+    html_url: str = ""
+    full_name: str
+    ok: bool
+    error: str = ""
+    description: str = ""
+    default_branch: str = ""
+    ref: str = ""
+    commit: str = ""
+    commit_url: str = ""
+    language: str = ""
+    languages: list[LanguageShare] = Field(default_factory=list)
+    topics: list[str] = Field(default_factory=list)
+    visibility: str = ""
+    archived: bool = False
+    readme_excerpt: str = ""
+    file_count: int = 0
+    tree_truncated: bool = False
+    top_level: list[str] = Field(default_factory=list)
+    manifests: list[str] = Field(default_factory=list)
+    specs: list[SpecOut] = Field(default_factory=list)
+    read_with: str = ""
+    read_at: datetime | None = None
+
+
+class RepoGroupOut(BaseModel):
+    repos: list[RepoOut]
+    saved: bool
+    saved_by: str | None = None
+
+
+class DocOut(BaseModel):
+    url: str
+    final_url: str = ""
+    ok: bool
+    error: str = ""
+    kind: str = ""
+    title: str = ""
+    version: str = ""
+    summary: str = ""
+    operation_count: int = 0
+    operations: list[str] = Field(default_factory=list)
+    read_at: datetime | None = None
+
+
+class DocGroupOut(BaseModel):
+    docs: list[DocOut]
+    saved: bool
+    saved_by: str | None = None
+
+
+class SuggestionOut(BaseModel):
+    # Empty for an obligation outside the catalog (added as a custom item if approved).
+    key: str
+    name: str
+    confidence: Literal["strong", "possible"]
+    why: str
+    quotes: list[Quote]
+    by: Literal["claude", "rules"]
+
+
+class CustomCompliance(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+    note: str = Field(default="", max_length=500)
+
+
+class ComplianceOut(BaseModel):
+    suggestions: list[SuggestionOut]
+    suggested_by: str | None = None
+    suggested_note: str = ""
+    suggested_at: datetime | None = None
+    # The PRD changed since the suggestions were made.
+    suggestions_stale: bool = False
+    selected: list[str]
+    custom: list[CustomCompliance]
+    approved_by: str | None = None
+    approved_at: datetime | None = None
+
+
+class ProviderOut(BaseModel):
+    key: str
+    name: str
+    docs_url: str
+    doc: DocOut | None = None
+    mentioned: list[Quote] = Field(default_factory=list)
+
+
+class ProvidersOut(BaseModel):
+    providers: list[ProviderOut]
+    # Catalog providers the PRD names, offered first: key -> the lines naming them.
+    mentioned: dict[str, list[Quote]]
+    saved: bool
+    saved_by: str | None = None
+
+
+# --- The plan and the backlog --------------------------------------------------------------------------
+
+TaskType = Literal["Story", "Task", "Spike"]
+Estimate = Literal["XS", "S", "M", "L", "XL"]
+
+
+class Change(BaseModel):
+    area: str
+    what: str
+    why: str
+
+
+class RepoWorkOut(BaseModel):
+    repo: str
+    summary: str
+    changes: list[Change]
+
+
+class DependencyNeedOut(BaseModel):
+    repo: str
+    relies_on: str
+    status: Literal["available", "missing", "unclear"]
+    evidence: str
+    action: str
+
+
+class TaskOut(BaseModel):
+    ref: str
+    title: str
+    type: TaskType
+    repo: str
+    description: str
+    acceptance_criteria: list[str]
+    depends_on: list[str]
+    estimate: Estimate
+    compliance: list[str]
+    quotes: list[Quote]
+    origin: Literal["claude", "rules", "person"]
+    edited_by: str | None = None
+
+
+class PlanOut(BaseModel):
+    summary: str
+    epic_title: str
+    epic_description: str
+    repo_work: list[RepoWorkOut]
+    dependency_needs: list[DependencyNeedOut]
+    risks: list[str]
+    open_questions: list[str]
+    tasks: list[TaskOut]
+    notes: list[str]
+    reader: Literal["claude", "rules"]
+    model: str
+    drafted_by: str
+    note: str
+    run_by: str
+    run_at: datetime
+    run_number: int
+    edited_by: str | None = None
+    edited_at: datetime | None = None
+    # Inputs changed since this plan was drafted: which ones. Run again to draft from them.
+    stale: list[str] = Field(default_factory=list)
+
+
+class TicketOut(BaseModel):
+    ref: str
+    title: str
+    status: Literal["created", "exists", "failed"]
+    key: str = ""
+    url: str = ""
+    message: str = ""
+
+
+class BacklogOut(BaseModel):
+    url: str
+    site: str
+    project_key: str
+    board_id: str = ""
+    label: str
+    created_by: str
+    created_at: datetime
+    epic: TicketOut
+    tickets: list[TicketOut]
+    note: str = ""
+    failed: int
+    attempts: int
+
+
+class BacklogTargetOut(BaseModel):
+    url: str
+    project_key: str
+    board_id: str = ""
+
+
+class StepOut(BaseModel):
+    key: StepKey
+    label: str
+    done: bool
+    summary: str
+
+
+class AnalysisOut(BaseModel):
+    id: int
+    project_id: str
+    title: str
+    status: AnalysisStatus
+    created_by: str
+    created_at: datetime | None
+    updated_by: str
+    updated_at: datetime | None
+    steps: list[StepOut]
+    # What still stands between this analysis and a run, as a list (never a score).
+    run_blockers: list[str]
+    prd: PrdOut | None
+    repos: RepoGroupOut
+    dependencies: RepoGroupOut
+    compliance: ComplianceOut
+    api_docs: DocGroupOut
+    third_parties: ProvidersOut
+    plan: PlanOut | None
+    backlog_target: BacklogTargetOut | None
+    backlog: BacklogOut | None
+
+
+class AnalysisSummary(BaseModel):
+    id: int
+    title: str
+    status: AnalysisStatus
+    created_by: str
+    created_at: datetime | None
+    updated_by: str
+    updated_at: datetime | None
+    steps_done: int
+    steps_total: int
+    repo_count: int
+    task_count: int
+    drafted_by: str | None
+    backlog_key: str | None
+    stale: bool
+
+
+# --- Requests ------------------------------------------------------------------------------------------
+
+
+class PrdRequest(BaseModel):
+    prd_url: str = Field(min_length=1, max_length=2000)
+
+
+class TitleUpdate(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
+
+
+class UrlsUpdate(BaseModel):
+    urls: list[str] = Field(default_factory=list, max_length=20)
+    # Read every URL again, not only the ones not read yet.
+    refresh: bool = False
+
+
+class ComplianceApproval(BaseModel):
+    selected: list[str] = Field(default_factory=list, max_length=40)
+    custom: list[CustomCompliance] = Field(default_factory=list, max_length=20)
+
+
+class ProviderIn(BaseModel):
+    # A catalog provider's key, or empty for one named by hand.
+    key: str = Field(default="", max_length=40)
+    name: str = Field(default="", max_length=120)
+    docs_url: str = Field(default="", max_length=2000)
+
+
+class ProvidersUpdate(BaseModel):
+    providers: list[ProviderIn] = Field(default_factory=list, max_length=20)
+    refresh: bool = False
+
+
+class RunRequest(BaseModel):
     provider: str = Field(min_length=1, max_length=32)
     model: str = Field(min_length=1, max_length=120)
 
 
-class AllowedValue(BaseModel):
-    value: str
-    label: str
+class TaskIn(BaseModel):
+    ref: str = Field(default="", max_length=12)
+    title: str = Field(min_length=1, max_length=250)
+    type: TaskType
+    repo: str = Field(default="", max_length=200)
+    description: str = Field(default="", max_length=8000)
+    acceptance_criteria: list[str] = Field(default_factory=list, max_length=20)
+    depends_on: list[str] = Field(default_factory=list, max_length=40)
+    estimate: Estimate = "M"
+    compliance: list[str] = Field(default_factory=list, max_length=20)
 
 
-class FactOut(BaseModel):
-    key: str
-    label: str
-    values: list[str]
-    value_labels: list[str]
-    # "stated" (from the PRD, quoted), "not_stated", or "confirmed" (set by a person).
-    status: str
-    quotes: list[Quote]
-    confirmed_by: str | None = None
-    # Empty for free-text facts (services, third parties).
-    allowed: list[AllowedValue] = Field(default_factory=list)
+class PlanEdit(BaseModel):
+    epic_title: str = Field(min_length=1, max_length=250)
+    tasks: list[TaskIn] = Field(max_length=150)
 
 
-class TierOut(BaseModel):
-    tier: str
-    reason: str
-    undetermined: bool
-    quotes: list[Quote]
-
-
-class ActionOut(BaseModel):
-    key: str
-    label: str
-    group: str
-    group_label: str
-    target: str
-    description: str
-    outcome: Literal["applies", "not_applicable", "undetermined"]
-    outcome_label: str
-    reason: str
-    quotes: list[Quote]
-    question: str = ""
-    recommended: bool
-    selected: bool
-    skip_reason: str = ""
-    # A reason for leaving a recommended action out that is on the deny-list.
-    skip_flagged: bool = False
-
-
-class DrawnFrom(BaseModel):
-    kind: str
-    text: str
-    url: str = ""
-    section: str = ""
-
-
-class SuggestionOut(BaseModel):
-    key: str
-    label: str
-    why: str
-    target: str
-    source: str
-    kind: str
-    decision: Literal["pending", "accepted", "dismissed"]
-    drawn_from: list[DrawnFrom]
-
-
-class FindingOut(BaseModel):
-    id: str
-    status: Literal["ok", "gap", "blocker", "not_checked"]
-    title: str
-    detail: str = ""
-    link: Link | None = None
-    quote: Quote | None = None
-
-
-class CheckOut(BaseModel):
-    key: str
-    label: str
-    note: str
-    findings: list[FindingOut]
-
-
-class PlanItemOut(BaseModel):
-    id: str
-    group: str
-    kind: str
-    title: str
-    detail: str
-    project: str
-    labels: list[str]
-    drawn_from: list[DrawnFrom]
-    diff: dict[str, Any] | None = None
-    included: bool
-
-
-class CoverageOut(BaseModel):
-    artifact: str
-    name: str
-    gate: str
-    state: str
-    item_id: str | None
-    note: str = ""
-
-
-class PlanOut(BaseModel):
-    items: list[PlanItemOut]
-    coverage: list[CoverageOut]
-    notes: list[str]
-    catalog_version: int
-    # The product index isn't in Confluence, so its version is whatever it states, or a content hash.
-    index_version: str
-
-
-class ResultOut(BaseModel):
-    item_id: str
-    group: str
-    title: str
-    # created / updated / exists: done, with a link. handoff: a person finishes it, and the message
-    # says how. failed: nothing was written for it, and a retry will try again.
-    status: Literal["dry_run", "skipped", "created", "updated", "exists", "handoff", "failed"]
-    message: str
-    link: Link | None = None
-
-
-class KickoffOut(BaseModel):
-    id: int
-    project_id: str
-    status: Literal["context", "planned", "applying", "partial", "applied"]
-    page: PrdPage
-    provider: str
-    model: str
-    reader: str
-    # "Claude (claude-opus-5)" or "Rule-based reader". Shown beside every drafted item.
-    drafted_by: str
-    note: str
-    source_note: str
-    source_mode: Literal["fixtures", "live"] = "fixtures"
-    write_mode: Literal["dry-run", "live"]
-    facts: list[FactOut]
-    tier: TierOut
-    actions: list[ActionOut]
-    suggestions: list[SuggestionOut]
-    checks: list[CheckOut]
-    headline: RagState | None = None
-    checked_at: datetime | None = None
-    plan: PlanOut | None = None
-    approved_by: str | None = None
-    approved_at: datetime | None = None
-    results: list[ResultOut] = Field(default_factory=list)
-    created_at: datetime | None = None
-
-
-class KickoffSummary(BaseModel):
-    id: int
-    page_title: str
-    status: str
-    model: str
-    created_at: datetime | None
-    approved_by: str | None
-
-
-class FactEdit(BaseModel):
-    key: str
-    values: list[str] = Field(default_factory=list, max_length=20)
-
-
-class FactsUpdate(BaseModel):
-    facts: list[FactEdit] = Field(min_length=1)
-
-
-class Choice(BaseModel):
-    key: str
-    selected: bool
-    skip_reason: str = Field(default="", max_length=500)
-
-
-class ActionsUpdate(BaseModel):
-    choices: list[Choice]
-
-
-class PlanUpdate(BaseModel):
-    decisions: dict[str, Literal["pending", "accepted", "dismissed"]] = Field(default_factory=dict)
-    # The full list of plan items to leave out. Omitted means "leave the current list as it is".
-    excluded: list[str] | None = None
+class BacklogRequest(BaseModel):
+    backlog_url: str = Field(min_length=1, max_length=2000)

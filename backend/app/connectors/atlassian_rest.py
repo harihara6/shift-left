@@ -145,6 +145,22 @@ class AtlassianRest:
     def page_url(self, webui: str) -> str:
         return f"{self.site}/wiki{webui}" if webui else ""
 
+    async def short_link_target(self, code: str) -> str:
+        """Where a /wiki/x/<code> short link redirects: the page's full address."""
+        if not self.available:
+            raise AtlassianError(self.unavailable_reason)
+        try:
+            async with http.client(timeout=15.0) as c:
+                response = await c.get(
+                    f"{self.site}/wiki/x/{quote(code)}", auth=(self._email, self._token or ""),
+                    follow_redirects=False,
+                )
+        except httpx.HTTPError as exc:
+            raise AtlassianError(f"Opening the short link failed: couldn't reach {self.site}") from exc
+        if response.status_code >= 400:
+            raise AtlassianError(_message(response, "Opening the short link"), response.status_code)
+        return response.headers.get("location", "")
+
     async def search_pages(self, cql: str, limit: int = 25) -> list[dict]:
         body = await self._call(
             "GET", "/wiki/rest/api/search", "Searching Confluence",

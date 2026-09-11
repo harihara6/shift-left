@@ -1,624 +1,544 @@
-<div class="page">
-  <div class="record-banner">
-    <p class="record-text">
-      <span class="record-tag">Kickoff</span>
-      Take a PRD from Confluence to a checked, tagged plan. What runs is decided from what the PRD
-      says, every decision shows its reason, and nothing is written until you confirm.
-    </p>
-    <div class="record-actions">
-      @if (connections(); as c) {
-        @if (c.sources === 'fixtures') { <span class="pill pill-watch">Example pages</span> }
-        @if (c.write_mode === 'live') {
-          <span class="pill pill-live">Create writes to Jira, Xray and Confluence</span>
-        } @else {
-          <span class="pill pill-watch">Create is a dry run</span>
+<p class="sr-only" role="status" aria-live="polite">{{ announcement() }}</p>
+
+@if (!analysis()) {
+  <!-- Home: start a new analysis, or pick up a saved one ---------------------------------------- -->
+  <div class="home">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-top">
+        <span class="hero-tag">Feature Kickoff</span>
+        <button class="hero-link" (click)="showGuide()">How this works</button>
+      </div>
+      <h2 class="hero-title" id="hero-title">From a PRD to an ordered backlog.</h2>
+      <p class="hero-lede">
+        Paste the PRD, point at your repos and the ones you rely on, approve the compliance, add your
+        API docs and third-party APIs. Claude tells you what work is pending in which repo, and drafts
+        the Jira tasks in the order to do them.
+      </p>
+      <form class="hero-form" (ngSubmit)="start()">
+        <label class="sr-only" for="prd-url">Confluence link to the PRD</label>
+        <input id="prd-url" name="prd" type="url" class="hero-input" autocomplete="off"
+               placeholder="https://your-site.atlassian.net/wiki/spaces/…/pages/…"
+               [ngModel]="newPrdUrl()" (ngModelChange)="newPrdUrl.set($event)" />
+        <button class="btn btn-xl btn-primary" type="submit" [disabled]="!newPrdUrl().trim() || busy() === 'start'">
+          @if (busy() === 'start') { <span class="spinner" aria-hidden="true"></span> Reading the PRD… }
+          @else { Start analysis <span aria-hidden="true">→</span> }
+        </button>
+      </form>
+      @if (refusal(); as refused) {
+        <div class="hero-error" role="alert">
+          <span class="glyph" aria-hidden="true">✕</span>
+          <span>{{ refused.message }}
+            @for (b of refused.blockers; track b) { <br />{{ b }} }
+          </span>
+        </div>
+      }
+      <ol class="journey" aria-label="The seven steps">
+        @for (s of journey; track s.key; let i = $index) {
+          <li><span class="journey-num mono">{{ i + 1 }}</span><span>{{ s.label }}</span></li>
         }
-      }
-      <button class="btn" (click)="showGuide()">How this page works</button>
-    </div>
-  </div>
-
-  <nav class="steps" aria-label="Kickoff steps">
-    <ol>
-      @for (item of steps; track item.id; let i = $index) {
-        <li>
-          <button class="step" [class.active]="step() === item.id"
-                  [attr.aria-current]="step() === item.id ? 'step' : null"
-                  [disabled]="!canGo(item.id)" (click)="go(item.id)">
-            <span class="mono num" aria-hidden="true">{{ i + 1 }}</span>{{ item.label }}
-          </button>
-        </li>
-      }
-    </ol>
-  </nav>
-
-  <p class="sr-only" role="status" aria-live="polite">{{ announcement() }}</p>
-
-  @if (refusal(); as refused) {
-    <div class="notice notice-poor" role="alert">
-      <p><span aria-hidden="true">✕</span> {{ refused.message }}</p>
-      @if (refused.blockers.length) {
-        <ul class="blockers">
-          @for (blocker of refused.blockers; track blocker) { <li>{{ blocker }}</li> }
-        </ul>
-      }
-    </div>
-  }
-
-  @if (session(); as s) {
-    <div class="session-strip">
-      <a class="mono" [href]="s.page.url" target="_blank" rel="noopener">{{ s.page.title }} · v{{ s.page.version }} ↗</a>
-      <span class="pill" [class.pill-watch]="s.reader !== 'claude'">Drafted by {{ s.drafted_by }}</span>
-      @if (s.source_mode === 'fixtures') { <span class="pill pill-watch">Example pages</span> }
-      <span class="meta">{{ s.note }}</span>
-    </div>
-  }
-
-  <!-- 1. PRD and model ------------------------------------------------------------------------ -->
-  @if (step() === 'source') {
-    <section class="card" aria-labelledby="prd-title">
-      <header class="card-head">
-        <div class="card-title" id="prd-title">Which PRD?</div>
-        <form class="search" (ngSubmit)="loadPrds()">
-          <label class="sr-only" for="prd-search">Search PRD pages</label>
-          <input id="prd-search" type="text" name="q" placeholder="Search by title or space"
-                 [ngModel]="query()" (ngModelChange)="query.set($event)" autocomplete="off" />
-          <button class="btn" type="submit">Search</button>
-        </form>
-      </header>
-      @if (prds(); as list) {
-        @if (!list.available) {
-          <p class="notice notice-poor foot-note" role="alert"><span aria-hidden="true">✕</span> {{ list.note }}</p>
-        }
-        <fieldset class="prd-list">
-          <legend class="sr-only">PRD pages</legend>
-          @for (page of list.pages; track page.page_id) {
-            <label class="prd" [class.on]="pageId() === page.page_id">
-              <input type="radio" name="prd" [value]="page.page_id" [checked]="pageId() === page.page_id"
-                     (change)="pageId.set(page.page_id)" />
-              <span class="prd-text">
-                <span class="prd-title">{{ page.title }}</span>
-                <span class="meta">
-                  <span class="mono">{{ page.space }}</span> · v<span class="mono">{{ page.version }}</span>
-                  · updated <span class="mono">{{ page.updated }}</span> by {{ page.author }}
-                  @if (!page.own_project) { · <em>another project's space</em> }
-                </span>
-              </span>
-              <a class="drill mono" [href]="page.url" target="_blank" rel="noopener"
-                 (click)="$event.stopPropagation()">Open ↗</a>
-            </label>
-          } @empty {
-            @if (list.available) {
-              <p class="empty">No PRD page matches. Try the title as it's written in Confluence.</p>
-            }
-          }
-        </fieldset>
-        @if (list.available) { <p class="meta foot-note">{{ list.note }}</p> }
-      }
+      </ol>
     </section>
 
-    @if (connections(); as c) {
-      <details class="card connections">
-        <summary class="card-head">
-          <span class="card-title">Where this reads and writes</span>
-          <span class="meta">{{ c.sources === 'live' ? 'Live pages' : 'Example pages' }} ·
-            {{ c.write_mode === 'live' ? 'live writes' : 'dry run' }}</span>
-        </summary>
-        <ul class="connection-list">
-          @for (conn of c.connections; track conn.key) {
-            <li class="connection">
-              <span class="state-pill" [class]="'state-pill tone-' + connectionTone(conn).tone">
-                <span class="glyph" aria-hidden="true">{{ connectionTone(conn).glyph }}</span>{{ connectionTone(conn).label }}
+    @if (status(); as st) {
+      <section aria-labelledby="conn-title">
+        <div class="section-head">
+          <h3 class="section-title" id="conn-title">Connections</h3>
+          <span class="meta">Credentials come from Settings → Connectors first, then the service's own. None is ever shown here.</span>
+        </div>
+        <ul class="conn-grid">
+          @for (c of st.connections; track c.key) {
+            <li class="conn">
+              <span class="state-pill" [class]="'state-pill tone-' + connectionTone(c).tone">
+                <span class="glyph" aria-hidden="true">{{ connectionTone(c).glyph }}</span>{{ connectionTone(c).label }}
               </span>
-              <span class="connection-text">
-                <span class="action-name">{{ conn.name }} <span class="pill">{{ conn.direction === 'read' ? 'Reads' : 'Writes' }}</span></span>
-                <span class="meta">{{ conn.note }}</span>
-              </span>
+              <span class="conn-name">{{ c.name }}</span>
+              <span class="meta">{{ c.note }}</span>
             </li>
           }
         </ul>
-      </details>
+        @if (needsSetup().length) {
+          <button class="btn btn-lg" (click)="openSettings.emit()">Open Settings → Connectors</button>
+        }
+      </section>
     }
 
-    <section class="card panel" aria-labelledby="model-title">
-      <div class="card-title" id="model-title">Who reads it?</div>
-      @if (models(); as options) {
-        <div class="model-row">
-          <label>
-            <span class="label-caps">Provider</span>
-            <select [ngModel]="providerKey()" (ngModelChange)="pickProvider($event)">
-              @for (p of options.providers; track p.key) {
-                <option [value]="p.key" [disabled]="!p.available">
-                  {{ p.name }}{{ p.available ? '' : ' — unavailable' }}
-                </option>
-              }
-            </select>
-          </label>
-          <label>
-            <span class="label-caps">Model</span>
-            <select [ngModel]="model()" (ngModelChange)="model.set($event)" [disabled]="!provider()?.available">
-              @for (m of provider()?.models ?? []; track m.id) {
-                <option [value]="m.id">{{ m.display_name }}</option>
-              }
-            </select>
-          </label>
-        </div>
-        <ul class="providers">
-          @for (p of options.providers; track p.key) {
-            <li>
-              <span class="glyph" [class]="'glyph tone-' + (p.available ? 'good' : 'missing')" aria-hidden="true">
-                {{ p.available ? '✓' : '—' }}
-              </span>
-              <span><strong>{{ p.name }}</strong> <span class="sr-only">{{ p.available ? 'available' : 'unavailable' }}</span>
-                <span class="meta">{{ p.note }}</span>
-                @if (!p.available && p.models.length) {
-                  <span class="meta mono">{{ p.models.length }} listed: {{ modelNames(p) }}</span>
+    <section aria-labelledby="saved-title">
+      <div class="section-head">
+        <h3 class="section-title" id="saved-title">Saved analyses</h3>
+        <span class="meta">Everyone on this project can open them. Reopen one to change an input and run it again.</span>
+      </div>
+      @if (analyses(); as rows) {
+        <ul class="saved-grid">
+          @for (r of rows; track r.id) {
+            <li class="saved">
+              <div class="saved-top">
+                <span class="state-pill" [class]="'state-pill tone-' + statusTone(r.status, r.stale).tone">
+                  <span class="glyph" aria-hidden="true">{{ statusTone(r.status, r.stale).glyph }}</span>{{ statusTone(r.status, r.stale).label }}
+                </span>
+                @if (r.backlog_key) { <span class="pill mono">{{ r.backlog_key }}</span> }
+              </div>
+              <h4 class="saved-title">{{ r.title }}</h4>
+              <div class="progress" role="img" [attr.aria-label]="r.steps_done + ' of ' + r.steps_total + ' steps done'">
+                @for (n of journey; track n.key; let i = $index) {
+                  <span class="progress-seg" [class.on]="i < r.steps_done"></span>
                 }
-              </span>
+              </div>
+              <div class="saved-facts">
+                <span><span class="mono">{{ r.steps_done }}/{{ r.steps_total }}</span> steps</span>
+                <span><span class="mono">{{ r.repo_count }}</span> repo{{ r.repo_count === 1 ? '' : 's' }}</span>
+                <span><span class="mono">{{ r.task_count }}</span> task{{ r.task_count === 1 ? '' : 's' }}</span>
+              </div>
+              <p class="meta">
+                Updated by {{ r.updated_by }} · <span class="mono">{{ r.updated_at | date: 'd MMM, HH:mm' }}</span>
+                @if (r.drafted_by) { <br />Drafted by {{ r.drafted_by }} }
+              </p>
+              <div class="saved-actions">
+                @if (confirmDelete() === r.id) {
+                  <span class="meta">Delete it? Jira is untouched.</span>
+                  <button class="btn" (click)="confirmDelete.set(null)">Keep</button>
+                  <button class="btn btn-danger" [disabled]="busy() === 'delete-' + r.id" (click)="remove(r.id)">Delete</button>
+                } @else {
+                  <button class="btn btn-ghost" (click)="confirmDelete.set(r.id)" [attr.aria-label]="'Delete ' + r.title">Delete</button>
+                  <button class="btn btn-lg btn-primary" (click)="open(r.id)" [attr.aria-label]="'Open ' + r.title">Open <span aria-hidden="true">→</span></button>
+                }
+              </div>
+            </li>
+          } @empty {
+            <li class="saved-empty">
+              <span class="empty-mark" aria-hidden="true">1</span>
+              <span>No analyses yet. Paste a PRD link above to start the first one.</span>
             </li>
           }
         </ul>
       } @else {
-        <p class="meta">Loading the models this account can use…</p>
-      }
-      <div class="foot">
-        <button class="btn btn-primary" [disabled]="busy() || !pageId() || !model()" (click)="start()">
-          {{ busy() ? 'Reading the PRD…' : 'Read this PRD' }}
-        </button>
-      </div>
-    </section>
-
-    @if (recent().length) {
-      <section class="card" aria-labelledby="recent-title">
-        <header class="card-head"><div class="card-title" id="recent-title">Your recent kickoffs</div></header>
-        <ul class="recent">
-          @for (r of recent(); track r.id) {
-            <li>
-              <button class="row-button" (click)="resume(r.id)">
-                <span>{{ r.page_title }}</span>
-                <span class="meta">{{ r.approved_by ? 'Confirmed by ' + r.approved_by + (r.status === 'partial' ? ', some items failed' : '') : r.status }} · {{ r.model }}</span>
-              </button>
-            </li>
-          }
-        </ul>
-      </section>
-    }
-  }
-
-  <!-- 2. What the PRD says -------------------------------------------------------------------- -->
-  @if (step() === 'context' && session(); as s) {
-    <section class="card" aria-labelledby="facts-title">
-      <header class="card-head">
-        <div class="card-title" id="facts-title">What the PRD says</div>
-        <div class="meta">Everything after this is computed from these facts. Correct any that are wrong.</div>
-      </header>
-      <ul class="facts">
-        @for (fact of s.facts; track fact.key) {
-          <li class="fact">
-            <div class="fact-head">
-              <span class="label-caps">{{ fact.label }}</span>
-              <span class="state-pill" [class]="'state-pill tone-' + factTone(fact).tone">
-                <span class="glyph" aria-hidden="true">{{ factTone(fact).glyph }}</span>{{ factTone(fact).label }}
-              </span>
-            </div>
-            @if (editing() === fact.key) {
-              <div class="fact-edit">
-                @if (fact.allowed.length) {
-                  <fieldset class="chips">
-                    <legend class="sr-only">{{ fact.label }}</legend>
-                    @for (option of fact.allowed; track option.value) {
-                      <label class="chip" [class.on]="draftValues().includes(option.value)">
-                        <input type="checkbox" [checked]="draftValues().includes(option.value)"
-                               (change)="toggleDraftValue(option.value)" />
-                        {{ option.label }}
-                      </label>
-                    }
-                  </fieldset>
-                } @else {
-                  <label>
-                    <span class="sr-only">{{ fact.label }}, comma separated</span>
-                    <input type="text" [ngModel]="draftText()" (ngModelChange)="draftText.set($event)"
-                           placeholder="Comma separated" />
-                  </label>
-                }
-                <div class="foot">
-                  <button class="btn" (click)="editing.set(null)">Cancel</button>
-                  <button class="btn btn-primary" [disabled]="busy()" (click)="saveFact(fact)"
-                          [attr.aria-label]="'Confirm ' + fact.label">Confirm</button>
-                </div>
-              </div>
-            } @else {
-              <div class="fact-value">
-                @if (fact.value_labels.length) {
-                  @for (v of fact.value_labels; track v) { <span class="chip chip-static">{{ v }}</span> }
-                } @else {
-                  <span class="meta">Not stated. Rules that need it will run and ask.</span>
-                }
-                <button class="btn btn-small" (click)="edit(fact)" [attr.aria-label]="'Correct ' + fact.label">Correct</button>
-              </div>
-            }
-            @for (q of fact.quotes; track q.text) {
-              <blockquote class="quote"><span class="label-caps">{{ q.section }}</span> {{ q.text }}</blockquote>
-            }
-            @if (fact.confirmed_by) { <div class="meta">Confirmed by <span class="mono">{{ fact.confirmed_by }}</span></div> }
-          </li>
-        }
-      </ul>
-    </section>
-
-    <section class="card panel" aria-labelledby="tier-title">
-      <div class="card-title" id="tier-title">Risk tier: {{ s.tier.tier }}</div>
-      <p class="reason">{{ s.tier.reason }}</p>
-      @if (s.tier.undetermined) {
-        <p class="warn-text"><span aria-hidden="true">?</span> Undetermined, so the higher tier applies until the kind of change is stated.</p>
+        <p class="meta">Loading saved analyses…</p>
       }
     </section>
-
-    @if (questions().length) {
-      <section class="card panel" aria-labelledby="questions-title">
-        <div class="card-title" id="questions-title">Questions the PRD doesn't answer</div>
-        <p class="meta">Until they're answered, the checks they affect run anyway. Answer them by correcting a fact above.</p>
-        <ul class="questions">
-          @for (a of questions(); track a.key) {
-            <li><span class="glyph tone-watch" aria-hidden="true">?</span><span><strong>{{ a.label }}:</strong> {{ a.question }}</span></li>
-          }
-        </ul>
-      </section>
-    }
-
-    <div class="foot">
-      <button class="btn" (click)="go('source')">Back</button>
-      <button class="btn btn-primary" (click)="go('actions')">Choose what to do</button>
-    </div>
-  }
-
-  <!-- 3. What to do --------------------------------------------------------------------------- -->
-  @if (step() === 'actions' && session(); as s) {
-    @for (group of actionGroups(); track group.label) {
-      <section class="card" [attr.aria-label]="group.label">
-        <header class="card-head"><div class="card-title">{{ group.label }}</div></header>
-        <ul class="actions">
-          @for (a of group.actions; track a.key) {
-            <li class="action" [class.off]="!isSelected(a)">
-              <button class="switch" role="switch" [attr.aria-checked]="isSelected(a)" [class.on]="isSelected(a)"
-                      [attr.aria-label]="a.label" [disabled]="confirmed()" (click)="toggleAction(a)">
-                <span class="knob"></span>
-              </button>
-              <div class="action-text">
-                <div class="action-head">
-                  <span class="action-name">{{ a.label }}</span>
-                  <span class="pill">{{ a.target }}</span>
-                  <span class="state-pill" [class]="'state-pill tone-' + outcomeTone(a).tone">
-                    <span class="glyph" aria-hidden="true">{{ outcomeTone(a).glyph }}</span>{{ outcomeTone(a).label }}
-                  </span>
-                </div>
-                <div class="meta">{{ a.description }}</div>
-                <p class="reason">{{ a.reason }}</p>
-                @for (q of a.quotes; track q.text) {
-                  <blockquote class="quote"><span class="label-caps">{{ q.section }}</span> {{ q.text }}</blockquote>
-                }
-                @if (a.question) { <p class="warn-text"><span aria-hidden="true">?</span> {{ a.question }}</p> }
-                @if (needsReason(a)) {
-                  <label class="skip">
-                    <span class="label-caps">Why leave it out? This goes on the feasibility record.</span>
-                    <input type="text" [ngModel]="reasonFor(a)" (ngModelChange)="setReason(a, $event)"
-                           placeholder="A reason someone reviewing this later would accept" />
-                  </label>
-                  @if (a.skip_flagged) {
-                    <p class="warn-text"><span aria-hidden="true">!</span> Not an acceptable rationale. It's recorded, and flagged as a planning signal.</p>
-                  }
-                }
-              </div>
-            </li>
-          }
-        </ul>
-      </section>
-    }
-
-    @if (contextSuggestions().length) {
-      <section class="card" aria-labelledby="next-title">
-        <header class="card-head">
-          <div class="card-title" id="next-title">Recommended next steps</div>
-          <div class="meta">From the risk tier and the data this PRD carries</div>
-        </header>
-        <ul class="suggestions">
-          @for (sg of contextSuggestions(); track sg.key) {
-            <li class="suggestion" [class.accepted]="sg.decision === 'accepted'" [class.dismissed]="sg.decision === 'dismissed'">
-              <div class="suggestion-text">
-                <span class="action-name">{{ sg.label }}</span>
-                <span class="meta">{{ sg.why }}</span>
-              </div>
-              <div class="suggestion-actions">
-                @if (sg.decision === 'pending') {
-                  <button class="btn" [disabled]="busy() || confirmed()" (click)="decide(sg, 'accepted')">Add to plan</button>
-                  <button class="btn" [disabled]="busy() || confirmed()" (click)="decide(sg, 'dismissed')">Dismiss</button>
-                } @else {
-                  <span class="meta">{{ sg.decision === 'accepted' ? 'Added' : 'Dismissed' }}</span>
-                  <button class="btn btn-small" [disabled]="busy() || confirmed()" (click)="decide(sg, 'pending')">Undo</button>
-                }
-              </div>
-            </li>
-          }
-        </ul>
-      </section>
-    }
-
-    <div class="foot">
-      <button class="btn" (click)="go('context')">Back</button>
-      <button class="btn btn-primary" [disabled]="busy() || confirmed()" (click)="runChecks()">
-        {{ busy() ? 'Running checks…' : 'Run checks and draft the plan' }}
-      </button>
-    </div>
-  }
-
-  <!-- 4. Checks ------------------------------------------------------------------------------- -->
-  @if (step() === 'checks' && session(); as s) {
-    @if (s.headline; as headline) {
-      <section class="card panel headline" aria-labelledby="headline-title">
-        <div class="headline-head">
-          <div class="card-title" id="headline-title">What the checks found</div>
-          <sl-rag [state]="headline" />
-        </div>
-        <ul class="reasons">
-          @for (r of headline.reasons; track r) { <li>{{ r }}</li> }
-        </ul>
-        <p class="meta">There is no "feasible" verdict. This lists what was found and what wasn't looked at.</p>
-      </section>
-    }
-
-    @for (check of s.checks; track check.key) {
-      <section class="card" [attr.aria-label]="check.label">
-        <header class="card-head">
-          <div class="card-title">{{ check.label }}</div>
-          <div class="meta">{{ check.note }}</div>
-        </header>
-        <ul class="findings">
-          @for (f of check.findings; track f.id) {
-            <li class="finding">
-              <span class="state-pill" [class]="'state-pill tone-' + findingTone(f.status).tone">
-                <span class="glyph" aria-hidden="true">{{ findingTone(f.status).glyph }}</span>{{ findingTone(f.status).label }}
-              </span>
-              <div class="finding-text">
-                <span class="action-name">{{ f.title }}</span>
-                @if (f.detail) { <span class="meta">{{ f.detail }}</span> }
-                @if (f.quote) { <blockquote class="quote"><span class="label-caps">{{ f.quote.section }}</span> {{ f.quote.text }}</blockquote> }
-                @if (f.link) { <a class="drill mono" [href]="f.link.url" target="_blank" rel="noopener">{{ f.link.label }} ↗</a> }
-              </div>
-            </li>
-          }
-        </ul>
-      </section>
-    } @empty {
-      <p class="card empty">No checks were selected, so nothing was verified.</p>
-    }
-
-    @if (checkSuggestions().length) {
-      <section class="card" aria-labelledby="found-next-title">
-        <header class="card-head">
-          <div class="card-title" id="found-next-title">Recommended from the findings</div>
-        </header>
-        <ul class="suggestions">
-          @for (sg of checkSuggestions(); track sg.key) {
-            <li class="suggestion" [class.accepted]="sg.decision === 'accepted'" [class.dismissed]="sg.decision === 'dismissed'">
-              <div class="suggestion-text">
-                <span class="action-name">{{ sg.label }}</span>
-                <span class="meta">{{ sg.why }}</span>
-              </div>
-              <div class="suggestion-actions">
-                @if (sg.decision === 'pending') {
-                  <button class="btn" [disabled]="busy() || confirmed()" (click)="decide(sg, 'accepted')">Add to plan</button>
-                  <button class="btn" [disabled]="busy() || confirmed()" (click)="decide(sg, 'dismissed')">Dismiss</button>
-                } @else {
-                  <span class="meta">{{ sg.decision === 'accepted' ? 'Added' : 'Dismissed' }}</span>
-                  <button class="btn btn-small" [disabled]="busy() || confirmed()" (click)="decide(sg, 'pending')">Undo</button>
-                }
-              </div>
-            </li>
-          }
-        </ul>
-      </section>
-    }
-
-    <div class="foot">
-      <button class="btn" (click)="go('actions')">Back</button>
-      <button class="btn btn-primary" (click)="go('plan')">Review the plan</button>
-    </div>
-  }
-
-  <!-- 5. Plan --------------------------------------------------------------------------------- -->
-  @if (step() === 'plan' && session(); as s) {
-    @if (s.plan; as plan) {
-      <section class="card panel" aria-labelledby="plan-title">
-        <div class="plan-summary">
-          <div class="card-title" id="plan-title">The plan: {{ includedCount() }} item(s) to create</div>
-          <span class="pill" [class.pill-watch]="s.reader !== 'claude'">
-            {{ s.reader === 'claude' ? 'AI-drafted by ' + s.drafted_by : 'Drafted by the rule-based reader' }}, reviewed by you
-          </span>
-        </div>
-        <ul class="counts">
-          @for (g of groups; track g.key) {
-            @if (itemsIn(g.key).length) {
-              <li><span class="mono">{{ includedIn(g.key) }}</span> {{ g.label }}</li>
-            }
-          }
-        </ul>
-        @for (note of plan.notes; track note) { <p class="meta">{{ note }}</p> }
-      </section>
-
-      @for (g of groups; track g.key) {
-        @if (itemsIn(g.key).length) {
-          <section class="card" [attr.aria-label]="g.label">
-            <header class="card-head">
-              <div class="card-title">{{ g.label }}</div>
-              @if (g.key === 'software_catalog') { <div class="meta">A diff against v{{ plan.catalog_version }}. Rows nobody changed are never rewritten.</div> }
-              @if (g.key === 'product_index') {
-                <div class="meta">{{ plan.index_version ? 'A diff against the index read at ' + plan.index_version + '.' : 'The index couldn\'t be read, so each row says so.' }}</div>
-              }
-              @if (g.key === 'waivers') { <div class="meta">Scoped out is not passed: each needs an owner and a rationale.</div> }
-            </header>
-            <ul class="items">
-              @for (item of itemsIn(g.key); track item.id) {
-                <li class="item" [class.off]="!item.included">
-                  <label class="item-check">
-                    <input type="checkbox" [checked]="item.included" [disabled]="busy() || confirmed()" (change)="toggleItem(item)" />
-                    <span class="sr-only">Include {{ item.title }}</span>
-                  </label>
-                  <div class="item-text">
-                    <div class="action-head">
-                      <span class="pill">{{ item.kind }}</span>
-                      <span class="action-name">{{ item.title }}</span>
-                      @if (item.project) { <span class="mono meta">{{ item.project }}</span> }
-                    </div>
-                    @if (item.detail) { <div class="meta">{{ item.detail }}</div> }
-                    @if (item.labels.length) {
-                      <div class="labels">
-                        @for (l of item.labels; track l) { <span class="mono label">{{ l }}</span> }
-                      </div>
-                    }
-                    @if (item.diff; as diff) {
-                      <div class="diff">
-                        @if (diff.op === 'change') {
-                          <div class="diff-row"><span class="label-caps">{{ diff.label || diff.field }} before</span><span class="mono">{{ diff.before?.join(', ') || 'none' }}</span></div>
-                          <div class="diff-row diff-add"><span class="label-caps">after</span><span class="mono">{{ diff.after?.join(', ') }}</span></div>
-                        } @else {
-                          @for (f of diffFields(item); track f.key) {
-                            <div class="diff-row diff-add"><span class="label-caps">+ {{ f.key }}</span><span>{{ f.value }}</span></div>
-                          }
-                        }
-                      </div>
-                    }
-                    <details class="why">
-                      <summary>Why this is here</summary>
-                      <ul>
-                        @for (d of item.drawn_from; track $index) {
-                          <li>
-                            <span class="label-caps">{{ d.kind }}</span>
-                            @if (d.url) { <a [href]="d.url" target="_blank" rel="noopener">{{ d.text }} ↗</a> } @else { {{ d.text }} }
-                          </li>
-                        }
-                      </ul>
-                    </details>
-                  </div>
-                </li>
-              }
-            </ul>
-          </section>
-        }
-      }
-
-      <section class="card" aria-labelledby="coverage-title">
-        <header class="card-head">
-          <div class="card-title" id="coverage-title">Evidence coverage for {{ s.tier.tier }}</div>
-          <div class="meta">Every artifact in the checklist is covered, drafted as a waiver, or ruled out with a reason</div>
-        </header>
-        <div class="table" role="table" aria-labelledby="coverage-title">
-          <div class="grid-row grid-head cov" role="row">
-            <span role="columnheader">Artifact</span><span role="columnheader">Gate</span>
-            <span role="columnheader">State</span><span role="columnheader">In this plan</span>
-          </div>
-          @for (c of plan.coverage; track c.artifact) {
-            <div class="grid-row cov" role="row">
-              <span role="cell">{{ c.name }}</span>
-              <span role="cell" class="meta">{{ c.gate }}</span>
-              <span role="cell">
-                <span class="state-pill" [class]="'state-pill tone-' + coverageTone(c.state).tone">
-                  <span class="glyph" aria-hidden="true">{{ coverageTone(c.state).glyph }}</span>{{ coverageTone(c.state).label }}
-                </span>
-              </span>
-              <span role="cell" class="meta">{{ c.note || itemTitle(c.item_id) }}</span>
-            </div>
-          }
-        </div>
-      </section>
-
-      <div class="foot">
-        <button class="btn" (click)="go('checks')">Back</button>
-        <button class="btn btn-primary" (click)="go('create')">Continue to confirm</button>
-      </div>
-    }
-  }
-
-  <!-- 6. Confirm ------------------------------------------------------------------------------ -->
-  @if (step() === 'create' && session(); as s) {
-    @if (!confirmed()) {
-      <section class="card panel" aria-labelledby="confirm-title">
-        <div class="card-title" id="confirm-title">Confirm and create</div>
-        <div class="summary">
-          @for (g of groups; track g.key) {
-            @if (itemsIn(g.key).length) {
-              <div class="summary-row"><span class="label-caps">{{ g.label }}</span><span class="mono">{{ includedIn(g.key) }}</span></div>
-            }
-          }
-          <div class="summary-row"><span class="label-caps">Drafted by</span><span>{{ s.drafted_by }}</span></div>
-          <div class="summary-row"><span class="label-caps">PRD</span><span class="mono">{{ s.page.title }} · v{{ s.page.version }}</span></div>
-        </div>
-        @if (live()) {
-          <p class="notice">
-            Confirming records you as the person who confirmed this plan, then creates it: Jira issues
-            and Xray tests in {{ projectKey(s) }}, pages under the PRD, and the catalog rows (only if the
-            catalog hasn't changed since the plan was drafted). Work for another team and product index
-            rows are handed off with what to do. Every item's result is listed next.
-          </p>
+  </div>
+} @else {
+  <!-- An analysis, step by step ---------------------------------------------------------------- -->
+  @let a = analysis()!;
+  <div class="wizard">
+    <header class="wizard-bar">
+      <button class="btn btn-lg btn-ghost" (click)="close()"><span aria-hidden="true">←</span> All analyses</button>
+      <div class="wizard-name">
+        @if (editingTitle()) {
+          <form class="title-form" (ngSubmit)="saveTitle()">
+            <label class="sr-only" for="title">Analysis name</label>
+            <input id="title" name="title" type="text" [ngModel]="titleDraft()" (ngModelChange)="titleDraft.set($event)" />
+            <button class="btn btn-primary" type="submit" [disabled]="busy() === 'rename'">Save</button>
+            <button class="btn" type="button" (click)="editingTitle.set(false)">Cancel</button>
+          </form>
         } @else {
-          <p class="notice">
-            Dry run: confirming records you as the person who confirmed this plan, and lists exactly
-            what would be created. Nothing is written to Jira, Xray or Confluence.
-          </p>
+          <h2 class="wizard-title">{{ a.title }}</h2>
+          <button class="btn btn-ghost btn-small" (click)="editTitle()" aria-label="Rename this analysis">Rename</button>
         }
-        <div class="foot">
-          <button class="btn" (click)="go('plan')">Back</button>
-          <button class="btn btn-primary" [disabled]="busy() || !includedCount()" (click)="apply()">
-            {{ busy() ? (live() ? 'Creating…' : 'Confirming…') : (live() ? 'Confirm and create' : 'Confirm and create (dry run)') }}
-          </button>
+      </div>
+      <div class="wizard-meta">
+        <span class="state-pill" [class]="'state-pill tone-' + statusTone(a.status, !!a.plan?.stale?.length).tone">
+          <span class="glyph" aria-hidden="true">{{ statusTone(a.status, !!a.plan?.stale?.length).glyph }}</span>{{ statusTone(a.status, !!a.plan?.stale?.length).label }}
+        </span>
+        <span class="meta">Saved · {{ a.updated_by }} · <span class="mono">{{ a.updated_at | date: 'd MMM, HH:mm' }}</span></span>
+        <button class="btn btn-ghost" (click)="showGuide()">How this works</button>
+      </div>
+    </header>
+
+    <div class="wizard-body">
+      <nav class="stepper" aria-label="Kickoff steps">
+        <div class="stepper-head">
+          <span class="label-caps">Progress</span>
+          <span class="mono stepper-count">{{ doneCount() }}/7</span>
         </div>
-      </section>
-    } @else {
-      @if (s.status === 'partial') {
-        <div class="notice notice-poor" role="status">
-          <p>
-            <span aria-hidden="true">✕</span> {{ failedCount() }} item(s) failed; each says why. Everything
-            else stands. Retrying applies the same confirmed plan to the failed items only, and finds what
-            already exists instead of creating it twice.
-          </p>
-        </div>
-      } @else if (s.status === 'applying') {
-        <p class="notice" role="status">This plan is being applied. Reload in a moment to see each result.</p>
-      }
-      <section class="card" aria-labelledby="results-title">
-        <header class="card-head">
-          <div class="card-title" id="results-title">Confirmed by {{ s.approved_by }}</div>
-          <div class="meta mono">{{ s.approved_at | date: 'yyyy-MM-dd HH:mm' : 'UTC' }} UTC · {{ s.write_mode === 'live' ? 'live' : 'dry run' }}</div>
-        </header>
-        <ul class="counts result-counts">
-          @for (c of resultCounts(); track c.tone.label) {
-            <li><span class="glyph" [class]="'glyph tone-' + c.tone.tone" aria-hidden="true">{{ c.tone.glyph }}</span>
-              <span class="mono">{{ c.count }}</span> {{ c.tone.label }}</li>
-          }
-        </ul>
-        <ul class="results">
-          @for (r of s.results; track r.item_id) {
-            <li class="result" [class.off]="r.status === 'skipped'">
-              <span class="state-pill" [class]="'state-pill tone-' + resultTone(r.status).tone">
-                <span class="glyph" aria-hidden="true">{{ resultTone(r.status).glyph }}</span>{{ resultTone(r.status).label }}
-              </span>
-              <span class="result-text">
-                <span>{{ r.message }}</span>
-                @if (r.status === 'handoff' || r.status === 'failed') { <span class="meta">{{ r.title }}</span> }
-              </span>
-              @if (r.link) { <a class="drill mono" [href]="r.link.url" target="_blank" rel="noopener">{{ r.link.label }} ↗</a> }
+        <ol>
+          @for (s of journey; track s.key; let i = $index) {
+            <li [class]="'stepper-item ' + stepState(s.key)">
+              <button class="stepper-btn" [attr.aria-current]="step() === s.key ? 'step' : null" (click)="go(s.key)">
+                <span class="stepper-dot" aria-hidden="true">
+                  @if (stepState(s.key) === 'done') { ✓ } @else { {{ i + 1 }} }
+                </span>
+                <span class="stepper-text">
+                  <span class="stepper-label">{{ copy[s.key].title }}
+                    @if (stepState(s.key) === 'done') { <span class="sr-only">(done)</span> }
+                  </span>
+                  <span class="stepper-summary">{{ stepSummary(s.key) }}</span>
+                </span>
+              </button>
             </li>
           }
-        </ul>
-      </section>
-      <div class="foot">
-        @if (s.status === 'partial') {
-          <button class="btn" [disabled]="busy()" (click)="apply()">{{ busy() ? 'Retrying…' : 'Retry the failed items' }}</button>
-        }
-        <button class="btn btn-primary" (click)="startOver()">Kick off another PRD</button>
-      </div>
+        </ol>
+      </nav>
+
+      <main class="panel-wrap">
+        <section class="step-card" [attr.aria-labelledby]="'step-' + step()">
+          <header class="step-head">
+            <span class="kicker">Step {{ stepIndex() + 1 }} of 7 @if (copy[step()].optional) { · optional }</span>
+            <h3 class="step-title" tabindex="-1" [id]="'step-' + step()">{{ copy[step()].title }}</h3>
+            <p class="step-lede">{{ copy[step()].lede }}</p>
+          </header>
+
+          @if (refusal(); as refused) {
+            <div class="notice notice-poor" role="alert">
+              <p><span aria-hidden="true">✕</span> {{ refused.message }}</p>
+              @if (refused.blockers.length) {
+                <ul class="blockers">@for (b of refused.blockers; track b) { <li>{{ b }}</li> }</ul>
+              }
+            </div>
+          }
+
+          @switch (step()) {
+            <!-- 1 · PRD ------------------------------------------------------------------------- -->
+            @case ('prd') {
+              @if (a.prd; as prd) {
+                <article class="prd-card">
+                  <div class="prd-top">
+                    <span class="source-mark" aria-hidden="true">C</span>
+                    <div class="prd-head">
+                      <h4 class="prd-title">{{ prd.title }}</h4>
+                      <div class="prd-facts">
+                        <span class="mono">{{ prd.space }}</span>
+                        <span>version <span class="mono">{{ prd.version }}</span></span>
+                        <span><span class="mono">{{ prd.word_count | number }}</span> words</span>
+                        <span><span class="mono">{{ prd.lines.length }}</span> lines</span>
+                      </div>
+                    </div>
+                    <a class="btn btn-lg" [href]="prd.url" target="_blank" rel="noopener">Open in Confluence ↗</a>
+                  </div>
+                  <p class="meta">Read via {{ prd.via_label }} · by {{ prd.read_by }} · <span class="mono">{{ prd.read_at | date: 'd MMM yyyy, HH:mm' }}</span></p>
+                  @if (prd.sections.length) {
+                    <div class="chips" aria-label="Sections">
+                      @for (s of prd.sections; track $index) { <span class="chip">{{ s }}</span> }
+                    </div>
+                  }
+                  <button class="btn" (click)="showLines.set(!showLines())" [attr.aria-expanded]="showLines()">
+                    {{ showLines() ? 'Hide' : 'Show' }} what was read
+                  </button>
+                  @if (showLines()) {
+                    <ol class="prd-lines">
+                      @for (line of prd.lines; track $index) {
+                        <li [class.heading]="line.startsWith('## ')">
+                          <span class="mono line-no">{{ $index + 1 }}</span>
+                          <span [class.bullet]="line.startsWith('- ')">{{ line.startsWith('## ') || line.startsWith('- ') ? line.slice(line.startsWith('## ') ? 3 : 2) : line }}</span>
+                        </li>
+                      }
+                    </ol>
+                  }
+                </article>
+              }
+              <form class="add-row" (ngSubmit)="rereadPrd()">
+                <label class="sr-only" for="prd-reread">Confluence link</label>
+                <input id="prd-reread" name="prd" type="url" [ngModel]="prdUrl()" (ngModelChange)="prdUrl.set($event)" />
+                <button class="btn btn-lg" type="submit" [disabled]="busy() === 'prd'">
+                  @if (busy() === 'prd') { <span class="spinner dark" aria-hidden="true"></span> Reading… } @else { Fetch again }
+                </button>
+              </form>
+              <p class="meta">Fetch again after the page changes, or paste a different page. A plan drafted from an older version says so.</p>
+            }
+
+            <!-- 2 · Repos to code in, 3 · Repos we rely on ------------------------------------------ -->
+            @case ('repos') { <ng-container *ngTemplateOutlet="repoStep; context: { role: 'repos' }" /> }
+            @case ('dependencies') { <ng-container *ngTemplateOutlet="repoStep; context: { role: 'dependencies' }" /> }
+
+            <!-- 4 · Compliance ------------------------------------------------------------------------ -->
+            @case ('compliance') {
+              @let c = a.compliance;
+              @if (!c.suggested_at) {
+                <div class="callout">
+                  <span class="callout-mark" aria-hidden="true">§</span>
+                  <div>
+                    <p class="callout-title">Find what applies</p>
+                    <p class="meta">Reads the PRD for its market, the data it handles and the access it involves, and proposes frameworks with the lines behind each. Nothing is selected until you approve.</p>
+                  </div>
+                  <button class="btn btn-xl btn-primary" [disabled]="busy() === 'suggest'" (click)="suggest()">
+                    @if (busy() === 'suggest') { <span class="spinner" aria-hidden="true"></span> Analysing… } @else { Analyse compliance }
+                  </button>
+                </div>
+              } @else {
+                <div class="row-between">
+                  <p class="meta">{{ c.suggested_note }} <span class="mono">{{ c.suggested_at | date: 'd MMM, HH:mm' }}</span></p>
+                  <button class="btn" [disabled]="busy() === 'suggest'" (click)="suggest()">
+                    {{ busy() === 'suggest' ? 'Analysing…' : 'Analyse again' }}
+                  </button>
+                </div>
+                @if (c.suggestions_stale) {
+                  <p class="notice notice-watch"><span aria-hidden="true">!</span> The PRD changed since these were proposed. Analyse again to propose from the current version.</p>
+                }
+                <ul class="choice-grid" aria-label="Proposed compliance">
+                  @for (s of c.suggestions; track s.name) {
+                    @let on = s.key ? isSelected(s.key) : hasCustom(s.name);
+                    <li class="choice" [class.on]="on">
+                      <button class="choice-btn" role="checkbox" [attr.aria-checked]="on"
+                              (click)="s.key ? toggle(s.key) : toggleOther(s)">
+                        <span class="check" aria-hidden="true">{{ on ? '✓' : '' }}</span>
+                        <span class="choice-text">
+                          <span class="choice-name">{{ s.name }}</span>
+                          <span class="choice-tags">
+                            <span class="state-pill" [class]="'state-pill tone-' + confidenceTone(s).tone">
+                              <span class="glyph" aria-hidden="true">{{ confidenceTone(s).glyph }}</span>{{ confidenceTone(s).label }}
+                            </span>
+                            @if (framework(s.key); as f) { <span class="pill">{{ f.region }}</span> } @else { <span class="pill">Not in the catalog</span> }
+                            <span class="pill">{{ s.by === 'claude' ? 'Claude' : 'Rules' }}</span>
+                          </span>
+                          <span class="choice-why">{{ s.why }}</span>
+                        </span>
+                      </button>
+                      @for (q of s.quotes; track q.line) {
+                        <blockquote class="quote"><span class="mono line-no">L{{ q.line }}</span> {{ q.text }}</blockquote>
+                      }
+                    </li>
+                  } @empty {
+                    <li class="saved-empty">Nothing in the PRD points at a framework in the catalog. Pick any that apply below, or approve that none do.</li>
+                  }
+                </ul>
+              }
+
+              <div class="subsection">
+                <button class="btn" (click)="showAllFrameworks.set(!showAllFrameworks())" [attr.aria-expanded]="showAllFrameworks()">
+                  {{ showAllFrameworks() ? 'Hide' : 'Choose from' }} all {{ otherFrameworks().length }} other frameworks
+                </button>
+                @if (showAllFrameworks()) {
+                  <ul class="mini-grid" aria-label="Other frameworks">
+                    @for (f of otherFrameworks(); track f.key) {
+                      <li>
+                        <button class="mini" [class.on]="isSelected(f.key)" role="checkbox" [attr.aria-checked]="isSelected(f.key)" (click)="toggle(f.key)">
+                          <span class="check" aria-hidden="true">{{ isSelected(f.key) ? '✓' : '' }}</span>
+                          <span class="mini-text"><span class="choice-name">{{ f.name }}</span><span class="meta">{{ f.region }} · {{ f.category }}</span></span>
+                        </button>
+                      </li>
+                    }
+                  </ul>
+                }
+              </div>
+
+              <div class="subsection">
+                <p class="sub-title">Your own</p>
+                @if (custom().length) {
+                  <ul class="custom-list">
+                    @for (x of custom(); track x.name) {
+                      <li><span class="check on" aria-hidden="true">✓</span><span><strong>{{ x.name }}</strong> @if (x.note) { <span class="meta">— {{ x.note }}</span> }</span>
+                        <button class="btn btn-small" (click)="removeCustom(x.name)" [attr.aria-label]="'Remove ' + x.name">Remove</button></li>
+                    }
+                  </ul>
+                }
+                <form class="add-row" (ngSubmit)="addCustom()">
+                  <label class="sr-only" for="custom-name">Framework or policy</label>
+                  <input id="custom-name" name="cn" type="text" placeholder="e.g. Internal data residency policy" [ngModel]="customName()" (ngModelChange)="customName.set($event)" />
+                  <label class="sr-only" for="custom-note">Why it applies</label>
+                  <input id="custom-note" name="cnote" type="text" placeholder="Why it applies (optional)" [ngModel]="customNote()" (ngModelChange)="customNote.set($event)" />
+                  <button class="btn btn-lg" type="submit" [disabled]="!customName().trim()">Add</button>
+                </form>
+              </div>
+
+              <div class="approve-bar" [class.done]="!complianceChanged()">
+                @if (!complianceChanged()) {
+                  <span class="state-pill tone-good"><span class="glyph" aria-hidden="true">✓</span>Approved</span>
+                  <span>by <strong>{{ c.approved_by }}</strong> · <span class="mono">{{ c.approved_at | date: 'd MMM, HH:mm' }}</span></span>
+                } @else {
+                  <span><span class="mono">{{ approvedCount() }}</span> selected. @if (c.approved_by) { <span class="warn-text">Changed since {{ c.approved_by }} approved it.</span> }</span>
+                }
+                <button class="btn btn-xl btn-primary" [disabled]="busy() === 'approve' || !complianceChanged()" (click)="approve()">
+                  {{ busy() === 'approve' ? 'Approving…' : approvedCount() ? 'Approve ' + approvedCount() + ' selected' : 'Approve: none apply' }}
+                </button>
+              </div>
+            }
+
+            <!-- 5 · API docs --------------------------------------------------------------------------- -->
+            @case ('api_docs') {
+              <form class="add-row big" (ngSubmit)="addDoc()">
+                <label class="sr-only" for="doc-url">API docs link</label>
+                <input id="doc-url" name="doc" type="url" placeholder="https://developer.example.com/openapi.yaml"
+                       [ngModel]="draft('api_docs')" (ngModelChange)="setDraft('api_docs', $event)" />
+                <button class="btn btn-xl btn-primary" type="submit" [disabled]="!draft('api_docs').trim() || busy() === 'api_docs'">
+                  @if (busy() === 'api_docs') { <span class="spinner" aria-hidden="true"></span> Reading… } @else { Add docs }
+                </button>
+              </form>
+              <ul class="item-list">
+                @for (d of docs(); track d.url) {
+                  <li class="item" [class.failed]="!d.ok">
+                    <span class="item-mark" [class]="'item-mark tone-' + (d.ok ? (d.kind === 'openapi' ? 'accent' : 'neutral') : 'poor')" aria-hidden="true">
+                      {{ d.ok ? (d.kind === 'openapi' ? '{ }' : '¶') : '✕' }}
+                    </span>
+                    <div class="item-body">
+                      <div class="item-head">
+                        <span class="item-title">{{ d.ok ? d.title : d.url }}</span>
+                        @if (d.ok) {
+                          <span class="pill">{{ d.kind === 'openapi' ? 'OpenAPI ' + d.version : 'Page' }}</span>
+                          @if (d.operation_count) { <span class="pill mono">{{ d.operation_count }} operations</span> }
+                        }
+                      </div>
+                      @if (d.ok) {
+                        <a class="mono drill" [href]="d.url" target="_blank" rel="noopener">{{ d.url }} ↗</a>
+                        <p class="meta clamp">{{ d.summary }}</p>
+                      } @else {
+                        <p class="err-text"><span aria-hidden="true">✕</span> {{ d.error }}</p>
+                      }
+                    </div>
+                    <button class="btn btn-small" (click)="removeDoc(d.url)" [attr.aria-label]="'Remove ' + (d.title || d.url)">Remove</button>
+                  </li>
+                }
+              </ul>
+              @if (docs().length) {
+                <button class="btn" [disabled]="busy() === 'api_docs'" (click)="refreshDocs()">Read all again</button>
+              }
+            }
+
+            <!-- 6 · Third-party APIs --------------------------------------------------------------------- -->
+            @case ('third_parties') {
+              @if (mentionedProviders().length) {
+                <div class="callout">
+                  <span class="callout-mark" aria-hidden="true">“</span>
+                  <div>
+                    <p class="callout-title">The PRD names {{ mentionedProviders().length === 1 ? 'a provider' : 'these providers' }}</p>
+                    @for (p of mentionedProviders(); track p.key) {
+                      <p class="meta">{{ p.name }}: <em>“{{ a.third_parties.mentioned[p.key][0].text }}”</em> <span class="mono">L{{ a.third_parties.mentioned[p.key][0].line }}</span></p>
+                    }
+                  </div>
+                  <div class="callout-actions">
+                    @for (p of mentionedProviders(); track p.key) {
+                      <button class="btn btn-lg btn-primary" [disabled]="busy() === 'third_parties'" (click)="addCatalogProvider(p)">Add {{ p.name }}</button>
+                    }
+                  </div>
+                </div>
+              }
+
+              @if (a.third_parties.providers.length) {
+                <ul class="item-list">
+                  @for (p of a.third_parties.providers; track p.name) {
+                    <li class="item provider" [class.failed]="p.doc && !p.doc.ok">
+                      <span class="item-mark tone-neutral mono" aria-hidden="true">{{ p.name.slice(0, 2) }}</span>
+                      <div class="item-body">
+                        <div class="item-head">
+                          <span class="item-title">{{ p.name }}</span>
+                          @if (p.mentioned.length) { <span class="pill">Named in the PRD · L{{ p.mentioned[0].line }}</span> }
+                          @if (p.doc?.ok) { <span class="state-pill tone-good"><span class="glyph" aria-hidden="true">✓</span>Docs read</span> }
+                          @else if (!p.docs_url) { <span class="state-pill tone-watch"><span class="glyph" aria-hidden="true">?</span>No docs yet</span> }
+                        </div>
+                        <label class="docs-field">
+                          <span class="label-caps">Docs link</span>
+                          <input type="url" [value]="p.docs_url" placeholder="Paste the provider's API docs link"
+                                 (keydown.enter)="setProviderDocs(p.name, $any($event.target).value)"
+                                 (blur)="setProviderDocs(p.name, $any($event.target).value)" />
+                        </label>
+                        @if (p.doc && !p.doc.ok) { <p class="err-text"><span aria-hidden="true">✕</span> {{ p.doc.error }}</p> }
+                        @if (p.doc?.ok) { <p class="meta clamp">{{ p.doc!.title }} — {{ p.doc!.summary }}</p> }
+                      </div>
+                      <button class="btn btn-small" (click)="removeProvider(p.name)" [attr.aria-label]="'Remove ' + p.name">Remove</button>
+                    </li>
+                  }
+                </ul>
+              }
+
+              <p class="sub-title">Quick add</p>
+              <ul class="provider-grid" aria-label="Providers">
+                @for (p of catalog()?.providers ?? []; track p.key) {
+                  <li>
+                    <button class="provider-card" [class.on]="providerKeys().has(p.key)" [disabled]="providerKeys().has(p.key) || busy() === 'third_parties'"
+                            (click)="addCatalogProvider(p)">
+                      <span class="provider-name">{{ p.name }} @if (providerKeys().has(p.key)) { <span aria-hidden="true">✓</span><span class="sr-only">added</span> }</span>
+                      <span class="meta">{{ p.category }} · {{ p.region }}</span>
+                    </button>
+                  </li>
+                }
+              </ul>
+
+              <p class="sub-title">Another provider</p>
+              <form class="add-row" (ngSubmit)="addCustomProvider()">
+                <label class="sr-only" for="prov-name">Provider name</label>
+                <input id="prov-name" name="pn" type="text" placeholder="Provider name" [ngModel]="providerName()" (ngModelChange)="providerName.set($event)" />
+                <label class="sr-only" for="prov-docs">Docs link</label>
+                <input id="prov-docs" name="pd" type="url" placeholder="Docs link (optional)" [ngModel]="providerDocs()" (ngModelChange)="providerDocs.set($event)" />
+                <button class="btn btn-lg" type="submit" [disabled]="!providerName().trim() || busy() === 'third_parties'">Add</button>
+              </form>
+            }
+
+            <!-- 7 · The analysis --------------------------------------------------------------------- -->
+            @case ('plan') {
+              <sl-kickoff-analysis [projectId]="projectId()" [analysis]="a" [status]="status()" [catalog]="catalog()"
+                                   (changed)="onAnalysisChange($event)" (goStep)="go($event)"
+                                   (openSettings)="openSettings.emit()" />
+            }
+          }
+
+          @if (step() !== 'plan') {
+            <footer class="step-foot">
+              <button class="btn btn-xl btn-ghost" [disabled]="stepIndex() === 0" (click)="prev()"><span aria-hidden="true">←</span> Back</button>
+              <div class="foot-right">
+                @if (step() === 'dependencies' && !a.dependencies.repos.length) {
+                  <button class="btn btn-xl" [disabled]="busy() === 'dependencies'" (click)="skipDependencies()">None — skip</button>
+                }
+                @if (step() === 'api_docs' && !docs().length) {
+                  <button class="btn btn-xl" [disabled]="busy() === 'api_docs'" (click)="skipDocs()">None — skip</button>
+                }
+                @if (step() === 'third_parties' && !a.third_parties.providers.length) {
+                  <button class="btn btn-xl" [disabled]="busy() === 'third_parties'" (click)="skipProviders()">None — skip</button>
+                }
+                <button class="btn btn-xl btn-primary" (click)="next()">
+                  {{ stepIndex() === 5 ? 'Go to the analysis' : 'Continue' }} <span aria-hidden="true">→</span>
+                </button>
+              </div>
+            </footer>
+          }
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <ng-template #repoStep let-role="role">
+    <form class="add-row big" (ngSubmit)="addRepo(role)">
+      <label class="sr-only" [for]="'repo-' + role">GitHub repository link</label>
+      <input [id]="'repo-' + role" name="repo" type="text" placeholder="https://github.com/owner/repo"
+             [ngModel]="draft(role)" (ngModelChange)="setDraft(role, $event)" autocomplete="off" />
+      <button class="btn btn-xl btn-primary" type="submit" [disabled]="!draft(role).trim() || busy() === role">
+        @if (busy() === role) { <span class="spinner" aria-hidden="true"></span> Reading… } @else { Add repo }
+      </button>
+    </form>
+    <p class="meta">Paste one or more links, separated by spaces. owner/repo works too.</p>
+    <ul class="item-list">
+      @for (r of repos(role); track r.url) {
+        <li class="item" [class.failed]="!r.ok">
+          <span class="item-mark" [class]="'item-mark tone-' + (r.ok ? 'accent' : 'poor')" aria-hidden="true">{{ r.ok ? '⌥' : '✕' }}</span>
+          <div class="item-body">
+            @if (r.ok) {
+              <div class="item-head">
+                <a class="item-title mono" [href]="r.html_url" target="_blank" rel="noopener">{{ r.full_name }} ↗</a>
+                <a class="pill mono" [href]="r.commit_url" target="_blank" rel="noopener">{{ r.ref }} @ {{ r.commit }}</a>
+                @if (r.archived) { <span class="state-pill tone-watch"><span class="glyph" aria-hidden="true">!</span>Archived</span> }
+              </div>
+              @if (r.description) { <p class="item-desc">{{ r.description }}</p> }
+              <div class="repo-facts">
+                <span><span class="mono">{{ r.file_count | number }}</span> files</span>
+                @if (r.languages.length) { <span>{{ languages(r) }}</span> }
+                @if (r.specs.length) {
+                  <span class="state-pill tone-good"><span class="glyph" aria-hidden="true">✓</span>{{ r.specs.length }} API spec{{ r.specs.length === 1 ? '' : 's' }} · <span class="mono">{{ specOperations(r) }}</span> operations</span>
+                } @else {
+                  <span class="state-pill tone-neutral"><span class="glyph" aria-hidden="true">—</span>No API spec found</span>
+                }
+              </div>
+              @if (r.top_level.length) {
+                <div class="chips">@for (t of r.top_level.slice(0, 14); track t) { <span class="chip mono">{{ t }}</span> }</div>
+              }
+              <p class="meta">Read with {{ r.read_with }} · <span class="mono">{{ r.read_at | date: 'd MMM, HH:mm' }}</span></p>
+            } @else {
+              <div class="item-head"><span class="item-title mono">{{ r.full_name }}</span></div>
+              <p class="err-text"><span aria-hidden="true">✕</span> {{ r.error }}</p>
+            }
+          </div>
+          <div class="item-actions">
+            @if (!r.ok) { <button class="btn btn-small" [disabled]="busy() === role" (click)="refreshRepos(role)">Retry</button> }
+            <button class="btn btn-small" (click)="removeRepo(role, r.url)" [attr.aria-label]="'Remove ' + r.full_name">Remove</button>
+          </div>
+        </li>
+      } @empty {
+        <li class="saved-empty">
+          <span class="empty-mark" aria-hidden="true">⌥</span>
+          <span>{{ role === 'repos' ? 'No repos yet. Add at least one: it is where the analysis puts the work.' : 'No dependencies yet. Add the repos this feature calls, or skip if there are none.' }}</span>
+        </li>
+      }
+    </ul>
+    @if (repos(role).length) {
+      <button class="btn" [disabled]="busy() === role" (click)="refreshRepos(role)">Read all again at their latest commit</button>
     }
-  }
-</div>
+  </ng-template>
+}
 
 @if (openGuide() && guide(); as g) {
   <sl-guide-modal [guide]="g" (closed)="openGuide.set(false)" />

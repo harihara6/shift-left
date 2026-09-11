@@ -4,7 +4,7 @@ Backbase's internal quality and delivery observability platform. It reads engine
 (Jira, Confluence, Xray, GitHub, CI, LinearB and others), normalizes them into one model, and shows
 whether a feature is actually done, not just whether it looks fast.
 
-- **Feature Kickoff**: takes a PRD to a checked, tagged plan (Jira, Xray, Confluence, software catalog, product index), deciding what applies from what the PRD says. Nothing is written until someone confirms it; by default it reads example pages and confirming is a dry run.
+- **Feature Kickoff**: seven steps from a Confluence PRD to an ordered Jira backlog: the repos you code in and rely on, the compliance you approve, your API docs and third-party APIs, then a Claude analysis of what work lands where. Saved per feature, so it can be reopened and run again. Nothing reaches Jira until someone creates it.
 - **Feature Readiness**: per-feature Definition of Ready / Done evidence, with the reasons behind every status.
 - **Shift-left Rollout**: how far each team has moved from observing evidence to gating on it.
 - **Team Insights**: flow metrics (cycle time, throughput, PR size), always linked back to the evidence.
@@ -64,15 +64,10 @@ Everything has a working default for local development. List values are JSON, e.
 | `SHIFTLEFT_ATLASSIAN_MCP_TOKEN` | empty | Optional. Token for Rovo MCP |
 | `SHIFTLEFT_ANTHROPIC_API_KEY` | empty | Optional. Enables Claude-assisted matching in guided setup (`pip install -e "backend[ai]"`) |
 | `SHIFTLEFT_ANTHROPIC_TIMEOUT_SECONDS` | `30` | How long discovery waits for Claude before falling back to name matching |
-| `SHIFTLEFT_KICKOFF_MODEL_TIMEOUT_SECONDS` | `60` | How long Feature Kickoff waits for Claude to read a PRD before falling back to the keyword reader |
-| `SHIFTLEFT_KICKOFF_SOURCES` | `fixtures` | Feature Kickoff reads example pages (`fixtures`) or Confluence, GitHub and the product index (`live`). Production requires `live` |
-| `SHIFTLEFT_KICKOFF_WRITE_MODE` | `dry-run` | `live` writes confirmed plans to Jira, Xray and Confluence. Needs `SHIFTLEFT_KICKOFF_SOURCES=live` |
-| `SHIFTLEFT_KICKOFF_PRD_LABEL` | `sl-requirements` | The Confluence label that marks a page as a PRD |
-| `SHIFTLEFT_ATLASSIAN_EMAIL` / `SHIFTLEFT_ATLASSIAN_API_TOKEN` | empty | Jira and Confluence REST for live kickoff reads and writes, on `SHIFTLEFT_ATLASSIAN_SITE_URL`. Writes act as this account, inside the kickoff's own project |
-| `SHIFTLEFT_SOFTWARE_CATALOG_PAGE_ID` | empty | The Confluence page holding the software catalog table |
-| `SHIFTLEFT_PRODUCT_INDEX_URL` / `SHIFTLEFT_PRODUCT_INDEX_TOKEN` | empty | Where the product index is read from. Needs its parser (`backend/app/connectors/product_index_parser.py`) |
-| `SHIFTLEFT_GITHUB_API_URL` / `SHIFTLEFT_GITHUB_TOKEN` | `https://api.github.com` / empty | Reading each service's API spec at a commit |
-| `SHIFTLEFT_XRAY_BASE_URL` / `SHIFTLEFT_XRAY_CLIENT_ID` / `SHIFTLEFT_XRAY_CLIENT_SECRET` | `https://xray.cloud.getxray.app` / empty | Creating Xray tests and the test plan. EU and AU tenants use their regional host |
+| `SHIFTLEFT_KICKOFF_MODEL_TIMEOUT_SECONDS` | `300` | How long Feature Kickoff waits for Claude's analysis before falling back to the rule-based draft (labelled as such) |
+| `SHIFTLEFT_ATLASSIAN_EMAIL` / `SHIFTLEFT_ATLASSIAN_API_TOKEN` | empty | Feature Kickoff's fallback Jira/Confluence credential on `SHIFTLEFT_ATLASSIAN_SITE_URL`, used when Settings → Connectors has none: reading the PRD and creating the backlog |
+| `SHIFTLEFT_GITHUB_API_URL` / `SHIFTLEFT_GITHUB_TOKEN` | `https://api.github.com` / empty | Feature Kickoff's fallback GitHub token for reading repos, when Settings → Connectors has none. Public repos read without one |
+| `SHIFTLEFT_XRAY_BASE_URL` / `SHIFTLEFT_XRAY_CLIENT_ID` / `SHIFTLEFT_XRAY_CLIENT_SECRET` | `https://xray.cloud.getxray.app` / empty | Xray Cloud for Settings → Connectors. EU and AU tenants use their regional host |
 | `SHIFTLEFT_CURSOR_API_KEY` | empty | Lists the models on the team's Cursor account on the kickoff page (they run in the editor) |
 
 Without the optional settings those features fall back to simpler behaviour; nothing breaks.

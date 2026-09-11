@@ -1,43 +1,37 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
 
-# context -> planned -> applying -> applied, or partial when some items failed (a retry applies the
-# same frozen plan again). Everything from "applying" on has been confirmed by a named person, and
-# the plan is frozen: a second kickoff is a new session, so a confirmed plan stays a record of
-# exactly what was confirmed.
-KICKOFF_STATES = ("context", "planned", "applying", "partial", "applied")
+# draft -> analysed -> created (partial while some tickets failed to create). Inputs stay editable
+# in every state: a saved analysis is reopened, changed and run again, and the plan says when it
+# was drafted from inputs that have since changed.
+ANALYSIS_STATES = ("draft", "analysed", "created", "partial")
 
 
-class KickoffSession(Base, TimestampMixin):
-    """One PRD taken through Feature Kickoff: what it said, what was chosen, what was confirmed.
+class KickoffAnalysis(Base, TimestampMixin):
+    """One feature taken from a PRD to an ordered backlog: the seven steps' inputs and results.
 
-    `data` holds what was *read or decided*: facts, choices, findings, suggestion decisions,
-    excluded items, and once applied the frozen plan and its results. Rule outcomes and the live
-    plan are computed from it on every read, never stored, so no outcome exists that nobody can
-    trace back to a fact.
+    `inputs` holds what was read or chosen, one key per step: the PRD as read, the repos to code
+    in, the repos relied on, the approved compliance, API docs and third-party providers, and the
+    backlog link. `plan` is the drafted analysis, kept with the fingerprint of the inputs it was
+    drafted from; `backlog` records what was created in Jira, per task, and by whom.
     """
 
-    __tablename__ = "kickoff_sessions"
+    __tablename__ = "kickoff_analyses"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
-    # The PRD is read with the actor's own Confluence permissions, so the session is theirs.
-    actor: Mapped[str] = mapped_column(String(160), index=True)
-    page_id: Mapped[str] = mapped_column(String(64))
-    page_title: Mapped[str] = mapped_column(String(300))
-    page_version: Mapped[int] = mapped_column(Integer, default=0)
-    status: Mapped[str] = mapped_column(String(16), default="context")
-    # Which provider and model read the PRD, and whether it fell back to the keyword reader.
-    # Recorded because how a draft was produced is part of reading it (product rule 6).
-    provider: Mapped[str] = mapped_column(String(32), default="rules")
-    model: Mapped[str] = mapped_column(String(120), default="rules")
-    reader: Mapped[str] = mapped_column(String(16), default="rules")
-    data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
-    approved_by: Mapped[str | None] = mapped_column(String(160), default=None)
-    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
-    note: Mapped[str] = mapped_column(Text, default="")
+    title: Mapped[str] = mapped_column(String(300), default="Untitled analysis")
+    status: Mapped[str] = mapped_column(String(16), default="draft")
+    created_by: Mapped[str] = mapped_column(String(160))
+    updated_by: Mapped[str] = mapped_column(String(160))
+    inputs: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    plan: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
+    backlog: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
+    # How many times the analysis has run: each run replaces the plan, and the count says so.
+    runs: Mapped[int] = mapped_column(Integer, default=0)
+    analysed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)

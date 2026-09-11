@@ -1,387 +1,869 @@
-"""Feature Kickoff: the rules are the product's, not the endpoint's.
+"""Feature Kickoff: seven steps from a PRD to an ordered Jira backlog, against fake live systems.
 
-What runs is decided from what the PRD says, and every decision carries its reason. Nothing that
-should run is skipped silently, nothing is called feasible, every fact and plan item traces back
-to a source, and nothing is written until a named person confirms it.
+A fake Confluence, GitHub, Jira and docs host answer the documented REST shapes, so these tests pin
+down what the readers send and what they do with the answers. No example data is involved anywhere:
+without a connection, a step says how to connect.
 """
+
+import json
+from html import escape
+from urllib.parse import parse_qs, urlparse
 
 import httpx
 import pytest
 
 ENT = "/api/projects/entitlements"
 PAY = "/api/projects/db-payments"
-NUC = "/api/projects/nucleus"
+SITE = "https://example.atlassian.net"
+PAGE_ID = "9100001"
+PAGE_URL = f"{SITE}/wiki/spaces/ENT/pages/{PAGE_ID}/Instant+account+aggregation"
+TOKEN = "atl-token-never-shown"
+GH_TOKEN = "gh-token-never-shown"
 
-EU_PAYMENTS = "7340021"   # Instant credit transfers, NL and DE
-UK_AIS = "7418806"        # Account information API for TPPs, UK
-COPY_CHANGE = "7502117"   # Wording on the confirmation screen
+ENV = {
+    "SHIFTLEFT_ATLASSIAN_SITE_URL": SITE,
+    "SHIFTLEFT_ATLASSIAN_EMAIL": "kickoff-bot@backbase.com",
+    "SHIFTLEFT_ATLASSIAN_API_TOKEN": TOKEN,
+    "SHIFTLEFT_GITHUB_TOKEN": GH_TOKEN,
+}
 
+PRD_LINES = [
+    "## Summary",
+    "Customers in Germany and the Netherlands see their accounts at other banks next to their own, "
+    "through open banking account information.",
+    "## Requirements",
+    "- Link an account at another bank through Salt Edge",
+    "- Show balances and transactions for linked accounts",
+    "- Let the customer remove a linked account at any time",
+    "## Data",
+    "The feature stores personal data: account holder name and IBAN.",
+]
 
-async def _start(client: httpx.AsyncClient, base: str, headers: dict, page_id: str) -> dict:
-    response = await client.post(
-        f"{base}/kickoff", headers=headers,
-        json={"page_id": page_id, "provider": "rules", "model": "rules"},
-    )
-    assert response.status_code == 201, response.text
-    return response.json()
+SPEC = """
+openapi: 3.0.3
+info: {title: Accounts API, version: 2.1.0}
+paths:
+  /accounts: {get: {summary: List}}
+  /accounts/{id}/balances: {get: {summary: Balances}}
+  /accounts/{id}/legacy: {get: {summary: Old, deprecated: true}}
+"""
 
-
-def _action(session: dict, key: str) -> dict:
-    return next(a for a in session["actions"] if a["key"] == key)
-
-
-def _fact(session: dict, key: str) -> dict:
-    return next(f for f in session["facts"] if f["key"] == key)
-
-
-async def _choose(client, base, headers, session, **overrides) -> httpx.Response:
-    """Keep every default choice, except the overrides: key=(selected, skip_reason)."""
-    choices = []
-    for action in session["actions"]:
-        selected, reason = overrides.get(action["key"], (action["selected"], ""))
-        choices.append({"key": action["key"], "selected": selected, "skip_reason": reason})
-    return await client.put(f"{base}/kickoff/{session['id']}/actions", headers=headers,
-                            json={"choices": choices})
-
-
-# --- Reading ----------------------------------------------------------------------------------
-
-
-async def test_every_stated_fact_quotes_a_sentence_that_is_in_the_prd(client, admin):
-    session = await _start(client, PAY, admin, EU_PAYMENTS)
-    prd_lines = [
-        line.removeprefix("- ") for line in (await _prd_body(EU_PAYMENTS)) if not line.startswith("## ")
-    ]
-    for fact in session["facts"]:
-        if fact["status"] == "stated":
-            assert fact["quotes"], fact["key"]
-            for quote in fact["quotes"]:
-                assert quote["text"] in prd_lines, (fact["key"], quote)
-        else:
-            assert fact["values"] == []
-
-    assert set(_fact(session, "regions")["values"]) == {"NL", "DE"}
-    assert _fact(session, "third_party_access")["values"] == ["none"]
-    assert session["reader"] == "rules"
-    assert session["drafted_by"] == "Rule-based reader"
+DOC_SPEC = """
+openapi: 3.0.3
+info: {title: Digital Banking API, version: 5.0.0}
+paths:
+  /linked-accounts: {get: {summary: List}, post: {summary: Link}}
+components:
+  securitySchemes:
+    oauth: {type: oauth2, flows: {authorizationCode: {}}}
+"""
 
 
-async def _prd_body(page_id: str) -> list[str]:
+def storage_of(lines: list[str]) -> str:
+    out, in_list = [], False
+    for line in lines:
+        if line.startswith("- "):
+            if not in_list:
+                out.append("<ul>")
+                in_list = True
+            out.append(f"<li><p>{escape(line[2:])}</p></li>")
+            continue
+        if in_list:
+            out.append("</ul>")
+            in_list = False
+        out.append(f"<h2>{escape(line[3:])}</h2>" if line.startswith("## ") else f"<p>{escape(line)}</p>")
+    if in_list:
+        out.append("</ul>")
+    return "".join(out)
+
+
+class World:
+    """One fake for every host Feature Kickoff calls."""
+
+    def __init__(self) -> None:
+        self.repos = {
+            "acme/accounts-web": {
+                "description": "The web app",
+                "language": "TypeScript",
+                "files": [
+                    "package.json",
+                    "src/app/accounts/accounts.component.ts",
+                    "src/app/accounts/accounts.service.ts",
+                    "node_modules/left-pad/index.js",
+                ],
+            },
+            "acme/accounts-api": {
+                "description": "The accounts service",
+                "language": "Java",
+                "files": [
+                    "pom.xml",
+                    "api/openapi.yaml",
+                    "src/main/java/com/acme/accounts/AccountsController.java",
+                ],
+            },
+        }
+        self.required: list[dict] = []
+        self.issues: list[dict] = []
+        self.links: list[tuple[str, str]] = []
+        self.created: list[dict] = []
+        self.auth_seen: set[str] = set()
+
+    # -- the transport -----------------------------------------------------------------------
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.auth_seen.add(request.headers.get("authorization", ""))
+        host = request.url.host
+        if host == "example.atlassian.net":
+            return self.atlassian(request)
+        if host == "api.github.com":
+            return self.github(request)
+        if host == "docs.example.com":
+            return self.docs(request)
+        return httpx.Response(404)
+
+    def atlassian(self, request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == f"/wiki/api/v2/pages/{PAGE_ID}":
+            return httpx.Response(
+                200,
+                json={
+                    "id": PAGE_ID,
+                    "title": "Instant account aggregation",
+                    "spaceId": "77",
+                    "version": {"number": 7, "createdAt": "2026-09-01T10:00:00Z"},
+                    "body": {"storage": {"value": storage_of(PRD_LINES)}},
+                    "_links": {"webui": f"/spaces/ENT/pages/{PAGE_ID}/Instant+account+aggregation"},
+                },
+            )
+        if path.startswith("/wiki/api/v2/pages/"):
+            return httpx.Response(404, json={"message": "Not found"})
+        if path == "/wiki/api/v2/spaces/77":
+            return httpx.Response(200, json={"key": "ENT"})
+        if path == "/rest/api/3/issue/createmeta/ENT/issuetypes":
+            return httpx.Response(
+                200,
+                json={
+                    "issueTypes": [
+                        {"id": "10", "name": "Epic"},
+                        {"id": "11", "name": "Story"},
+                        {"id": "12", "name": "Task"},
+                    ]
+                },
+            )
+        if path.startswith("/rest/api/3/issue/createmeta/ENT/issuetypes/"):
+            return httpx.Response(200, json={"fields": self.required})
+        if path.startswith("/rest/api/3/issue/createmeta/"):
+            return httpx.Response(404, json={"errorMessages": ["No project"]})
+        if path == "/rest/api/3/search/jql":
+            jql = parse_qs(urlparse(str(request.url)).query)["jql"][0]
+            label = jql.split('labels = "')[1].rstrip('"')
+            return httpx.Response(
+                200,
+                json={
+                    "issues": [
+                        {
+                            "id": i["id"],
+                            "key": i["key"],
+                            "fields": {"summary": i["fields"]["summary"], "project": {"key": "ENT"}},
+                        }
+                        for i in self.issues
+                        if label in i["fields"].get("labels", [])
+                    ]
+                },
+            )
+        if path == "/rest/api/3/issue" and request.method == "POST":
+            fields = json.loads(request.content)["fields"]
+            key = f"ENT-{len(self.issues) + 1}"
+            issue = {"id": str(100 + len(self.issues)), "key": key, "fields": fields}
+            self.issues.append(issue)
+            self.created.append(issue)
+            return httpx.Response(201, json={"id": issue["id"], "key": key})
+        if path == "/rest/api/3/issueLinkType":
+            return httpx.Response(200, json={"issueLinkTypes": [{"name": "Blocks"}, {"name": "Relates"}]})
+        if path == "/rest/api/3/issueLink":
+            body = json.loads(request.content)
+            self.links.append((body["inwardIssue"]["key"], body["outwardIssue"]["key"]))
+            return httpx.Response(201)
+        if path.startswith("/rest/api/3/issue/"):
+            key = path.rsplit("/", 1)[1]
+            links = [
+                {"id": str(n), "type": {"name": "Blocks"}, "outwardIssue": {"key": b}}
+                for n, (a, b) in enumerate(self.links)
+                if a == key
+            ]
+            return httpx.Response(200, json={"fields": {"issuelinks": links}})
+        return httpx.Response(404)
+
+    def github(self, request: httpx.Request) -> httpx.Response:
+        parts = request.url.path.strip("/").split("/")
+        name = "/".join(parts[1:3])
+        repo = self.repos.get(name)
+        if repo is None:
+            return httpx.Response(404, json={"message": "Not Found"})
+        rest = parts[3:]
+        if not rest:
+            return httpx.Response(
+                200,
+                json={
+                    "full_name": name,
+                    "description": repo["description"],
+                    "default_branch": "main",
+                    "language": repo["language"],
+                    "topics": ["banking"],
+                    "visibility": "private",
+                    "archived": False,
+                },
+            )
+        if rest[0] == "commits":
+            return httpx.Response(200, text="abc123def4567890")
+        if rest[:2] == ["git", "trees"]:
+            return httpx.Response(
+                200,
+                json={
+                    "truncated": False,
+                    "tree": [{"path": p, "type": "blob"} for p in repo["files"]]
+                    + [{"path": "src", "type": "tree"}],
+                },
+            )
+        if rest[0] == "languages":
+            return httpx.Response(200, json={repo["language"]: 9000, "Shell": 1000})
+        if rest[0] == "readme":
+            return httpx.Response(200, text=f"# {name}\nHow to build and run {name}.")
+        if rest[0] == "contents" and "/".join(rest[1:]) == "api/openapi.yaml":
+            return httpx.Response(200, text=SPEC)
+        return httpx.Response(404)
+
+    def docs(self, request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/openapi.yaml":
+            return httpx.Response(200, text=DOC_SPEC, headers={"content-type": "application/yaml"})
+        if request.url.path == "/guide":
+            return httpx.Response(
+                200,
+                headers={"content-type": "text/html"},
+                text=(
+                    "<html><head><title>Salt Edge guide</title><script>var x=1</script></head>"
+                    "<body><h1>Connect</h1><p>Create a customer, then a connection.</p></body></html>"
+                ),
+            )
+        if request.url.path == "/moved":
+            return httpx.Response(302, headers={"location": "http://metadata.internal/latest"})
+        if request.url.path == "/private":
+            return httpx.Response(401)
+        return httpx.Response(404)
+
+
+@pytest.fixture
+def world(monkeypatch) -> World:
+    return World()
+
+
+def _wire(world: World, monkeypatch, local: set[str] | None = None) -> None:
+    """Point every outbound call at the fake. Called inside `boot`, after the app is imported."""
+    from app.connectors import http
     from app.services import kickoff_sources
 
-    return (await kickoff_sources.prd(page_id))["body"]
+    http.transport = httpx.MockTransport(world)
+
+    async def resolve(host: str) -> list[str]:
+        return ["127.0.0.1"] if host in (local or {"metadata.internal"}) else ["93.184.216.34"]
+
+    monkeypatch.setattr(kickoff_sources, "resolve_host", resolve)
 
 
-async def test_the_model_list_comes_from_the_providers_and_says_what_is_missing(client, admin):
-    options = (await client.get(f"{PAY}/kickoff/models", headers=admin)).json()
-    providers = {p["key"]: p for p in options["providers"]}
-
-    # No key in tests: Claude is listed as unavailable with the reason, never silently absent.
-    assert providers["claude"]["available"] is False
-    assert "SHIFTLEFT_ANTHROPIC_API_KEY" in providers["claude"]["note"]
-    assert providers["cursor"]["available"] is False
-    assert providers["rules"]["available"] is True
-    assert options["default_provider"] == "rules"
-
-
-async def test_an_unavailable_model_is_refused_rather_than_quietly_swapped(client, admin):
-    response = await client.post(
-        f"{PAY}/kickoff", headers=admin,
-        json={"page_id": EU_PAYMENTS, "provider": "claude", "model": "claude-opus-5"},
+async def _ready(c: httpx.AsyncClient, h: dict, *, deps: bool = True) -> dict:
+    """An analysis with every step through compliance done."""
+    a = (await c.post(f"{ENT}/kickoff/analyses", headers=h, json={"prd_url": PAGE_URL})).json()
+    base = f"{ENT}/kickoff/analyses/{a['id']}"
+    await c.put(f"{base}/repos", headers=h, json={"urls": ["https://github.com/acme/accounts-web"]})
+    await c.put(
+        f"{base}/dependencies",
+        headers=h,
+        json={"urls": ["https://github.com/acme/accounts-api"] if deps else []},
     )
-    assert response.status_code == 422
-    assert "isn't available" in response.json()["detail"]
-
-
-# --- What runs is decided by the PRD --------------------------------------------------------------
-
-
-async def test_an_eu_payments_prd_gets_iso20022_but_not_open_banking_standards(client, admin):
-    session = await _start(client, PAY, admin, EU_PAYMENTS)
-
-    assert _action(session, "std_iso20022")["outcome"] == "applies"
-    berlin = _action(session, "std_berlin_group")
-    assert berlin["outcome"] == "not_applicable"
-    # Ruled out by a named fact, and the reason says which.
-    assert "Third-party access: None" in berlin["reason"]
-    assert _action(session, "std_obie")["outcome"] == "not_applicable"
-    assert _action(session, "std_fdx")["outcome"] == "not_applicable"
-    assert session["tier"]["tier"] == "New capability"
-
-
-async def test_a_uk_third_party_api_gets_open_banking_and_not_berlin_group(client, admin):
-    session = await _start(client, ENT, admin, UK_AIS)
-
-    assert _action(session, "std_obie")["outcome"] == "applies"
-    assert "United Kingdom" in _action(session, "std_berlin_group")["reason"]
-    assert _action(session, "std_berlin_group")["outcome"] == "not_applicable"
-    assert _action(session, "std_iso20022")["outcome"] == "not_applicable"
-    assert _action(session, "std_bian")["outcome"] == "applies"
-    assert _action(session, "software_catalog")["outcome"] == "applies"
-    assert session["tier"]["tier"] == "Major change"
-
-
-async def test_a_copy_change_runs_almost_nothing_and_says_why(client, admin):
-    session = await _start(client, NUC, admin, COPY_CHANGE)
-
-    applies = {a["key"] for a in session["actions"] if a["outcome"] != "not_applicable"}
-    assert applies == {"jira_backlog", "xray_plan", "feasibility_page"}
-    assert all(a["reason"] for a in session["actions"])
-    assert session["tier"]["tier"] == "Config / copy"
-
-
-async def test_a_missing_fact_runs_the_check_and_asks_the_question(client, admin):
-    session = await _start(client, PAY, admin, EU_PAYMENTS)
-
-    # The PRD never says whether it adds an API: undetermined runs, with a question.
-    bian = _action(session, "std_bian")
-    assert bian["outcome"] == "undetermined"
-    assert bian["recommended"] is True and bian["selected"] is True
-    assert bian["question"]
-    # Nor does it name the scheme that carries the payments.
-    assert _action(session, "third_party_check")["outcome"] == "undetermined"
-
-
-async def test_correcting_a_fact_re_resolves_the_rules_and_is_attributed(client, admin):
-    session = await _start(client, PAY, admin, EU_PAYMENTS)
-    response = await client.put(
-        f"{PAY}/kickoff/{session['id']}/facts", headers=admin,
-        json={"facts": [{"key": "introduces_api", "values": ["no"]}]},
+    await c.post(f"{base}/compliance/suggest", headers=h)
+    r = await c.put(f"{base}/compliance", headers=h, json={"selected": ["psd2", "gdpr"], "custom": []})
+    assert r.status_code == 200, r.text
+    await c.put(f"{base}/api-docs", headers=h, json={"urls": ["https://docs.example.com/openapi.yaml"]})
+    r = await c.put(
+        f"{base}/third-parties",
+        headers=h,
+        json={"providers": [{"key": "saltedge", "name": "", "docs_url": "https://docs.example.com/guide"}]},
     )
-    assert response.status_code == 200, response.text
-    updated = response.json()
-
-    assert _action(updated, "std_bian")["outcome"] == "not_applicable"
-    assert _fact(updated, "introduces_api")["status"] == "confirmed"
-    assert _fact(updated, "introduces_api")["confirmed_by"] == admin["X-ShiftLeft-User"]
+    assert r.status_code == 200, r.text
+    return r.json()
 
 
-async def test_a_fact_outside_the_vocabulary_is_refused(client, admin):
-    session = await _start(client, PAY, admin, EU_PAYMENTS)
-    response = await client.put(
-        f"{PAY}/kickoff/{session['id']}/facts", headers=admin,
-        json={"facts": [{"key": "regions", "values": ["Atlantis"]}]},
+async def _run(c: httpx.AsyncClient, h: dict, analysis: dict, provider: str = "rules") -> dict:
+    r = await c.post(
+        f"{ENT}/kickoff/analyses/{analysis['id']}/run",
+        headers=h,
+        json={"provider": provider, "model": "rules" if provider == "rules" else "claude-opus-5"},
     )
-    assert response.status_code == 409
-    assert response.json()["detail"]["blockers"]
+    assert r.status_code == 200, r.text
+    return r.json()
 
 
-# --- Choosing: scoped-out is not passed ------------------------------------------------------------
+# --- Step 1: the PRD ------------------------------------------------------------------------------------
 
 
-async def test_leaving_a_recommended_action_out_needs_a_reason(client, admin):
-    session = await _start(client, PAY, admin, EU_PAYMENTS)
+async def test_the_prd_is_read_from_confluence_and_saved_as_an_analysis(
+    boot, contributor, world, monkeypatch
+):
+    async with boot(**ENV) as c:
+        _wire(world, monkeypatch)
+        r = await c.post(f"{ENT}/kickoff/analyses", headers=contributor, json={"prd_url": PAGE_URL})
+        assert r.status_code == 201, r.text
+        a = r.json()
+        assert a["title"] == "Instant account aggregation"
+        assert a["prd"]["version"] == 7 and a["prd"]["via"] == "rest" and a["prd"]["space"] == "ENT"
+        assert a["prd"]["lines"] == PRD_LINES
+        assert a["prd"]["read_by"] == "dev@backbase.com"
+        assert [s["done"] for s in a["steps"]] == [True, False, False, False, False, False, False]
 
-    refused = await _choose(client, PAY, admin, session, std_iso20022=(False, ""))
-    assert refused.status_code == 409
-    assert any("ISO 20022" in b for b in refused.json()["detail"]["blockers"])
-
-    accepted = await _choose(client, PAY, admin, session,
-                             std_iso20022=(False, "Covered by the payments platform's own mapping"))
-    assert accepted.status_code == 200
-    iso = _action(accepted.json(), "std_iso20022")
-    assert iso["selected"] is False
-    assert iso["skip_reason"].startswith("Covered")
-
-
-async def test_a_deny_listed_reason_is_recorded_but_flagged(client, admin):
-    session = await _start(client, PAY, admin, EU_PAYMENTS)
-    response = await _choose(client, PAY, admin, session,
-                             std_iso20022=(False, "Capacity pressure this sprint"))
-    assert response.status_code == 200
-    assert _action(response.json(), "std_iso20022")["skip_flagged"] is True
+        listed = (await c.get(f"{ENT}/kickoff/analyses", headers=contributor)).json()
+        assert [x["id"] for x in listed] == [a["id"]]
+        assert listed[0]["steps_done"] == 1 and listed[0]["steps_total"] == 7
 
 
-# --- Checks: never "feasible" -----------------------------------------------------------------------
+async def test_a_page_on_another_site_or_a_missing_page_is_refused_with_the_reason(
+    boot, contributor, world, monkeypatch
+):
+    async with boot(**ENV) as c:
+        _wire(world, monkeypatch)
+        other = await c.post(
+            f"{ENT}/kickoff/analyses",
+            headers=contributor,
+            json={"prd_url": "https://elsewhere.atlassian.net/wiki/spaces/X/pages/1/Y"},
+        )
+        assert other.status_code == 409
+        assert "elsewhere.atlassian.net" in other.json()["detail"]["message"]
+        assert "example.atlassian.net" in other.json()["detail"]["message"]
+        missing = await c.post(
+            f"{ENT}/kickoff/analyses",
+            headers=contributor,
+            json={"prd_url": f"{SITE}/wiki/spaces/ENT/pages/404/Gone"},
+        )
+        assert missing.status_code == 409 and "wasn't found" in missing.json()["detail"]["message"]
+        no_id = await c.post(
+            f"{ENT}/kickoff/analyses", headers=contributor, json={"prd_url": f"{SITE}/wiki/home"}
+        )
+        assert "page id" in no_id.json()["detail"]["message"]
+        assert (await c.get(f"{ENT}/kickoff/analyses", headers=contributor)).json() == []
 
 
-async def test_a_missing_operation_is_a_blocker_with_a_link_and_a_dependency_suggestion(client, admin):
-    session = await _start(client, PAY, admin, EU_PAYMENTS)
-    planned = (await _choose(client, PAY, admin, session)).json()
-
-    dependency = next(c for c in planned["checks"] if c["key"] == "dependency_check")
-    blocker = next(f for f in dependency["findings"] if f["status"] == "blocker")
-    assert "POST /payment-orders/instant" in blocker["title"]
-    assert "/blob/4f2c9e1/" in blocker["link"]["url"]  # the spec at the commit it was read at
-    assert planned["headline"]["rag"] == "poor"
-    assert any(s["key"].startswith("dependency:payment-order-service") for s in planned["suggestions"])
-
-
-async def test_the_headline_never_says_feasible_and_lists_what_was_not_checked(client, admin):
-    session = await _start(client, ENT, admin, UK_AIS)
-    planned = (await _choose(client, ENT, admin, session)).json()
-
-    reasons = " ".join(planned["headline"]["reasons"])
-    assert "feasible" not in reasons.lower()
-    assert "Not checked:" in reasons
-    # transaction-service isn't in the catalog, so it can't be read: a gap, never a pass.
-    dependency = next(c for c in planned["checks"] if c["key"] == "dependency_check")
-    unchecked = [f for f in dependency["findings"] if f["status"] == "not_checked"]
-    assert any("transaction-service" in f["title"] for f in unchecked)
-    # And a deprecated operation is a gap, not an ok.
-    assert any(f["status"] == "gap" and "deprecated" in f["title"] for f in dependency["findings"])
+async def test_without_a_connection_the_prd_step_says_how_to_connect_instead_of_showing_examples(
+    client, contributor
+):
+    r = await client.post(f"{ENT}/kickoff/analyses", headers=contributor, json={"prd_url": PAGE_URL})
+    assert r.status_code == 409
+    assert "Settings → Connectors" in r.json()["detail"]["message"]
+    status = (await client.get(f"{ENT}/kickoff/status", headers=contributor)).json()
+    confluence = next(x for x in status["connections"] if x["key"] == "confluence")
+    assert confluence["state"] == "not_configured"
 
 
-async def test_an_unpinned_standard_is_not_checked_rather_than_passed(client, admin):
-    session = await _start(client, ENT, admin, UK_AIS)
-    # Ask for FDX even though it doesn't apply: it still can't be checked, and says so.
-    planned = (await _choose(client, ENT, admin, session, std_fdx=(True, ""))).json()
-    fdx = next(c for c in planned["checks"] if c["key"] == "std_fdx")
-    assert [f["status"] for f in fdx["findings"]] == ["not_checked"]
+async def test_status_names_where_credentials_come_from_and_never_returns_one(
+    boot, contributor, world, monkeypatch
+):
+    async with boot(**ENV) as c:
+        _wire(world, monkeypatch)
+        r = await c.get(f"{ENT}/kickoff/status", headers=contributor)
+        assert r.status_code == 200
+        assert TOKEN not in r.text and GH_TOKEN not in r.text
+        states = {x["key"]: x["state"] for x in r.json()["connections"]}
+        assert states == {"confluence": "ready", "github": "ready", "jira": "ready", "ai": "fallback"}
 
 
-# --- The plan -----------------------------------------------------------------------------------------
+# --- Steps 2 and 3: repos -----------------------------------------------------------------------------
 
 
-async def test_every_plan_item_says_what_it_was_drawn_from(client, admin):
-    session = await _start(client, ENT, admin, UK_AIS)
-    planned = (await _choose(client, ENT, admin, session)).json()
-
-    items = planned["plan"]["items"]
-    assert items
-    assert all(item["drawn_from"] for item in items), [i["id"] for i in items if not i["drawn_from"]]
-    tests = [i for i in items if i["kind"] == "Test"]
-    assert len(tests) == 4  # one per acceptance criterion
-    epic = next(i for i in items if i["id"] == "epic")
-    assert "shiftleft-tracked" in epic["labels"]
-
-
-async def test_every_artifact_the_tier_requires_is_covered_or_ruled_out_with_a_reason(client, admin):
-    session = await _start(client, ENT, admin, UK_AIS)
-    planned = (await _choose(client, ENT, admin, session)).json()
-
-    coverage = {c["artifact"]: c for c in planned["plan"]["coverage"]}
-    assert len(coverage) == 11
-    # API only: accessibility is ruled out by the channel fact, not quietly dropped.
-    assert coverage["accessibility"]["state"] == "not_applicable"
-    assert coverage["accessibility"]["note"]
-    assert all(c["state"] == "covered" for k, c in coverage.items() if k != "accessibility")
-
-
-async def test_a_copy_change_scopes_down_as_waiver_drafts_not_silence(client, admin):
-    session = await _start(client, NUC, admin, COPY_CHANGE)
-    planned = (await _choose(client, NUC, admin, session)).json()
-
-    coverage = {c["artifact"]: c for c in planned["plan"]["coverage"]}
-    assert coverage["acceptance_criteria"]["state"] == "covered"
-    assert coverage["hld"]["state"] == "waiver_draft"
-    waiver = next(i for i in planned["plan"]["items"] if i["id"] == "waiver:hld")
-    assert "Capacity pressure" in waiver["detail"]
+async def test_repos_are_read_at_a_pinned_commit_with_their_specs(boot, contributor, world, monkeypatch):
+    async with boot(**ENV) as c:
+        _wire(world, monkeypatch)
+        a = (await c.post(f"{ENT}/kickoff/analyses", headers=contributor, json={"prd_url": PAGE_URL})).json()
+        base = f"{ENT}/kickoff/analyses/{a['id']}"
+        r = await c.put(
+            f"{base}/dependencies",
+            headers=contributor,
+            json={"urls": ["https://github.com/acme/accounts-api/tree/main/api", "acme/missing-repo"]},
+        )
+        assert r.status_code == 200, r.text
+        repos = r.json()["dependencies"]["repos"]
+        api, missing = repos
+        assert api["ok"] and api["full_name"] == "acme/accounts-api" and api["commit"] == "abc123def456"
+        assert api["html_url"] == "https://github.com/acme/accounts-api"
+        assert api["specs"][0]["path"] == "api/openapi.yaml"
+        assert api["specs"][0]["operation_count"] == 3
+        assert api["specs"][0]["deprecated"] == ["GET /accounts/{id}/legacy"]
+        assert api["read_with"] == "the service's GitHub token"
+        assert not missing["ok"] and "wasn't found" in missing["error"]
+        assert f"Bearer {GH_TOKEN}" in world.auth_seen
+        # An unreadable repo blocks the run: it is never silently left out of the analysis.
+        assert any("couldn't be read: acme/missing-repo" in b for b in r.json()["run_blockers"])
 
 
-async def test_accepting_a_recommended_step_adds_it_to_the_plan(client, admin):
-    session = await _start(client, PAY, admin, EU_PAYMENTS)
-    await _choose(client, PAY, admin, session)
-    response = await client.put(
-        f"{PAY}/kickoff/{session['id']}/plan", headers=admin,
-        json={"decisions": {"hld_page": "accepted", "lld_page": "dismissed"}},
-    )
-    assert response.status_code == 200, response.text
-    ids = {i["id"] for i in response.json()["plan"]["items"]}
-    assert "suggestion:hld_page" in ids
-    assert "suggestion:lld_page" not in ids
+async def test_a_token_in_settings_connectors_is_used_before_the_environment(
+    boot, contributor, admin, world, monkeypatch
+):
+    async with boot(**ENV) as c:
+        _wire(world, monkeypatch)
+        r = await c.post(
+            "/api/connectors/github/secrets",
+            headers=admin,
+            json={"field_key": "personal_access_token", "value": "gh-from-settings"},
+        )
+        assert r.status_code == 204, r.text
+        a = (await c.post(f"{ENT}/kickoff/analyses", headers=contributor, json={"prd_url": PAGE_URL})).json()
+        r = await c.put(
+            f"{ENT}/kickoff/analyses/{a['id']}/repos",
+            headers=contributor,
+            json={"urls": ["https://github.com/acme/accounts-web"]},
+        )
+        assert r.json()["repos"]["repos"][0]["read_with"] == "Settings → Connectors → GitHub"
+        assert "Bearer gh-from-settings" in world.auth_seen
+        assert "gh-from-settings" not in r.text
 
 
-async def test_the_catalog_is_changed_by_diff_against_the_version_read(client, admin):
-    session = await _start(client, ENT, admin, UK_AIS)
-    planned = (await _choose(client, ENT, admin, session)).json()
-
-    rows = [i for i in planned["plan"]["items"] if i["group"] == "software_catalog"]
-    added = next(r for r in rows if r["diff"]["op"] == "add")
-    assert added["diff"]["fields"]["name"] == "Account Information API"
-    assert "UK Open Banking (OBIE)" in added["diff"]["fields"]["standards"]
-    assert planned["plan"]["catalog_version"] == 31
-
-
-# --- Confirming ---------------------------------------------------------------------------------------
-
-
-async def test_nothing_is_created_until_a_named_person_confirms_and_then_only_as_a_dry_run(client, admin):
-    session = await _start(client, PAY, admin, EU_PAYMENTS)
-    assert session["results"] == [] and session["approved_by"] is None
-
-    early = await client.post(f"{PAY}/kickoff/{session['id']}/apply", headers=admin)
-    assert early.status_code == 409  # no plan yet
-
-    planned = (await _choose(client, PAY, admin, session)).json()
-    left_out = planned["plan"]["items"][-1]["id"]
-    await client.put(f"{PAY}/kickoff/{session['id']}/plan", headers=admin, json={"excluded": [left_out]})
-
-    applied = (await client.post(f"{PAY}/kickoff/{session['id']}/apply", headers=admin)).json()
-    assert applied["status"] == "applied"
-    assert applied["approved_by"] == admin["X-ShiftLeft-User"]
-    assert applied["write_mode"] == "dry-run"
-    by_id = {r["item_id"]: r for r in applied["results"]}
-    assert by_id[left_out]["status"] == "skipped"
-    assert all(r["message"].startswith("Would ") for r in applied["results"] if r["status"] == "dry_run")
-
-    again = await client.post(f"{PAY}/kickoff/{session['id']}/apply", headers=admin)
-    assert again.status_code == 409
+async def test_vendored_paths_are_left_out_of_the_tree(boot, contributor, world, monkeypatch):
+    async with boot(**ENV) as c:
+        _wire(world, monkeypatch)
+        a = (await c.post(f"{ENT}/kickoff/analyses", headers=contributor, json={"prd_url": PAGE_URL})).json()
+        r = await c.put(
+            f"{ENT}/kickoff/analyses/{a['id']}/repos",
+            headers=contributor,
+            json={"urls": ["https://github.com/acme/accounts-web"]},
+        )
+        repo = r.json()["repos"]["repos"][0]
+        assert repo["file_count"] == 3
+        assert "package.json" in repo["manifests"]
 
 
-async def test_the_confirmation_is_audited_with_the_model_that_drafted_it(client, admin):
-    from sqlalchemy import select
-
-    from app.db.session import SessionLocal
-    from app.models.audit import AuditLog
-
-    session = await _start(client, PAY, admin, EU_PAYMENTS)
-    await _choose(client, PAY, admin, session)
-    await client.post(f"{PAY}/kickoff/{session['id']}/apply", headers=admin)
-
-    async with SessionLocal() as db:
-        entries = (await db.execute(
-            select(AuditLog).where(AuditLog.resource_type == "kickoff_session")
-        )).scalars().all()
-    actions = {e.action: e for e in entries}
-    assert set(actions) == {"kickoff_start", "kickoff_apply"}
-    assert actions["kickoff_apply"].detail["model"] == "rules"
-    assert actions["kickoff_apply"].detail["mode"] == "dry-run"
+async def test_a_repo_is_either_coded_in_or_relied_on(boot, contributor, world, monkeypatch):
+    async with boot(**ENV) as c:
+        _wire(world, monkeypatch)
+        a = (await c.post(f"{ENT}/kickoff/analyses", headers=contributor, json={"prd_url": PAGE_URL})).json()
+        base = f"{ENT}/kickoff/analyses/{a['id']}"
+        await c.put(
+            f"{base}/repos", headers=contributor, json={"urls": ["https://github.com/acme/accounts-web"]}
+        )
+        r = await c.put(f"{base}/dependencies", headers=contributor, json={"urls": ["acme/accounts-web"]})
+        assert r.status_code == 409 and "acme/accounts-web" in r.json()["detail"]["message"]
 
 
-# --- Access -------------------------------------------------------------------------------------------
+# --- Step 4: compliance --------------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("who", ["viewer", "stranger"])
-async def test_kickoff_needs_a_contributor_on_the_project(client, request, who):
-    headers = request.getfixturevalue(who)
-    assert (await client.get(f"{ENT}/kickoff/prds", headers=headers)).status_code == 404
-    response = await client.post(
-        f"{ENT}/kickoff", headers=headers, json={"page_id": UK_AIS, "provider": "rules", "model": "rules"}
-    )
-    assert response.status_code == 404
+async def test_compliance_is_proposed_with_quotes_and_the_approval_is_named(
+    boot, contributor, world, monkeypatch
+):
+    async with boot(**ENV) as c:
+        _wire(world, monkeypatch)
+        a = (await c.post(f"{ENT}/kickoff/analyses", headers=contributor, json={"prd_url": PAGE_URL})).json()
+        base = f"{ENT}/kickoff/analyses/{a['id']}"
+        r = await c.post(f"{base}/compliance/suggest", headers=contributor)
+        comp = r.json()["compliance"]
+        by_key = {s["key"]: s for s in comp["suggestions"]}
+        # Germany + "open banking" puts PSD2 in scope; "personal data" in an EU PRD puts GDPR there.
+        assert by_key["psd2"]["confidence"] == "strong" and by_key["gdpr"]["confidence"] == "strong"
+        assert "rule-based" in comp["suggested_note"]
+        for suggestion in comp["suggestions"]:
+            assert suggestion["quotes"]
+            for q in suggestion["quotes"]:
+                assert PRD_LINES[q["line"] - 1].removeprefix("- ") == q["text"]
+        # Nothing is chosen by proposing.
+        assert comp["selected"] == [] and comp["approved_by"] is None
+
+        bad = await c.put(f"{base}/compliance", headers=contributor, json={"selected": ["made_up"]})
+        assert bad.status_code == 409
+        ok = await c.put(
+            f"{base}/compliance",
+            headers=contributor,
+            json={"selected": ["psd2"], "custom": [{"name": "Internal data residency", "note": "EU only"}]},
+        )
+        comp = ok.json()["compliance"]
+        assert comp["approved_by"] == "dev@backbase.com" and comp["selected"] == ["psd2"]
+        assert comp["custom"][0]["name"] == "Internal data residency"
 
 
-async def test_a_kickoff_is_private_to_whoever_ran_it(client, admin, contributor):
-    session = await _start(client, ENT, contributor, UK_AIS)
-    other = {"X-ShiftLeft-User": "dev2@backbase.com", "X-ShiftLeft-Groups": "bb-eng-entitlements"}
-
-    assert (await client.get(f"{ENT}/kickoff/{session['id']}", headers=other)).status_code == 404
-    assert (await client.post(f"{ENT}/kickoff/{session['id']}/apply", headers=other)).status_code == 404
-    # The audited platform-admin set can still read it, as with onboarding drafts.
-    assert (await client.get(f"{ENT}/kickoff/{session['id']}", headers=admin)).status_code == 200
-
-
-async def test_a_session_cannot_be_reached_through_another_project(client, admin):
-    session = await _start(client, ENT, admin, UK_AIS)
-    assert (await client.get(f"{PAY}/kickoff/{session['id']}", headers=admin)).status_code == 404
+async def test_approving_that_no_compliance_applies_is_an_answer(boot, contributor, world, monkeypatch):
+    async with boot(**ENV) as c:
+        _wire(world, monkeypatch)
+        a = (await c.post(f"{ENT}/kickoff/analyses", headers=contributor, json={"prd_url": PAGE_URL})).json()
+        r = await c.put(
+            f"{ENT}/kickoff/analyses/{a['id']}/compliance",
+            headers=contributor,
+            json={"selected": [], "custom": []},
+        )
+        step = next(s for s in r.json()["steps"] if s["key"] == "compliance")
+        assert step["done"] and step["summary"] == "None apply"
 
 
-# --- The model proposes; the sanitizer decides ------------------------------------------------------
+# --- Steps 5 and 6: docs and providers -------------------------------------------------------------------
 
 
-def test_model_output_outside_the_vocabulary_or_the_prd_is_dropped():
-    from app.services.kickoff_extract import ExtractedFact, Extraction, _sanitize, lines_of
+async def test_docs_are_read_as_operations_or_text_and_local_addresses_are_refused(
+    boot, contributor, world, monkeypatch
+):
+    async with boot(**ENV) as c:
+        _wire(world, monkeypatch)
+        a = (await c.post(f"{ENT}/kickoff/analyses", headers=contributor, json={"prd_url": PAGE_URL})).json()
+        r = await c.put(
+            f"{ENT}/kickoff/analyses/{a['id']}/api-docs",
+            headers=contributor,
+            json={
+                "urls": [
+                    "https://docs.example.com/openapi.yaml",
+                    "https://docs.example.com/guide",
+                    "https://docs.example.com/moved",
+                    "https://docs.example.com/private",
+                    "http://localhost:8000/admin",
+                ]
+            },
+        )
+        spec, page, moved, private, local = r.json()["api_docs"]["docs"]
+        assert (
+            spec["kind"] == "openapi"
+            and spec["operation_count"] == 2
+            and spec["title"] == "Digital Banking API"
+        )
+        assert page["kind"] == "page" and page["title"] == "Salt Edge guide"
+        assert "Create a customer" in page["summary"] and "var x" not in page["summary"]
+        # A redirect to a local address is refused like the address itself.
+        assert not moved["ok"] and "local or reserved" in moved["error"]
+        assert not private["ok"] and "needs a login" in private["error"]
+        assert not local["ok"]
 
-    lines = lines_of(["## Summary", "Customers in the Netherlands can send transfers."])
-    extraction = Extraction(facts=[
-        ExtractedFact(key="regions", values=["NL", "Atlantis"], line=1),  # one invented value
-        ExtractedFact(key="domain", values=["payments"], line=42),         # a line that doesn't exist
-        ExtractedFact(key="services", values=["made-up-service"], line=1),  # not a model fact
-    ])
-    facts = _sanitize(extraction, lines)
 
-    assert facts["regions"].values == ["NL"]
-    assert facts["regions"].quotes == [{"text": lines[0].text, "section": "Summary"}]
-    assert facts["domain"].status == "not_stated" and facts["domain"].values == []
-    assert "services" not in facts
+async def test_providers_come_from_the_catalog_and_the_prd_names_them_first(
+    boot, contributor, world, monkeypatch
+):
+    async with boot(**ENV) as c:
+        _wire(world, monkeypatch)
+        a = (await c.post(f"{ENT}/kickoff/analyses", headers=contributor, json={"prd_url": PAGE_URL})).json()
+        assert a["third_parties"]["mentioned"]["saltedge"][0]["line"] == 4
+        base = f"{ENT}/kickoff/analyses/{a['id']}"
+        unknown = await c.put(
+            f"{base}/third-parties",
+            headers=contributor,
+            json={"providers": [{"key": "nope", "name": "Nope"}]},
+        )
+        assert unknown.status_code == 409
+        r = await c.put(
+            f"{base}/third-parties",
+            headers=contributor,
+            json={
+                "providers": [
+                    {"key": "saltedge", "name": "", "docs_url": "https://docs.example.com/guide"},
+                    {"key": "", "name": "Ninth Wave", "docs_url": ""},
+                ]
+            },
+        )
+        salt, ninth = r.json()["third_parties"]["providers"]
+        assert salt["name"] == "Salt Edge" and salt["doc"]["ok"] and salt["mentioned"]
+        assert ninth["name"] == "Ninth Wave" and ninth["doc"] is None
+
+        catalog = (await c.get(f"{ENT}/kickoff/catalog", headers=contributor)).json()
+        assert {"saltedge", "ninthwave"} <= {p["key"] for p in catalog["providers"]}
+        assert {"psd2", "gdpr", "pci_dss"} <= {f["key"] for f in catalog["frameworks"]}
+
+
+# --- Step 7: the analysis --------------------------------------------------------------------------------
+
+
+async def test_the_analysis_does_not_run_until_its_inputs_are_ready(boot, contributor, world, monkeypatch):
+    async with boot(**ENV) as c:
+        _wire(world, monkeypatch)
+        a = (await c.post(f"{ENT}/kickoff/analyses", headers=contributor, json={"prd_url": PAGE_URL})).json()
+        r = await c.post(
+            f"{ENT}/kickoff/analyses/{a['id']}/run",
+            headers=contributor,
+            json={"provider": "rules", "model": "rules"},
+        )
+        assert r.status_code == 409
+        blockers = r.json()["detail"]["blockers"]
+        assert any("repo to code in" in b for b in blockers)
+        assert any("compliance" in b for b in blockers)
+
+
+async def test_a_rule_based_draft_says_so_and_orders_every_task_after_what_it_depends_on(
+    boot, contributor, world, monkeypatch
+):
+    async with boot(**ENV) as c:
+        _wire(world, monkeypatch)
+        a = await _run(c, contributor, await _ready(c, contributor))
+        plan = a["plan"]
+        assert a["status"] == "analysed"
+        assert plan["reader"] == "rules" and "no AI" in plan["drafted_by"]
+        refs = [t["ref"] for t in plan["tasks"]]
+        assert refs == [f"T{n}" for n in range(1, len(refs) + 1)]
+        for i, task in enumerate(plan["tasks"]):
+            assert all(refs.index(d) < i for d in task["depends_on"]), task
+            assert task["origin"] == "rules"
+        titles = [t["title"] for t in plan["tasks"]]
+        assert titles[0] == "Get Salt Edge sandbox access and credentials"
+        assert "Link an account at another bank through Salt Edge" in titles
+        assert titles[-1].startswith("End-to-end tests")
+        story = next(t for t in plan["tasks"] if t["title"].startswith("Show balances"))
+        assert story["repo"] == "acme/accounts-web" and story["quotes"][0]["line"] == 5
+        assert {k for t in plan["tasks"] for k in t["compliance"]} == {"psd2", "gdpr"}
+
+
+async def test_a_claude_draft_is_held_to_its_inputs(boot, contributor, world, monkeypatch):
+    async with boot(**ENV, SHIFTLEFT_ANTHROPIC_API_KEY="sk-test") as c:
+        _wire(world, monkeypatch)
+        from app.services import kickoff_ai, model_provider
+
+        async def models(api_key: str, default: str):
+            return [model_provider.ModelOption("claude-opus-5", "Claude Opus 5")], "1 model"
+
+        seen: dict = {}
+
+        async def fake_call(model, system, content, output, max_tokens):
+            if output is kickoff_ai.ComplianceSuggestions:
+                return kickoff_ai.ComplianceSuggestions(
+                    frameworks=[
+                        kickoff_ai.SuggestedFramework(
+                            key="psd2", confidence="strong", why="Open banking.", lines=[2]
+                        ),
+                        kickoff_ai.SuggestedFramework(key="made_up", confidence="strong", why="?", lines=[2]),
+                        kickoff_ai.SuggestedFramework(
+                            key="pci_dss", confidence="possible", why="?", lines=[]
+                        ),
+                    ],
+                    other=[],
+                )
+            seen["content"] = content
+            return kickoff_ai.DraftPlan(
+                summary="Aggregation.",
+                epic_title="Account aggregation",
+                epic_description="Epic.",
+                repo_work=[
+                    kickoff_ai.RepoWork(
+                        repo="ACME/accounts-web",
+                        summary="UI",
+                        changes=[
+                            kickoff_ai.Change(
+                                area="src/app/accounts", what="List linked accounts", why="Req 2"
+                            )
+                        ],
+                    ),
+                    kickoff_ai.RepoWork(repo="acme/invented", summary="?", changes=[]),
+                ],
+                dependency_needs=[
+                    kickoff_ai.DependencyNeed(
+                        repo="acme/accounts-api",
+                        relies_on="Balances",
+                        status="available",
+                        evidence="GET /accounts/{id}/balances",
+                        action="None",
+                    )
+                ],
+                risks=["Consent expiry"],
+                open_questions=["Which banks first?"],
+                tasks=[
+                    kickoff_ai.DraftTask(
+                        title="Build the UI",
+                        type="Story",
+                        repo="acme/accounts-web",
+                        description="d",
+                        acceptance_criteria=["a"],
+                        depends_on=[2],
+                        estimate="M",
+                        compliance=["psd2", "sox"],
+                        prd_lines=[5, 99, 1],
+                    ),
+                    kickoff_ai.DraftTask(
+                        title="Salt Edge client",
+                        type="Story",
+                        repo="acme/elsewhere",
+                        description="d",
+                        acceptance_criteria=[],
+                        depends_on=[],
+                        estimate="L",
+                        compliance=[],
+                        prd_lines=[],
+                    ),
+                ],
+            )
+
+        monkeypatch.setattr(model_provider, "_claude_models", models)
+        monkeypatch.setattr(kickoff_ai, "_call", fake_call)
+        ready = await _ready(c, contributor)
+        proposed = {(s["key"], s["by"]) for s in ready["compliance"]["suggestions"]}
+        # Claude's unknown key and its unquoted proposal are dropped; a strong keyword match it
+        # didn't list is still shown.
+        assert proposed == {("psd2", "claude"), ("gdpr", "rules")}
+        a = await _run(c, contributor, ready, provider="claude")
+        plan = a["plan"]
+        assert plan["reader"] == "claude" and plan["drafted_by"] == "Claude (claude-opus-5)"
+        # The dependency comes first, whatever order the model gave.
+        assert [t["title"] for t in plan["tasks"]] == ["Salt Edge client", "Build the UI"]
+        client_task, ui = plan["tasks"]
+        assert ui["depends_on"] == [client_task["ref"]]
+        assert client_task["repo"] == ""  # a repo that isn't in step 2 is left unassigned, and said so
+        assert any("acme/elsewhere" in n for n in plan["notes"])
+        assert ui["compliance"] == ["psd2"]  # not an approved framework: dropped
+        assert [q["line"] for q in ui["quotes"]] == [5]  # headings and lines past the end: dropped
+        assert [w["repo"] for w in plan["repo_work"]] == ["acme/accounts-web"]
+        # What the model was given: numbered PRD lines, the repo tree and spec, the approvals.
+        assert "5. - Show balances and transactions for linked accounts" in seen["content"]
+        assert "src/app/accounts/accounts.service.ts" in seen["content"]
+        assert "GET /accounts/{id}/balances" in seen["content"]
+        assert "psd2: PSD2" in seen["content"]
+
+
+async def test_editing_tasks_is_recorded_and_the_order_is_enforced(boot, contributor, world, monkeypatch):
+    async with boot(**ENV) as c:
+        _wire(world, monkeypatch)
+        a = await _run(c, contributor, await _ready(c, contributor))
+        base = f"{ENT}/kickoff/analyses/{a['id']}"
+        tasks = a["plan"]["tasks"]
+        dependent = next(t for t in tasks if t["depends_on"])
+        # Moving a task above what it depends on is refused, with the reason.
+        reordered = [dependent] + [t for t in tasks if t["ref"] != dependent["ref"]]
+        r = await c.put(f"{base}/plan", headers=contributor, json={"epic_title": "E", "tasks": reordered})
+        assert r.status_code == 409 and "isn't above it" in r.json()["detail"]["blockers"][0]
+
+        edited = [
+            {**tasks[0], "title": "Get Salt Edge sandbox access"},
+            *tasks[1:],
+            {"title": "Feature flag and rollout", "type": "Task", "depends_on": [tasks[-1]["ref"]]},
+        ]
+        r = await c.put(
+            f"{base}/plan", headers=contributor, json={"epic_title": "Aggregation", "tasks": edited}
+        )
+        assert r.status_code == 200, r.text
+        plan = r.json()["plan"]
+        assert plan["epic_title"] == "Aggregation" and plan["edited_by"] == "dev@backbase.com"
+        assert plan["tasks"][0]["edited_by"] == "dev@backbase.com" and plan["tasks"][0]["origin"] == "rules"
+        assert plan["tasks"][1]["edited_by"] is None
+        added = plan["tasks"][-1]
+        assert added["origin"] == "person" and added["ref"] == f"T{len(tasks) + 1}"
+
+
+async def test_a_plan_older_than_its_inputs_says_which_and_cannot_be_created(
+    boot, contributor, world, monkeypatch
+):
+    async with boot(**ENV) as c:
+        _wire(world, monkeypatch)
+        a = await _run(c, contributor, await _ready(c, contributor))
+        base = f"{ENT}/kickoff/analyses/{a['id']}"
+        r = await c.put(f"{base}/api-docs", headers=contributor, json={"urls": []})
+        assert r.json()["plan"]["stale"] == ["the API docs"]
+        listed = (await c.get(f"{ENT}/kickoff/analyses", headers=contributor)).json()
+        assert listed[0]["stale"] is True
+        r = await c.post(f"{base}/backlog", headers=contributor, json={"backlog_url": "ENT"})
+        assert r.status_code == 409 and "run the analysis again" in r.json()["detail"]["message"]
+        assert world.created == []
+
+
+# --- Creating the backlog ----------------------------------------------------------------------------------
+
+
+async def test_the_backlog_gets_the_epic_then_every_task_in_order_linked_and_attributed(
+    boot, contributor, world, monkeypatch
+):
+    async with boot(**ENV) as c:
+        _wire(world, monkeypatch)
+        a = await _run(c, contributor, await _ready(c, contributor))
+        base = f"{ENT}/kickoff/analyses/{a['id']}"
+        backlog_url = f"{SITE}/jira/software/c/projects/ENT/boards/12/backlog"
+        r = await c.post(f"{base}/backlog", headers=contributor, json={"backlog_url": backlog_url})
+        assert r.status_code == 200, r.text
+        out = r.json()
+        assert out["status"] == "created"
+        backlog = out["backlog"]
+        assert backlog["project_key"] == "ENT" and backlog["board_id"] == "12"
+        assert backlog["created_by"] == "dev@backbase.com" and backlog["failed"] == 0
+        assert backlog["epic"]["key"] == "ENT-1"
+
+        epic, *tasks = world.created
+        assert epic["fields"]["issuetype"] == {"id": "10"}
+        assert [t["fields"]["summary"] for t in tasks] == [t["title"] for t in a["plan"]["tasks"]]
+        assert all(t["fields"]["parent"] == {"key": "ENT-1"} for t in tasks)
+        assert all(f"shiftleft-kickoff-{a['id']}" in t["fields"]["labels"] for t in world.created)
+        spike = tasks[0]
+        assert spike["fields"]["issuetype"] == {"id": "12"}  # no Spike type in ENT: created as a Task
+        text = json.dumps(spike["fields"]["description"])
+        assert "dev@backbase.com" in text and "rule-based" in text
+
+        keys = {t["ref"]: t["key"] for t in backlog["tickets"]}
+        expected = {(keys[d], keys[t["ref"]]) for t in a["plan"]["tasks"] for d in t["depends_on"]}
+        assert set(world.links) == expected
+
+        # A retry creates nothing twice: what exists is found by label and summary.
+        again = await c.post(f"{base}/backlog", headers=contributor, json={"backlog_url": backlog_url})
+        assert again.status_code == 200
+        assert len(world.created) == 1 + len(a["plan"]["tasks"])
+        assert {t["status"] for t in again.json()["backlog"]["tickets"]} == {"exists"}
+        assert again.json()["backlog"]["attempts"] == 2
+
+
+async def test_the_preflight_refuses_before_anything_is_written(boot, contributor, world, monkeypatch):
+    async with boot(**ENV) as c:
+        _wire(world, monkeypatch)
+        world.required = [
+            {"key": "customfield_100", "name": "Team", "required": True, "hasDefaultValue": False}
+        ]
+        a = await _run(c, contributor, await _ready(c, contributor))
+        base = f"{ENT}/kickoff/analyses/{a['id']}"
+        r = await c.post(f"{base}/backlog", headers=contributor, json={"backlog_url": "ENT"})
+        assert r.status_code == 409
+        assert any("“Team”" in b for b in r.json()["detail"]["blockers"])
+        other = await c.post(
+            f"{base}/backlog",
+            headers=contributor,
+            json={"backlog_url": "https://elsewhere.atlassian.net/browse/ENT-1"},
+        )
+        assert other.status_code == 409 and "elsewhere.atlassian.net" in other.json()["detail"]["message"]
+        assert world.created == []
+
+
+# --- Access --------------------------------------------------------------------------------
+
+
+async def test_a_viewer_reads_analyses_but_cannot_change_or_run_them(
+    boot, contributor, viewer, world, monkeypatch
+):
+    async with boot(**ENV) as c:
+        _wire(world, monkeypatch)
+        a = (await c.post(f"{ENT}/kickoff/analyses", headers=contributor, json={"prd_url": PAGE_URL})).json()
+        base = f"{ENT}/kickoff/analyses/{a['id']}"
+        assert (await c.get(base, headers=viewer)).status_code == 200
+        assert (
+            await c.post(f"{ENT}/kickoff/analyses", headers=viewer, json={"prd_url": PAGE_URL})
+        ).status_code == 404
+        for method, path, body in [
+            ("put", "/repos", {"urls": []}),
+            ("post", "/compliance/suggest", None),
+            ("put", "/compliance", {"selected": []}),
+            ("post", "/run", {"provider": "rules", "model": "rules"}),
+            ("post", "/backlog", {"backlog_url": "ENT"}),
+            ("patch", "", {"title": "x"}),
+            ("delete", "", None),
+        ]:
+            r = await c.request(method.upper(), base + path, headers=viewer, json=body)
+            assert r.status_code == 404, (method, path, r.status_code)
+
+
+async def test_analyses_do_not_leak_across_projects_or_to_strangers(
+    boot, contributor, admin, stranger, world, monkeypatch
+):
+    async with boot(**ENV) as c:
+        _wire(world, monkeypatch)
+        a = (await c.post(f"{ENT}/kickoff/analyses", headers=contributor, json={"prd_url": PAGE_URL})).json()
+        assert (await c.get(f"{ENT}/kickoff/analyses/{a['id']}", headers=stranger)).status_code == 404
+        assert (await c.get(f"{ENT}/kickoff/analyses", headers=stranger)).status_code == 404
+        # The right id under another project is not found, even for someone who can see both.
+        assert (await c.get(f"{PAY}/kickoff/analyses/{a['id']}", headers=admin)).status_code == 404
+        assert (await c.get(f"{PAY}/kickoff/analyses", headers=admin)).json() == []
+
+
+async def test_deleting_an_analysis_is_audited_and_leaves_jira_alone(
+    boot, contributor, admin, world, monkeypatch
+):
+    async with boot(**ENV) as c:
+        _wire(world, monkeypatch)
+        a = (await c.post(f"{ENT}/kickoff/analyses", headers=contributor, json={"prd_url": PAGE_URL})).json()
+        r = await c.delete(f"{ENT}/kickoff/analyses/{a['id']}", headers=contributor)
+        assert r.status_code == 204
+        assert (await c.get(f"{ENT}/kickoff/analyses/{a['id']}", headers=contributor)).status_code == 404

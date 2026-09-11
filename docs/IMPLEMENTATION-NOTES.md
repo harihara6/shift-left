@@ -15,7 +15,7 @@ contract, authorization model and freshness rules.
 
 | Area | State |
 |---|---|
-| **Feature Kickoff** (Evidence) | Takes a PRD from Confluence to a checked, tagged plan ([proposal](PROPOSAL-PRD-Intake.md)). Six steps: pick the PRD and the model that reads it; confirm the facts it states (each quoted); choose what to do, from actions resolved by rules to Recommended, Not applicable or Needs your answer; run the checks (dependencies in GitHub, third-party readiness, the API standards that apply to the region); review the plan (Jira backlog with the tier's evidence tasks, Xray tests, Confluence pages, software catalog and product index diffs, waiver drafts); confirm. By default it reads example pages (`seed/data/kickoff.json`) and confirming is a dry run. Live (`SHIFTLEFT_KICKOFF_SOURCES=live`, `SHIFTLEFT_KICKOFF_WRITE_MODE=live`) it reads PRDs and the catalog table from Confluence, each service's OpenAPI spec from GitHub at a pinned commit, and writes the epic, stories and evidence tasks to Jira, tests and the test plan to Xray, pages under the PRD, and the catalog row by row. Every item ends created, updated, already there, handed off or failed; failures are retried without duplicates. The product index is read through a parser still to be written, and its rows are handed off. |
+| **Feature Kickoff** (Evidence) | Seven steps from a Confluence PRD to an ordered Jira backlog, saved as an analysis per feature that can be reopened, changed and run again: the PRD (read over REST, or Rovo MCP); the GitHub repos to code in and those relied on (tree, languages, README and OpenAPI specs at a pinned commit); compliance proposed from the PRD with quotes, approved by a named person; our API docs; third-party APIs (Salt Edge, Ninth Wave and others, with their docs); then Claude's analysis: work per repo, what each dependency must provide, risks, open questions and the Jira tasks in order. People reorder, edit, add or remove tasks, then create the epic and tasks in their backlog. No example data: an input that can't be read says why. |
 | **Feature Readiness** (Engineering Discipline) | Evidence of record. Four completeness tiles and a feature table (Ready/Done evidence bars, status and reason). Opening a feature shows a slide-over with the eleven-row evidence checklist, the why-red list, an AI draft that needs recorded acceptance, and the owner and next action. Waivers and open actions sit beside the table. |
 | **Shift-left Rollout** (Evidence) | Tracks the [pivot proposal](PROPOSAL-ShiftLeft-Pivot.md). Shows the gating path (Observe → Warn → Soft gate → Hard gate) with computed exit criteria and audited sign-off / advance / roll back. Tiles for detection accuracy against a manual audit, false-red rate and warnings resolved with evidence. Also lists the surfaces where the engine shows up (Jira panel, transition check, PR check, Slack digest, Confluence templates), detection by artifact, and accuracy and warning-outcome charts. |
 | **Team Insights** (Delivery Control) | Glance table plus Epics / Stories / MAINT / Pull requests sections, each with tiles and charts. Freshness strip, flow banner and a guide for each widget. |
@@ -63,19 +63,17 @@ These are checked by tests, not just written down. See `backend/tests/`.
 - **A rollout stage is earned, not assumed.** A stage is advanced only when every exit criterion is met,
   and a refusal returns the unmet criteria as a list. A surface that is correctly off reads "Not due yet",
   not healthy (`app/services/rollout_rules.py`).
-- **A kickoff decides from the PRD, and says why.** Every action resolves to Recommended, Not
-  applicable (naming the fact that ruled it out) or Needs your answer, which runs until answered.
-  Leaving a recommended action out needs a reason, and a deny-listed reason is flagged. A fact
-  without a verbatim PRD quote is dropped, and a model can only return values from a closed list.
-  The checks never say "feasible": they list what was found and what wasn't checked. Nothing is
-  written until a named person confirms, and every plan item says what it was drawn from
-  (`app/services/kickoff_rules.py`, `app/services/kickoff.py`).
-- **A confirmed plan is written exactly as confirmed, and only where it may be.** The plan is frozen
-  and the confirmation committed before the first write; retries apply that plan, never a recomputed
-  one. Writes stay in the kickoff's own Jira project and space plus the catalog page; work for
-  another team is handed off as a drafted request. Example pages can never reach a live backlog: the
-  settings refuse live writes without live reads, and a session that read examples can't write live
-  (`app/services/kickoff_write.py`, `app/core/config.py`).
+- **A kickoff is grounded in what it read.** Every input is read live (Confluence, GitHub, the docs
+  URLs given) and one that can't be read shows why; nothing falls back to example data. Compliance is
+  proposed with the PRD lines behind it and counts only once a named person approves the selection.
+  Claude's plan is re-validated on the way in: a repo, PRD line or compliance key that isn't in the
+  inputs is dropped, and tasks are reordered so each comes after what it depends on
+  (`app/services/kickoff_ai.py`, `app/services/kickoff_compliance.py`).
+- **A plan can't outlive its inputs.** The plan keeps a fingerprint of the inputs it was drafted
+  from; when one changes, the plan lists which, and creating it in Jira is refused until it runs
+  again. Creating is the named acceptance: a preflight refuses before the first write if an issue
+  type or required field is missing, and a retry finds tickets already made by label and summary
+  instead of duplicating them (`app/services/kickoff.py`, `app/services/kickoff_backlog.py`).
 - **Every rendered widget has its four guide fields.** The service refuses to boot otherwise
   (`app/services/guides.py`). Catalog template widgets carry their guide key too, so a template
   enabled after seeding copies widgets that still have their guides.
@@ -87,9 +85,9 @@ These are checked by tests, not just written down. See `backend/tests/`.
 | Integration | Without it |
 |---|---|
 | Atlassian Rovo MCP | Guided setup falls back to the connectors for discovery. Rovo MCP is Atlassian Cloud only and has to be enabled by an org admin. It reads with the caller's own permissions and is used for discovery only; ingestion stays on the REST connectors. |
-| Model provider for Feature Kickoff | The model list is fetched from the provider on request. Without an Anthropic key, Claude is listed as unavailable and the rule-based reader is used; a failed model call falls back to it and says so. Cursor's models are listed when `SHIFTLEFT_CURSOR_API_KEY` is set; they run in the editor, since Cursor's API can't answer a prompt directly. |
-| Feature Kickoff live sources | A live source that isn't configured or can't be read makes its checks read Not checked with the reason; it never falls back to example data. The product index reads as unavailable until its parser is written. |
-| Feature Kickoff live writes | A preflight refuses before the first write if an issue type or required field is missing. An item that fails is recorded as failed with Jira's or Confluence's reason, and the kickoff reads Partial until a retry succeeds. The catalog is not written if its version changed since the plan was drafted. |
+| Claude for Feature Kickoff | Without an Anthropic key, or when the call fails, compliance is proposed by keyword rules and the plan is a rule-based draft; both are labelled as such, with the reason. |
+| Feature Kickoff sources | Confluence is read over REST with the Settings → Connectors credential (or the service's own), and through Rovo MCP when there is none. GitHub reads public repos without a token. An input that can't be read is shown with the reason, and an unreadable repo blocks the run. |
+| Feature Kickoff backlog | A preflight refuses before the first write if an issue type or required field is missing. A ticket that fails is recorded with Jira's reason and the analysis reads Partly created until a retry succeeds. |
 | Anthropic API (Claude) | Candidate resolution falls back to deterministic name matching, and the draft says so on screen. Claude only ever chooses among identifiers a source returned; it never writes a query. |
 
 ## Seed data

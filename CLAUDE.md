@@ -80,14 +80,17 @@ Build order here departs from the PRD's phasing at the owner's direction — Tea
 3. **Shift-left Rollout** (Evidence) — tracks `docs/PROPOSAL-ShiftLeft-Pivot.md`: stage path with computed exit
    criteria, detection accuracy vs manual audit, surfaces at the point of work, warning outcomes. Thresholds are
    named constants in `backend/app/services/rollout_rules.py`; change the proposal first, then the constant.
-4. **Feature Kickoff** (Evidence) — tracks `docs/PROPOSAL-PRD-Intake.md`: PRD → facts (quoted) →
-   actions resolved by rules → read-only checks → plan → named confirmation. Rules are named in
-   `backend/app/services/kickoff_rules.py`; change the proposal first, then the rule. Reads are
-   example pages or live (`SHIFTLEFT_KICKOFF_SOURCES`), writes a dry run or live
-   (`SHIFTLEFT_KICKOFF_WRITE_MODE`), never mixed. Live writes use Jira/Confluence REST and Xray
-   GraphQL, never Rovo MCP (its edits are lossy). The product index parser
-   (`backend/app/connectors/product_index_parser.py`) is written in the environment that can
-   reach software.backbase.eu; until then the index reads as unavailable, never as empty.
+4. **Feature Kickoff** (Evidence) — seven steps, saved as an analysis per feature
+   (`kickoff_analyses`): PRD (Confluence link, read over REST, or Rovo MCP when there's no REST
+   credential) → repos to code in → repos relied on (GitHub, at a pinned commit) → compliance
+   (proposed with PRD quotes, approved by a named person) → API docs → third-party APIs → the
+   analysis (Claude drafts work per repo, dependency needs and ordered Jira tasks; people edit them)
+   → create in the backlog (Jira REST, the only external write). No example data anywhere: an input
+   that can't be read shows why. Credentials come from Settings → Connectors first, then env. The
+   compliance and provider catalog is `backend/app/seed/data/kickoff_catalog.json`. A plan keeps a
+   fingerprint of its inputs; one older than its inputs says which changed and can't be created
+   until it's run again. Model output is sanitized in `kickoff_ai.py`: unknown repos, PRD lines,
+   compliance keys and forward dependencies are dropped or reordered, never trusted.
 5. Everything else follows the PRD phasing.
 
 **Data strategy for this pass:** the prototype's seed data (`DECKS`, `PROJECT_CFG`, `TEMPLATE_DEFS`, `CONNECTORS`,

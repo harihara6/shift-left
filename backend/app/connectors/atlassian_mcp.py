@@ -6,9 +6,10 @@ to a `cloudId` that every tool call carries.
 
 Two deliberate boundaries:
 
-* **Discovery only.** MCP is interactive, per-user and rate-limited; ingestion stays on the
-  REST connectors, which authenticate as the service and can be paced. Nothing here is on the
-  `sync()` path.
+* **Discovery and single-page reads only.** MCP is interactive, per-user and rate-limited;
+  ingestion stays on the REST connectors, which authenticate as the service and can be paced.
+  Nothing here is on the `sync()` path, and nothing here writes. Feature Kickoff reads a PRD
+  through `read_page` when there is no REST credential for the site.
 * **The caller's own permissions.** Rovo MCP authenticates the person, not the org, so a
   discovery result never shows a Jira project the person running onboarding cannot already
   open. That matches how every other read in this service is scoped.
@@ -35,6 +36,7 @@ logger = logging.getLogger("shiftleft.rovo")
 TOOL_ACCESSIBLE_RESOURCES = "getAccessibleAtlassianResources"
 TOOL_JIRA_PROJECTS = "getVisibleJiraProjects"
 TOOL_CONFLUENCE_SEARCH = "searchConfluenceUsingCql"
+TOOL_CONFLUENCE_PAGE = "getConfluencePage"
 
 PROTOCOL_VERSION = "2025-06-18"
 
@@ -205,6 +207,41 @@ class RovoMcpSource:
                 )
             )
         return out
+
+
+    # -- reading one page (Feature Kickoff's fallback when there is no REST credential) -------
+
+    async def read_page(self, page_id: str) -> dict[str, Any]:
+        """A page's title and body, as the caller can see it. Raises RovoUnavailable.
+
+        Reading is safe over MCP; it is edits that round-trip through Markdown and lose tables
+        and macros, which is why nothing here writes.
+        """
+        if not self.available:
+            raise RovoUnavailable(self.unavailable_reason)
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                cloud_id = await self._resolve_cloud_id(client)
+                result = await self._call_tool(
+                    client, TOOL_CONFLUENCE_PAGE, {"cloudId": cloud_id, "pageId": page_id}
+                )
+        except httpx.HTTPError as exc:
+            raise RovoUnavailable(f"couldn't reach the MCP server ({type(exc).__name__})") from exc
+        if isinstance(result, str):
+            return {"page_id": page_id, "title": "", "space": "", "version": 0, "body": result}
+        if not isinstance(result, dict):
+            raise RovoUnavailable("the MCP server returned no page")
+        body = result.get("body")
+        if isinstance(body, dict):
+            body = (body.get("storage") or {}).get("value") or body.get("value") or ""
+        version = result.get("version")
+        number = version.get("number") if isinstance(version, dict) else version
+        return {
+            "page_id": str(result.get("id") or page_id), "title": str(result.get("title") or ""),
+            "space": _space(result) or str(result.get("spaceKey") or ""),
+            "version": int(number or 0),
+            "body": str(body or result.get("content") or result.get("markdown") or ""),
+        }
 
 
 def _rows(result: Any) -> list[dict]:

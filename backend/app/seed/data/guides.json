@@ -313,54 +313,75 @@
  },
  "kickoff": {
   "title": "Feature Kickoff — how this page works",
-  "sub": "Takes a PRD from Confluence to a checked, tagged plan. What runs is decided from what the PRD says, every decision carries its reason, and nothing is written until a named person confirms.",
+  "sub": "Seven steps from a PRD to an ordered backlog: the PRD, the repos you code in and rely on, the compliance you approve, your API docs and third-party APIs, then an analysis that says what work lands where and drafts the Jira tasks in order. Every analysis is saved; reopen it, change an input and run it again. Nothing reaches Jira until a named person creates it.",
   "who": [
-   "A PM or ETL starting a feature, who wants the backlog, the test plan and the catalog changes drafted from the PRD instead of by hand.",
-   "An architect checking which industry standards a PRD triggers for its market, and which ones it rules out and why.",
-   "Someone who needs to know, before a sprint starts, whether the services and third parties a PRD relies on are actually ready."
+   "A PM, ETL or tech lead starting a feature, who wants the work per repo and an ordered backlog drafted from the PRD instead of by hand.",
+   "An architect or compliance partner deciding which regulations and standards the feature must meet, from what the PRD actually says.",
+   "A team relying on other teams' services or third-party providers, who needs to know what they must provide before the first sprint."
   ],
   "sections": [
    {
-    "widget": "PRD and model",
-    "decision": "Which PRD to kick off, and which model reads it. The model list is fetched from the provider at request time, so it offers what the account can use today. The rule-based reader is always offered, and is the fallback if a model call fails.",
-    "source": "Confluence pages labelled sl-requirements (SHIFTLEFT_KICKOFF_SOURCES=live), or the example pages. Models: the Anthropic API's model list. Cursor's models are listed from the team's account but run in the editor: Cursor's API can't answer a prompt directly.",
-    "fetch": "Page list read on open. The model list is cached for five minutes per service instance.",
-    "labels": "PRDs are found by the sl-requirements label (SHIFTLEFT_KICKOFF_PRD_LABEL), the label onboarding already uses. Proposed, not observed: confirm the label with the teams."
+    "widget": "Saved analyses",
+    "decision": "Which feature to pick up again, and where it stands: how many of the seven steps are done, whether the plan is older than its inputs, and whether its tasks are already in Jira.",
+    "source": "The analyses saved in this project. Everyone with a role on the project sees them; contributors can change them.",
+    "fetch": "Read when the page opens. Each analysis saves at every step.",
+    "labels": "Tickets created from an analysis carry the label shiftleft-kickoff-<id> and shiftleft-tracked. Proposed, not observed: confirm the labels with the teams."
    },
    {
-    "widget": "What the PRD says",
-    "decision": "Whether the facts the rules run on are right: region, domain, third-party access, channels, kind of change, services, third parties, data. Correct any that are wrong before anything runs, because every outcome after this is computed from them.",
-    "source": "The PRD page, read by the chosen model or the keyword reader. Every fact carries the sentence it came from; a value without a quote is dropped.",
-    "fetch": "Read once when the kickoff starts, at the page version shown. Corrections are recorded against the person who made them.",
-    "labels": "PRDs with Summary, Features, Acceptance criteria, Dependencies and Third parties sections read best. Proposed, not observed: a Confluence PRD template with these headings."
+    "widget": "1 · PRD",
+    "decision": "Whether this is the right PRD, at the right version, before anything is planned from it.",
+    "source": "The Confluence page at the link given. Read over Confluence REST with the Confluence (or Jira) connector's credential from Settings → Connectors, or the service's own; through the Atlassian Rovo MCP server when there is no REST credential for the site.",
+    "fetch": "Read when the link is fetched, at the page version shown. Fetch again to pick up a newer version; the plan then says it's older than the PRD.",
+    "labels": "PRDs with clear headings (Summary, Requirements or Features, Acceptance criteria, Dependencies) plan best: every quote in the analysis points at a line under a heading."
    },
    {
-    "widget": "What to do",
-    "decision": "Which checks and outputs to run for this PRD. Each is Recommended, Not applicable (with the fact that rules it out) or Needs your answer (runs until answered). A recommended action can be left out only with a reason, which goes on the feasibility record.",
-    "source": "The kickoff rules in backend/app/services/kickoff_rules.py, applied to the facts above. No model is involved in this step.",
-    "fetch": "Computed on every read from the facts; never stored.",
-    "labels": "No source tagging. Rules change through the proposal first (docs/PROPOSAL-PRD-Intake.md), then the code."
+    "widget": "2 · Repos to code in",
+    "decision": "Where the work will land. The analysis names paths in these repos only when they're in the file tree it read.",
+    "source": "GitHub: each repo's metadata, languages, README, file tree and any OpenAPI specs, at the commit shown. The GitHub connector's token from Settings → Connectors is used when set; public repos read without one, at GitHub's lower anonymous rate limit.",
+    "fetch": "Read when a repo is added. Refresh to read the branch's latest commit; the plan then says it's older than its repos.",
+    "labels": "Spec files named openapi.*, swagger.* or api.* (YAML or JSON) are read as the repo's API."
    },
    {
-    "widget": "Checks and findings",
-    "decision": "Whether anything blocks the feature before work starts: a missing or deprecated operation in another team's service, a third party without a sandbox, a standard's requirement the PRD doesn't cover. There is no feasible verdict: the summary lists what was found and what wasn't checked.",
-    "source": "The software catalog table on its Confluence page; each service's OpenAPI spec in GitHub, read at the commit the default branch pointed to; the reviewed vendor register; the pinned standards registry. What was read is frozen on the kickoff, so every finding stays true to it.",
-    "fetch": "Run when the actions are confirmed, read-only. A check that couldn't look reads Not checked and is never counted as a pass.",
-    "labels": "Services are matched to catalog rows by name. The catalog table needs Component and Repository columns (plus Spec path to check an API); a service missing from it can't be checked and is suggested as a catalog entry."
+    "widget": "3 · Repos we rely on",
+    "decision": "What the feature needs from other teams' code, and whether their API already shows it. An empty list is a valid answer.",
+    "source": "GitHub, read the same way as the repos to code in. The analysis compares what the PRD needs with the operations in each dependency's spec.",
+    "fetch": "Read when a repo is added, or refreshed.",
+    "labels": "A dependency without a spec in its repo is marked unclear, never available."
    },
    {
-    "widget": "Plan",
-    "decision": "Exactly what will be written: epic, stories, evidence tasks for the tier, Xray tests, Confluence pages, catalog and product index diffs, and waiver drafts. Every item says what it was drawn from; any item can be left out. If the product index can't be read, its row says so rather than assuming the feature isn't listed.",
-    "source": "Computed from the facts, the choices, the findings and the accepted recommendations. Evidence coverage follows the eleven-artifact checklist and the risk tier (PRD §6).",
-    "fetch": "Recomputed on every read until confirmed, then frozen with the confirmation.",
-    "labels": "Proposed, not observed: shiftleft-tracked, sl-evidence, sl-artifact-*, sl-gate-*, sl-tier-* on Jira; sl-feasibility, sl-hld, sl-lld, sl-test-plan on Confluence; @L1–@L4 left for the SDET. Confirm with the teams."
+    "widget": "4 · Compliance",
+    "decision": "Which regulations and standards the feature must meet. Proposed from the PRD, each proposal quoting the lines it came from; a named person approves the selection, or picks by hand, or approves that none apply.",
+    "source": "The compliance catalog (seed/data/kickoff_catalog.json): frameworks with their region, triggers and obligations. Proposals come from Claude when configured, plus every strong keyword match it didn't list, or from the rule-based suggester alone.",
+    "fetch": "Proposed on request. The approval is recorded with who approved it and when, and is required before the analysis runs.",
+    "labels": "Region words (EU, UK, US, country names) and domain words (PSD2, cardholder, KYC) drive the rule-based proposals. A 'possible' proposal is never pre-selected."
    },
    {
-    "widget": "Confirm and create",
-    "decision": "Whether to create the plan. Confirming records who confirmed it, when, and with which model it was drafted, before anything is written. In dry-run mode nothing external is written; live, every item ends created, updated, already there, handed off (with what to do) or failed (with why), and failed items can be retried.",
-    "source": "Jira and Confluence REST, and Xray's GraphQL API, as the configured account. Writes stay in the kickoff's own Jira project and space plus the catalog page; work for another team is handed off as a drafted request. The product index has no writer yet, so its rows are handed off.",
-    "fetch": "One request. A preflight checks issue types and required fields before the first write; the catalog is only edited if its version is still the one the plan was drafted against.",
-    "labels": "Every issue carries sl-kickoff-<id>, so a retry finds what it already created instead of duplicating it. Pages are created under the PRD. Audited as kickoff_apply and kickoff_retry."
+    "widget": "5 · API docs",
+    "decision": "Which of our APIs the feature changes or extends, from the docs you point at.",
+    "source": "The URLs given: an OpenAPI document is read as its operations; any other page as its text. Pages behind a login can't be read and say so; only the link then reaches the analysis.",
+    "fetch": "Read when a URL is added, or refreshed. Loopback and link-local addresses are never fetched.",
+    "labels": "Link the raw OpenAPI file where you can: it gives the analysis exact operations instead of page text."
+   },
+   {
+    "widget": "6 · Third-party APIs",
+    "decision": "Which providers the feature depends on (Salt Edge, Ninth Wave, Plaid…), and what their docs say. Providers the PRD names are offered first, with the line that names them.",
+    "source": "Quick picks from the provider catalog, or any provider by name. Each provider's docs URL is read like step 5.",
+    "fetch": "Read when a provider is added or its docs URL changes.",
+    "labels": "Providers whose docs are private (Ninth Wave, for one) need the docs link you were given."
+   },
+   {
+    "widget": "7 · Analysis",
+    "decision": "What work is pending where: the changes per repo, what each dependency must provide, the risks and open questions, and the Jira tasks in the order they should be done. Edit, reorder, remove or add tasks before creating them.",
+    "source": "Claude (the model chosen), given every input above as quoted data. Repos, task dependencies and PRD lines it names are checked against the inputs and dropped if they don't exist. Without an Anthropic key, or if the call fails, a rule-based draft is used and labelled as such.",
+    "fetch": "Drafted on Run. Running again replaces the draft and any edits made to it. A plan older than its inputs lists which inputs changed.",
+    "labels": "Every task says who drafted it (Claude, rules, or a person) and who last edited it."
+   },
+   {
+    "widget": "Create in backlog",
+    "decision": "Whether to accept the plan: creating it in Jira is the named acceptance. Until then the draft counts toward nothing.",
+    "source": "The Jira project in the backlog link given, with the Jira connector's credential from Settings → Connectors, or the service's own.",
+    "fetch": "A preflight checks issue types and required fields before anything is written. Then the epic and each task are created in order, with Blocks links for dependencies. A retry creates only what's missing; tickets already made are found by label and summary.",
+    "labels": "Created tickets carry shiftleft-kickoff-<id> and shiftleft-tracked, and their descriptions name who drafted and who created them."
    }
   ]
  }

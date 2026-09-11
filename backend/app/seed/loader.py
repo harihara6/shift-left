@@ -14,7 +14,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.connector import ConnectorInstance, ConnectorType
@@ -78,7 +78,10 @@ GUIDE_KEYS = {
     "portfolio": ["hotspots", "cell_colouring"],
     "signal": ["completeness_trend", "dora", "counter_metric"],
     "rollout": ["gating_path", "rollout_tiles", "surfaces", "detectors", "rollout_charts"],
-    "kickoff": ["prd_source", "facts", "actions", "checks", "plan", "confirm"],
+    "kickoff": [
+        "analyses", "prd", "repos", "dependencies", "compliance", "api_docs", "third_parties", "plan",
+        "backlog",
+    ],
 }
 
 
@@ -492,6 +495,14 @@ async def seed_reference(session: AsyncSession) -> bool:
         await _seed_artifact_definitions(session)
         changed = True
     have = set((await session.execute(select(PerspectiveGuide.perspective))).scalars().all())
+    # A page whose widgets changed (a rebuilt page) gets its guide again: a guide describing
+    # widgets that no longer exist is worse than none. Wording edits to an unchanged page stay.
+    stored = (await session.execute(select(WidgetGuide.perspective, WidgetGuide.widget_key))).all()
+    for perspective, keys in GUIDE_KEYS.items():
+        if perspective in have and {k for p, k in stored if p == perspective} != set(keys):
+            await session.execute(delete(WidgetGuide).where(WidgetGuide.perspective == perspective))
+            await session.execute(delete(PerspectiveGuide).where(PerspectiveGuide.perspective == perspective))
+            have.discard(perspective)
     missing = set(_load("guides")) - have
     if missing:
         # Per perspective, so a store from before a page existed gains that page's guide.

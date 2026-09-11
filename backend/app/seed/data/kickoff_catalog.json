@@ -1,0 +1,303 @@
+{
+  "provenance": "Reference data for Feature Kickoff, not example data: the compliance frameworks a person can approve for a feature, and the third-party providers offered as quick picks. Triggers are the words that make the rule-based suggester propose a framework; a suggestion is only ever a proposal until a named person approves the selection. Obligations are the short list the analysis plans work against. Change this file by pull request, reviewed by the architecture owner.",
+  "regions": {
+    "EU": {"codes": ["EU", "EEA", "SEPA"], "names": ["european union", "europe", "european", "germany", "netherlands", "france", "spain", "italy", "belgium", "ireland", "austria", "portugal", "poland", "finland", "sweden", "denmark", "luxembourg"]},
+    "UK": {"codes": ["UK", "GB"], "names": ["united kingdom", "britain", "british", "england", "scotland", "fca"]},
+    "US": {"codes": ["US", "USA"], "names": ["united states", "america", "american", "fednow", "nacha"]},
+    "CA": {"codes": ["CA"], "names": ["canada", "canadian"]}
+  },
+  "compliance": [
+    {
+      "key": "psd2",
+      "name": "PSD2 and the RTS on strong customer authentication",
+      "region": "EU",
+      "category": "Open banking and payments",
+      "summary": "EU rules for payment services: strong customer authentication, consent for account access, and a dedicated interface for third-party providers.",
+      "source": "https://eur-lex.europa.eu/eli/dir/2015/2366/oj",
+      "triggers": ["psd2", "xs2a", "rts on sca", "payment services directive"],
+      "region_terms": ["strong customer authentication", "sca", "open banking", "account information", "payment initiation", "tpp", "third party provider", "aisp", "pisp"],
+      "weak": [],
+      "obligations": [
+        "Strong customer authentication on account access and payment initiation, with any RTS exemption stated",
+        "Explicit, revocable consent for account access; re-authentication at least every 180 days for AIS",
+        "Dedicated TPP interface with fallback, and availability and performance reporting",
+        "Operational and security incident reporting to the competent authority"
+      ]
+    },
+    {
+      "key": "berlin_group",
+      "name": "Berlin Group NextGenPSD2",
+      "region": "EU",
+      "category": "Open banking and payments",
+      "summary": "The API standard most EU banks use to meet PSD2: consent resources, SCA approaches and TPP identification.",
+      "source": "https://www.berlin-group.org/nextgenpsd2-downloads",
+      "triggers": ["berlin group", "nextgenpsd2"],
+      "region_terms": ["open banking api", "xs2a interface"],
+      "weak": [],
+      "obligations": [
+        "Consent resource for account access",
+        "SCA approach declared: redirect, decoupled or embedded",
+        "TPP identified by an eIDAS certificate (QWAC)"
+      ]
+    },
+    {
+      "key": "uk_open_banking",
+      "name": "UK Open Banking Standard (Read/Write API)",
+      "region": "UK",
+      "category": "Open banking and payments",
+      "summary": "The UK standard for account information and payment initiation APIs, with its security profile and conformance tooling.",
+      "source": "https://standards.openbanking.org.uk/",
+      "triggers": ["obie", "uk open banking", "open banking standard", "open banking limited"],
+      "region_terms": ["open banking", "account information", "payment initiation", "tpp", "third party provider"],
+      "weak": [],
+      "obligations": [
+        "Account access consent resource with permissions scoped per data cluster",
+        "FAPI security profile: mTLS and signed request objects",
+        "Dynamic Client Registration for TPP onboarding",
+        "Functional, security and DCR conformance runs as their own piece of work"
+      ]
+    },
+    {
+      "key": "cfpb_1033",
+      "name": "CFPB Personal Financial Data Rights (Section 1033)",
+      "region": "US",
+      "category": "Open banking and payments",
+      "summary": "The US rule giving consumers the right to share their financial data with authorized third parties. Its compliance dates and scope have been under reconsideration: confirm the current status with Legal before planning against it.",
+      "source": "https://www.consumerfinance.gov/personal-financial-data-rights/",
+      "triggers": ["1033", "personal financial data rights", "cfpb"],
+      "region_terms": ["open banking", "data aggregation", "aggregator", "account data access", "data provider", "authorized third party", "open finance"],
+      "weak": [],
+      "obligations": [
+        "Confirm the rule's current status and dates with Legal before committing scope",
+        "Developer interface in a qualified industry standard format (for example FDX)",
+        "Authorization disclosures and consumer revocation of third-party access",
+        "Data minimisation and retention limits for authorized third parties"
+      ]
+    },
+    {
+      "key": "fdx",
+      "name": "FDX API (Financial Data Exchange)",
+      "region": "US",
+      "category": "Open banking and payments",
+      "summary": "The North American data-sharing API standard aggregators and data access networks build on.",
+      "source": "https://financialdataexchange.org/",
+      "triggers": ["fdx", "financial data exchange"],
+      "region_terms": ["data aggregation", "aggregator", "account data access", "open finance"],
+      "weak": [],
+      "obligations": [
+        "Endpoints and payloads mapped to the FDX version the partner certifies against",
+        "Consent and token lifecycle per the FDX security model",
+        "Membership access to the full specification confirmed"
+      ]
+    },
+    {
+      "key": "gdpr",
+      "name": "GDPR / UK GDPR",
+      "region": "EU",
+      "category": "Privacy",
+      "summary": "Rules for processing personal data of people in the EU and UK: lawful basis, minimisation, data subject rights and processor contracts.",
+      "source": "https://eur-lex.europa.eu/eli/reg/2016/679/oj",
+      "triggers": ["gdpr", "data subject", "data protection", "dpia"],
+      "region_terms": ["personal data", "pii", "customer data", "consent", "email address", "phone number", "date of birth", "privacy"],
+      "weak": ["personal data", "pii"],
+      "obligations": [
+        "Lawful basis recorded per purpose; consent captured where it is the basis",
+        "Data minimisation and retention periods for every new field",
+        "DPIA for high-risk processing",
+        "Data subject rights: access, erasure and portability cover the new data",
+        "Processor agreements with every third party receiving personal data"
+      ]
+    },
+    {
+      "key": "pci_dss",
+      "name": "PCI DSS v4.0.1",
+      "region": "Global",
+      "category": "Security",
+      "summary": "The card industry's security standard for anyone storing, processing or transmitting cardholder data.",
+      "source": "https://www.pcisecuritystandards.org/document_library/",
+      "triggers": ["pci", "cardholder", "primary account number", "card number", "cvv", "pan"],
+      "region_terms": [],
+      "weak": ["card", "cards", "tokenisation", "tokenization"],
+      "obligations": [
+        "Keep PAN out of scope where possible (tokenisation, hosted fields)",
+        "No storage of sensitive authentication data after authorisation",
+        "Segmentation and access control for the cardholder data environment",
+        "Assessment scope updated for the new flow"
+      ]
+    },
+    {
+      "key": "dora",
+      "name": "EU DORA (Digital Operational Resilience Act)",
+      "region": "EU",
+      "category": "Resilience and third-party risk",
+      "summary": "EU requirements for ICT risk management, incident reporting, resilience testing and ICT third-party providers.",
+      "source": "https://eur-lex.europa.eu/eli/reg/2022/2554/oj",
+      "triggers": ["dora", "operational resilience", "ict third-party", "ict risk"],
+      "region_terms": ["third party", "third-party", "vendor", "outsourcing", "saas", "cloud provider"],
+      "weak": [],
+      "obligations": [
+        "New ICT third-party provider entered in the register of information",
+        "Contract carries the provisions DORA Art. 30 requires",
+        "Incident classification and reporting cover the new service",
+        "Resilience testing includes the new dependency and its exit plan"
+      ]
+    },
+    {
+      "key": "iso20022",
+      "name": "ISO 20022 payment messages",
+      "region": "Global",
+      "category": "Payments messaging",
+      "summary": "The message standard behind SEPA, SWIFT CBPR+, FedNow and most instant payment schemes.",
+      "source": "https://www.iso20022.org/catalogue-messages",
+      "triggers": ["iso 20022", "iso20022", "pain.001", "pacs.008", "pacs.002", "camt.053", "camt.054", "sepa", "swift", "fednow", "instant payment", "instant payments", "credit transfer"],
+      "region_terms": [],
+      "weak": ["payment", "payments", "transfer"],
+      "obligations": [
+        "Message mapping to pain, pacs and camt with field-level rules",
+        "Structured remittance and address data where the scheme requires it",
+        "Status reports (pacs.002) mapped to the status the customer sees"
+      ]
+    },
+    {
+      "key": "aml_kyc",
+      "name": "AML / KYC (AMLD, BSA)",
+      "region": "Global",
+      "category": "Financial crime",
+      "summary": "Customer due diligence, sanctions screening and transaction monitoring obligations.",
+      "source": "https://eur-lex.europa.eu/eli/dir/2015/849/oj",
+      "triggers": ["kyc", "know your customer", "aml", "anti-money laundering", "sanctions", "identity verification", "due diligence", "pep"],
+      "region_terms": [],
+      "weak": ["onboarding", "open an account", "account opening"],
+      "obligations": [
+        "Customer due diligence and identity verification before the product is usable",
+        "Sanctions and PEP screening, with rescreening",
+        "Transaction monitoring rules cover the new flow",
+        "Records kept for the retention period"
+      ]
+    },
+    {
+      "key": "glba",
+      "name": "GLBA Privacy and Safeguards Rules",
+      "region": "US",
+      "category": "Privacy",
+      "summary": "US rules for how financial institutions disclose, share and protect customers' nonpublic personal information.",
+      "source": "https://www.ftc.gov/business-guidance/privacy-security/gramm-leach-bliley-act",
+      "triggers": ["glba", "gramm-leach", "nonpublic personal information"],
+      "region_terms": ["personal data", "pii", "customer data", "privacy"],
+      "weak": [],
+      "obligations": [
+        "Privacy notice covers the new data use and sharing",
+        "Safeguards: access control, encryption in transit and at rest",
+        "Oversight of service providers that receive customer information"
+      ]
+    },
+    {
+      "key": "ccpa",
+      "name": "CCPA / CPRA (California)",
+      "region": "US",
+      "category": "Privacy",
+      "summary": "California consumer privacy rights: notice, access, deletion, correction and opt-out of sale or sharing.",
+      "source": "https://oag.ca.gov/privacy/ccpa",
+      "triggers": ["ccpa", "cpra", "california"],
+      "region_terms": [],
+      "weak": [],
+      "obligations": [
+        "Notice at collection for any new data",
+        "Right to know, delete, correct and opt out cover the new data",
+        "Service provider contracts for vendors receiving the data"
+      ]
+    },
+    {
+      "key": "nacha",
+      "name": "Nacha Operating Rules (ACH)",
+      "region": "US",
+      "category": "Payments messaging",
+      "summary": "The rules governing ACH payments in the US, including account validation and authorization.",
+      "source": "https://www.nacha.org/rules",
+      "triggers": ["ach", "nacha", "same day ach"],
+      "region_terms": [],
+      "weak": [],
+      "obligations": [
+        "Account validation for first-use WEB debits",
+        "Authorization and return handling per SEC code",
+        "Account numbers protected at rest"
+      ]
+    },
+    {
+      "key": "fapi",
+      "name": "FAPI 2.0 Security Profile",
+      "region": "Global",
+      "category": "Security",
+      "summary": "The OpenID Foundation's high-security OAuth profile for financial APIs.",
+      "source": "https://openid.net/wg/fapi/",
+      "triggers": ["fapi", "mtls", "private_key_jwt", "dpop", "pushed authorization"],
+      "region_terms": [],
+      "weak": ["oauth", "open banking"],
+      "obligations": [
+        "Sender-constrained tokens (mTLS or DPoP)",
+        "Pushed authorization requests and PKCE",
+        "Client authentication by private_key_jwt or mTLS"
+      ]
+    },
+    {
+      "key": "owasp_api",
+      "name": "OWASP API Security Top 10 / ASVS",
+      "region": "Global",
+      "category": "Security",
+      "summary": "The baseline security review for any new or changed API: authorization, authentication, resource limits.",
+      "source": "https://owasp.org/API-Security/",
+      "triggers": ["owasp", "api security", "asvs"],
+      "region_terms": [],
+      "weak": ["api", "apis", "endpoint", "endpoints", "oauth", "authentication", "token"],
+      "obligations": [
+        "Object-level authorization checked on every endpoint",
+        "Authentication and token handling reviewed",
+        "Rate limiting and resource consumption limits",
+        "Threat model for any new trust boundary"
+      ]
+    },
+    {
+      "key": "wcag",
+      "name": "WCAG 2.2 AA / European Accessibility Act",
+      "region": "Global",
+      "category": "Accessibility",
+      "summary": "Accessibility requirements for customer-facing web and mobile journeys.",
+      "source": "https://www.w3.org/TR/WCAG22/",
+      "triggers": ["accessibility", "wcag", "screen reader", "european accessibility act"],
+      "region_terms": [],
+      "weak": ["screen", "journey", "web app", "mobile app", "user interface", "ui", "ux"],
+      "obligations": [
+        "Keyboard and screen reader paths through every new screen",
+        "Contrast, focus visibility and target sizes per WCAG 2.2 AA",
+        "Accessibility checks in the definition of done"
+      ]
+    },
+    {
+      "key": "soc2",
+      "name": "SOC 2 vendor assurance",
+      "region": "Global",
+      "category": "Resilience and third-party risk",
+      "summary": "Reviewing each new vendor's SOC 2 Type II report and the controls it expects of us.",
+      "source": "https://www.aicpa-cima.com/topic/audit-assurance/audit-and-assurance-greater-than-soc-2",
+      "triggers": ["soc 2", "soc2"],
+      "region_terms": [],
+      "weak": ["vendor", "aggregator", "saas", "third-party provider", "third party provider"],
+      "obligations": [
+        "Current SOC 2 Type II report from each new vendor reviewed",
+        "Complementary user entity controls implemented on our side"
+      ]
+    }
+  ],
+  "providers": [
+    {"key": "saltedge", "name": "Salt Edge", "region": "EU, UK and global", "category": "Open banking connectivity", "summary": "Account information and payment initiation connectivity, with data enrichment.", "website": "https://www.saltedge.com", "docs_url": "https://docs.saltedge.com/", "aliases": ["salt edge", "saltedge"]},
+    {"key": "ninthwave", "name": "Ninth Wave", "region": "US", "category": "Open finance data connectivity", "summary": "Open finance data connectivity for US financial institutions. Its API docs are shared with customers; paste the docs link you were given.", "website": "https://www.ninthwave.com", "docs_url": "", "aliases": ["ninth wave", "ninthwave"]},
+    {"key": "plaid", "name": "Plaid", "region": "US, CA, UK and EU", "category": "Account aggregation", "summary": "Account linking, balances, transactions, identity and payments.", "website": "https://plaid.com", "docs_url": "https://plaid.com/docs/", "aliases": ["plaid"]},
+    {"key": "mx", "name": "MX", "region": "US", "category": "Account aggregation", "summary": "Account aggregation and data enhancement.", "website": "https://www.mx.com", "docs_url": "https://docs.mx.com/", "aliases": ["mx technologies", "mx platform"]},
+    {"key": "finicity", "name": "Mastercard Open Banking (Finicity)", "region": "US", "category": "Account aggregation", "summary": "Account data access and verification.", "website": "https://www.finicity.com", "docs_url": "https://developer.mastercard.com/open-banking-us/documentation/", "aliases": ["finicity", "mastercard open banking"]},
+    {"key": "yodlee", "name": "Envestnet | Yodlee", "region": "US and global", "category": "Account aggregation", "summary": "Account aggregation and data APIs.", "website": "https://www.yodlee.com", "docs_url": "https://developer.yodlee.com/", "aliases": ["yodlee"]},
+    {"key": "akoya", "name": "Akoya", "region": "US", "category": "Data access network", "summary": "An FDX-based data access network between institutions and data recipients.", "website": "https://akoya.com", "docs_url": "https://docs.akoya.com/", "aliases": ["akoya"]},
+    {"key": "truelayer", "name": "TrueLayer", "region": "UK and EU", "category": "Open banking connectivity", "summary": "Open banking payments and data.", "website": "https://truelayer.com", "docs_url": "https://docs.truelayer.com/", "aliases": ["truelayer", "true layer"]},
+    {"key": "tink", "name": "Tink", "region": "EU and UK", "category": "Open banking connectivity", "summary": "Open banking data and payments.", "website": "https://tink.com", "docs_url": "https://docs.tink.com/", "aliases": ["tink"]},
+    {"key": "yapily", "name": "Yapily", "region": "UK and EU", "category": "Open banking connectivity", "summary": "Open banking data and payments infrastructure.", "website": "https://www.yapily.com", "docs_url": "https://docs.yapily.com/", "aliases": ["yapily"]}
+  ]
+}

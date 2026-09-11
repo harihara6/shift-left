@@ -530,47 +530,28 @@ export interface RolloutBoard {
 
 // --- Feature Kickoff (backend/app/schemas/kickoff.py) ---------------------------------------------
 
-export interface KickoffLink {
-  label: string;
-  url: string;
-}
+export type AnalysisStatus = 'draft' | 'analysed' | 'created' | 'partial';
+export type KickoffStepKey =
+  | 'prd'
+  | 'repos'
+  | 'dependencies'
+  | 'compliance'
+  | 'api_docs'
+  | 'third_parties'
+  | 'plan';
 
 export interface KickoffQuote {
+  line: number;
   text: string;
   section: string;
-}
-
-export interface PrdPage {
-  page_id: string;
-  title: string;
-  space: string;
-  url: string;
-  version: number;
-  updated: string;
-  author: string;
-  own_project: boolean;
-}
-
-export interface PrdList {
-  pages: PrdPage[];
-  note: string;
-  /** False when the live source can't be read; `note` says why. */
-  available: boolean;
 }
 
 export interface KickoffConnection {
   key: string;
   name: string;
-  direction: 'read' | 'write';
-  /** 'configured' is from configuration alone: nothing is called to check it. */
-  state: 'example' | 'configured' | 'not_configured' | 'not_built' | 'dry_run';
+  state: 'ready' | 'fallback' | 'not_configured';
+  via: string;
   note: string;
-}
-
-export interface KickoffConnections {
-  sources: 'fixtures' | 'live';
-  write_mode: 'dry-run' | 'live';
-  connections: KickoffConnection[];
 }
 
 export interface ModelProvider {
@@ -582,169 +563,274 @@ export interface ModelProvider {
   default_model: string;
 }
 
-export interface ModelOptions {
+export interface KickoffStatus {
+  connections: KickoffConnection[];
   providers: ModelProvider[];
   default_provider: string;
 }
 
-export interface KickoffFact {
+export interface ComplianceFramework {
   key: string;
-  label: string;
-  values: string[];
-  value_labels: string[];
-  /** 'stated' (quoted from the PRD), 'not_stated', or 'confirmed' (set by a person). */
-  status: string;
-  quotes: KickoffQuote[];
-  confirmed_by: string | null;
-  /** Empty for free-text facts. */
-  allowed: { value: string; label: string }[];
-}
-
-export type KickoffOutcome = 'applies' | 'not_applicable' | 'undetermined';
-
-export interface KickoffAction {
-  key: string;
-  label: string;
-  group: string;
-  group_label: string;
-  target: string;
-  description: string;
-  outcome: KickoffOutcome;
-  outcome_label: string;
-  reason: string;
-  quotes: KickoffQuote[];
-  question: string;
-  recommended: boolean;
-  selected: boolean;
-  skip_reason: string;
-  skip_flagged: boolean;
-}
-
-export interface KickoffDrawnFrom {
-  kind: string;
-  text: string;
-  url: string;
-  section: string;
-}
-
-export interface KickoffSuggestion {
-  key: string;
-  label: string;
-  why: string;
-  target: string;
-  source: 'context' | 'check';
-  kind: string;
-  decision: 'pending' | 'accepted' | 'dismissed';
-  drawn_from: KickoffDrawnFrom[];
-}
-
-export type FindingStatus = 'ok' | 'gap' | 'blocker' | 'not_checked';
-
-export interface KickoffFinding {
-  id: string;
-  status: FindingStatus;
-  title: string;
-  detail: string;
-  link: KickoffLink | null;
-  quote: KickoffQuote | null;
-}
-
-export interface KickoffCheck {
-  key: string;
-  label: string;
-  note: string;
-  findings: KickoffFinding[];
-}
-
-export interface KickoffPlanItem {
-  id: string;
-  group: string;
-  kind: string;
-  title: string;
-  detail: string;
-  project: string;
-  labels: string[];
-  drawn_from: KickoffDrawnFrom[];
-  diff: {
-    op: 'add' | 'change';
-    field?: string;
-    label?: string;
-    row?: string;
-    before?: string[];
-    after?: string[];
-    fields?: Record<string, string>;
-  } | null;
-  included: boolean;
-}
-
-export interface KickoffCoverage {
-  artifact: string;
   name: string;
-  gate: string;
-  state: 'covered' | 'waiver_draft' | 'not_applicable' | 'not_covered';
-  item_id: string | null;
+  region: string;
+  category: string;
+  summary: string;
+  source: string;
+  obligations: string[];
+}
+
+export interface ProviderCatalogEntry {
+  key: string;
+  name: string;
+  region: string;
+  category: string;
+  summary: string;
+  website: string;
+  docs_url: string;
+}
+
+export interface KickoffCatalog {
+  frameworks: ComplianceFramework[];
+  providers: ProviderCatalogEntry[];
+}
+
+export interface KickoffPrd {
+  url: string;
+  page_id: string;
+  title: string;
+  space: string;
+  version: number;
+  updated: string;
+  via: 'rest' | 'mcp';
+  via_label: string;
+  word_count: number;
+  sections: string[];
+  lines: string[];
+  read_at: string;
+  read_by: string;
+}
+
+export interface KickoffSpec {
+  path: string;
+  url: string;
+  ok: boolean;
+  error: string;
+  title: string;
+  version: string;
+  operation_count: number;
+  operations: string[];
+  deprecated: string[];
+}
+
+export interface KickoffRepo {
+  url: string;
+  html_url: string;
+  full_name: string;
+  ok: boolean;
+  error: string;
+  description: string;
+  default_branch: string;
+  ref: string;
+  commit: string;
+  commit_url: string;
+  language: string;
+  languages: { name: string; share: number }[];
+  topics: string[];
+  visibility: string;
+  archived: boolean;
+  readme_excerpt: string;
+  file_count: number;
+  tree_truncated: boolean;
+  top_level: string[];
+  manifests: string[];
+  specs: KickoffSpec[];
+  read_with: string;
+  read_at: string | null;
+}
+
+export interface KickoffRepoGroup {
+  repos: KickoffRepo[];
+  saved: boolean;
+  saved_by: string | null;
+}
+
+export interface KickoffDoc {
+  url: string;
+  final_url: string;
+  ok: boolean;
+  error: string;
+  kind: string;
+  title: string;
+  version: string;
+  summary: string;
+  operation_count: number;
+  operations: string[];
+  read_at: string | null;
+}
+
+export interface KickoffComplianceSuggestion {
+  key: string;
+  name: string;
+  confidence: 'strong' | 'possible';
+  why: string;
+  quotes: KickoffQuote[];
+  by: 'claude' | 'rules';
+}
+
+export interface CustomCompliance {
+  name: string;
   note: string;
+}
+
+export interface KickoffCompliance {
+  suggestions: KickoffComplianceSuggestion[];
+  suggested_by: string | null;
+  suggested_note: string;
+  suggested_at: string | null;
+  suggestions_stale: boolean;
+  selected: string[];
+  custom: CustomCompliance[];
+  approved_by: string | null;
+  approved_at: string | null;
+}
+
+export interface KickoffProvider {
+  key: string;
+  name: string;
+  docs_url: string;
+  doc: KickoffDoc | null;
+  mentioned: KickoffQuote[];
+}
+
+export type TaskType = 'Story' | 'Task' | 'Spike';
+export type Estimate = 'XS' | 'S' | 'M' | 'L' | 'XL';
+
+export interface KickoffTask {
+  ref: string;
+  title: string;
+  type: TaskType;
+  repo: string;
+  description: string;
+  acceptance_criteria: string[];
+  depends_on: string[];
+  estimate: Estimate;
+  compliance: string[];
+  quotes: KickoffQuote[];
+  origin: 'claude' | 'rules' | 'person';
+  edited_by: string | null;
 }
 
 export interface KickoffPlan {
-  items: KickoffPlanItem[];
-  coverage: KickoffCoverage[];
+  summary: string;
+  epic_title: string;
+  epic_description: string;
+  repo_work: { repo: string; summary: string; changes: { area: string; what: string; why: string }[] }[];
+  dependency_needs: {
+    repo: string;
+    relies_on: string;
+    status: 'available' | 'missing' | 'unclear';
+    evidence: string;
+    action: string;
+  }[];
+  risks: string[];
+  open_questions: string[];
+  tasks: KickoffTask[];
   notes: string[];
-  catalog_version: number;
-  /** The product index isn't in Confluence: its version is what it states, or a content hash. */
-  index_version: string;
-}
-
-export type KickoffResultStatus =
-  | 'dry_run' | 'skipped' | 'created' | 'updated' | 'exists' | 'handoff' | 'failed';
-
-export interface KickoffResult {
-  item_id: string;
-  group: string;
-  title: string;
-  status: KickoffResultStatus;
-  message: string;
-  link: KickoffLink | null;
-}
-
-export interface Kickoff {
-  id: number;
-  project_id: string;
-  status: 'context' | 'planned' | 'applying' | 'partial' | 'applied';
-  page: PrdPage;
-  provider: string;
+  reader: 'claude' | 'rules';
   model: string;
-  reader: string;
   drafted_by: string;
   note: string;
-  source_note: string;
-  source_mode: 'fixtures' | 'live';
-  write_mode: 'dry-run' | 'live';
-  facts: KickoffFact[];
-  tier: { tier: string; reason: string; undetermined: boolean; quotes: KickoffQuote[] };
-  actions: KickoffAction[];
-  suggestions: KickoffSuggestion[];
-  checks: KickoffCheck[];
-  headline: RagState | null;
-  checked_at: string | null;
-  plan: KickoffPlan | null;
-  approved_by: string | null;
-  approved_at: string | null;
-  results: KickoffResult[];
-  created_at: string | null;
+  run_by: string;
+  run_at: string;
+  run_number: number;
+  edited_by: string | null;
+  edited_at: string | null;
+  stale: string[];
 }
 
-export interface KickoffSummary {
-  id: number;
-  page_title: string;
-  status: string;
-  model: string;
-  created_at: string | null;
-  approved_by: string | null;
-}
-
-export interface KickoffChoice {
+export interface KickoffTicket {
+  ref: string;
+  title: string;
+  status: 'created' | 'exists' | 'failed';
   key: string;
-  selected: boolean;
-  skip_reason: string;
+  url: string;
+  message: string;
+}
+
+export interface KickoffBacklog {
+  url: string;
+  site: string;
+  project_key: string;
+  board_id: string;
+  label: string;
+  created_by: string;
+  created_at: string;
+  epic: KickoffTicket;
+  tickets: KickoffTicket[];
+  note: string;
+  failed: number;
+  attempts: number;
+}
+
+export interface KickoffStep {
+  key: KickoffStepKey;
+  label: string;
+  done: boolean;
+  summary: string;
+}
+
+export interface KickoffAnalysis {
+  id: number;
+  project_id: string;
+  title: string;
+  status: AnalysisStatus;
+  created_by: string;
+  created_at: string | null;
+  updated_by: string;
+  updated_at: string | null;
+  steps: KickoffStep[];
+  run_blockers: string[];
+  prd: KickoffPrd | null;
+  repos: KickoffRepoGroup;
+  dependencies: KickoffRepoGroup;
+  compliance: KickoffCompliance;
+  api_docs: { docs: KickoffDoc[]; saved: boolean; saved_by: string | null };
+  third_parties: {
+    providers: KickoffProvider[];
+    mentioned: Record<string, KickoffQuote[]>;
+    saved: boolean;
+    saved_by: string | null;
+  };
+  plan: KickoffPlan | null;
+  backlog_target: { url: string; project_key: string; board_id: string } | null;
+  backlog: KickoffBacklog | null;
+}
+
+export interface KickoffAnalysisSummary {
+  id: number;
+  title: string;
+  status: AnalysisStatus;
+  created_by: string;
+  created_at: string | null;
+  updated_by: string;
+  updated_at: string | null;
+  steps_done: number;
+  steps_total: number;
+  repo_count: number;
+  task_count: number;
+  drafted_by: string | null;
+  backlog_key: string | null;
+  stale: boolean;
+}
+
+export interface KickoffTaskInput {
+  ref: string;
+  title: string;
+  type: TaskType;
+  repo: string;
+  description: string;
+  acceptance_criteria: string[];
+  depends_on: string[];
+  estimate: Estimate;
+  compliance: string[];
 }

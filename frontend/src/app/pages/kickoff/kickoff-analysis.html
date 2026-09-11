@@ -1,0 +1,350 @@
+<p class="sr-only" role="status" aria-live="polite">{{ announcement() }}</p>
+@let a = analysis();
+
+@if (refusal(); as refused) {
+  <div class="notice notice-poor" role="alert">
+    <p><span aria-hidden="true">✕</span> {{ refused.message }}</p>
+    @if (refused.blockers.length) {
+      <ul class="blockers">@for (b of refused.blockers; track b) { <li>{{ b }}</li> }</ul>
+    }
+  </div>
+}
+
+<!-- What goes in -------------------------------------------------------------------------------- -->
+<section class="run-card" aria-labelledby="run-title">
+  <h4 class="sub-title" id="run-title">What the analysis reads</h4>
+  <ul class="inputs">
+    @for (s of inputs(); track s.key) {
+      <li>
+        <button class="input-chip" [class.done]="s.done" (click)="goStep.emit(s.key)">
+          <span class="input-glyph" aria-hidden="true">{{ s.done ? '✓' : '·' }}</span>
+          <span class="input-text"><span class="input-label">{{ s.label }}</span><span class="meta">{{ s.summary }}</span></span>
+        </button>
+      </li>
+    }
+  </ul>
+
+  @if (a.run_blockers.length) {
+    <div class="notice notice-watch">
+      <p><span aria-hidden="true">!</span> Before it can run:</p>
+      <ul class="blockers">@for (b of a.run_blockers; track b) { <li>{{ b }}</li> }</ul>
+    </div>
+  }
+
+  <h4 class="sub-title">Who drafts it</h4>
+  <div class="drafters" role="radiogroup" aria-label="Who drafts the analysis">
+    @for (p of providers(); track p.key) {
+      <button class="drafter" role="radio" [attr.aria-checked]="providerKey() === p.key" [class.on]="providerKey() === p.key"
+              [disabled]="!p.available || running()" (click)="pick(p.key)">
+        <span class="drafter-mark" aria-hidden="true">{{ p.key === 'claude' ? '✦' : '≡' }}</span>
+        <span class="drafter-text">
+          <span class="drafter-name">{{ p.key === 'claude' ? 'Claude' : 'Rule-based draft' }}
+            @if (!p.available) { <span class="state-pill tone-missing"><span class="glyph" aria-hidden="true">?</span>Not configured</span> }
+          </span>
+          <span class="meta">{{ p.key === 'claude' ? 'Reads the PRD, every repo tree and spec, and the docs.' : 'No AI: one story per requirement in the PRD. Never labelled as AI.' }}</span>
+          @if (!p.available) { <span class="meta">{{ p.note }}</span> }
+        </span>
+      </button>
+    }
+  </div>
+  @if (provider()?.key === 'claude' && provider()!.models.length > 1) {
+    <label class="model-field">
+      <span class="label-caps">Model</span>
+      <select [ngModel]="model()" (ngModelChange)="model.set($event)" [disabled]="running()">
+        @for (m of provider()!.models; track m.id) { <option [value]="m.id">{{ m.display_name }}</option> }
+      </select>
+    </label>
+  }
+
+  @if (running()) {
+    <div class="running" role="status">
+      <span class="pulse" aria-hidden="true"></span>
+      <div>
+        <p class="running-title">{{ providerKey() === 'claude' ? 'Claude is reading every input' : 'Drafting from the inputs' }} · <span class="mono">{{ elapsedLabel() }}</span></p>
+        <p class="meta">
+          The PRD, {{ a.repos.repos.length }} repo{{ a.repos.repos.length === 1 ? '' : 's' }} to code in,
+          {{ a.dependencies.repos.length }} relied on, {{ a.api_docs.docs.length }} doc{{ a.api_docs.docs.length === 1 ? '' : 's' }}
+          and {{ a.third_parties.providers.length }} provider{{ a.third_parties.providers.length === 1 ? '' : 's' }}.
+          A Claude analysis usually takes one to three minutes. It saves when it's done, even if you leave this page.
+        </p>
+      </div>
+    </div>
+  } @else if (confirmRun()) {
+    <div class="confirm">
+      <p>Running again replaces this draft{{ plan()?.edited_by ? ', including the edits ' + plan()!.edited_by + ' made' : '' }}. Tasks already created in Jira stay there.</p>
+      <div class="confirm-actions">
+        <button class="btn btn-lg" (click)="confirmRun.set(false)">Keep this draft</button>
+        <button class="btn btn-lg btn-primary" (click)="run()">Run again</button>
+      </div>
+    </div>
+  } @else {
+    <button class="btn btn-xxl btn-primary run-btn" [disabled]="!!a.run_blockers.length || !providerKey()" (click)="run()">
+      <span aria-hidden="true">✦</span> {{ plan() ? 'Run the analysis again' : 'Run the analysis' }}
+    </button>
+  }
+</section>
+
+@if (plan(); as plan) {
+  <!-- What came out ------------------------------------------------------------------------------ -->
+  @if (stale().length) {
+    <div class="notice notice-watch" role="status">
+      <p><span aria-hidden="true">!</span> This plan is older than its inputs. Changed since it ran: {{ stale().join(', ') }}. Run it again to draft from them; until then it can't be created in Jira.</p>
+    </div>
+  }
+
+  <section class="result-card summary-card" aria-labelledby="summary-title">
+    <div class="drafted">
+      <span class="ai-badge" [class.rules]="plan.reader !== 'claude'">
+        <span aria-hidden="true">{{ plan.reader === 'claude' ? '✦' : '≡' }}</span>
+        {{ plan.reader === 'claude' ? 'AI draft' : 'Rule-based draft' }}
+      </span>
+      <span class="meta">Drafted by {{ plan.drafted_by }} · run <span class="mono">#{{ plan.run_number }}</span> by {{ plan.run_by }} · <span class="mono">{{ plan.run_at | date: 'd MMM, HH:mm' }}</span></span>
+    </div>
+    <h4 class="result-title" id="summary-title">{{ plan.epic_title }}</h4>
+    <p class="summary-text">{{ plan.summary }}</p>
+    <p class="meta">{{ plan.note }}</p>
+    @for (n of plan.notes; track n) { <p class="warn-text"><span aria-hidden="true">!</span> {{ n }}</p> }
+  </section>
+
+  @if (plan.repo_work.length) {
+    <section aria-labelledby="work-title">
+      <h4 class="sub-title" id="work-title">Work by repo</h4>
+      <div class="work-grid">
+        @for (w of plan.repo_work; track w.repo) {
+          <article class="result-card">
+            <p class="repo-name mono">{{ w.repo }}</p>
+            <p class="work-summary">{{ w.summary }}</p>
+            @if (w.changes.length) {
+              <ul class="changes">
+                @for (ch of w.changes; track $index) {
+                  <li>
+                    <span class="mono change-area">{{ ch.area }}</span>
+                    <span class="change-what">{{ ch.what }}</span>
+                    <span class="meta">{{ ch.why }}</span>
+                  </li>
+                }
+              </ul>
+            }
+          </article>
+        }
+      </div>
+    </section>
+  }
+
+  @if (plan.dependency_needs.length) {
+    <section class="result-card" aria-labelledby="deps-title">
+      <h4 class="sub-title" id="deps-title">What you need from the repos you rely on</h4>
+      <ul class="needs">
+        @for (n of plan.dependency_needs; track $index) {
+          <li class="need">
+            <span class="state-pill" [class]="'state-pill tone-' + needTone(n.status).tone">
+              <span class="glyph" aria-hidden="true">{{ needTone(n.status).glyph }}</span>{{ needTone(n.status).label }}
+            </span>
+            <div>
+              <p class="need-what"><span class="mono">{{ n.repo }}</span> — {{ n.relies_on }}</p>
+              <p class="meta">{{ n.evidence }}@if (n.action) { · <strong>{{ n.action }}</strong> }</p>
+            </div>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
+  @if (plan.risks.length || plan.open_questions.length) {
+    <div class="two-col">
+      <section class="result-card" aria-labelledby="risks-title">
+        <h4 class="sub-title" id="risks-title">Risks</h4>
+        <ul class="plain">@for (r of plan.risks; track r) { <li>{{ r }}</li> } @empty { <li class="meta">None named.</li> }</ul>
+      </section>
+      <section class="result-card" aria-labelledby="questions-title">
+        <h4 class="sub-title" id="questions-title">Open questions</h4>
+        <ul class="plain">@for (q of plan.open_questions; track q) { <li>{{ q }}</li> } @empty { <li class="meta">None.</li> }</ul>
+      </section>
+    </div>
+  }
+
+  <!-- The tasks, in order ------------------------------------------------------------------------ -->
+  <section class="result-card tasks-card" aria-labelledby="tasks-title">
+    <div class="tasks-head">
+      <div>
+        <h4 class="sub-title" id="tasks-title">Jira tasks, in the order to do them</h4>
+        <p class="meta">Reorder, rewrite, remove or add. Each task comes after the ones it depends on.</p>
+      </div>
+      <button class="btn btn-lg" (click)="addTask()" [disabled]="editing() !== null">+ Add a task</button>
+    </div>
+    <label class="epic-field">
+      <span class="label-caps">Epic</span>
+      <input type="text" [ngModel]="epicTitle()" (ngModelChange)="epicDraft.set($event)" />
+    </label>
+
+    <ol class="tasks">
+      @for (t of rows(); track t.ref; let i = $index; let first = $first; let last = $last) {
+        <li class="task" [class.editing]="editing() === i">
+          <span class="task-num mono" aria-hidden="true">{{ i + 1 }}</span>
+          @if (editing() === i && form(); as f) {
+            <form class="task-form" (ngSubmit)="applyEdit()">
+              <label class="wide"><span class="label-caps">Title</span>
+                <input name="title" type="text" required [ngModel]="f.title" (ngModelChange)="patch({ title: $event })" /></label>
+              <label><span class="label-caps">Type</span>
+                <select name="type" [ngModel]="f.type" (ngModelChange)="patch({ type: $event })">
+                  @for (x of types; track x) { <option [value]="x">{{ x }}</option> }
+                </select></label>
+              <label><span class="label-caps">Estimate</span>
+                <select name="estimate" [ngModel]="f.estimate" (ngModelChange)="patch({ estimate: $event })">
+                  @for (x of estimates; track x) { <option [value]="x">{{ x }}</option> }
+                </select></label>
+              <label><span class="label-caps">Repo</span>
+                <select name="repo" [ngModel]="f.repo" (ngModelChange)="patch({ repo: $event })">
+                  <option value="">Cross-cutting</option>
+                  @for (r of codeRepos(); track r) { <option [value]="r">{{ r }}</option> }
+                </select></label>
+              <label class="wide"><span class="label-caps">Description</span>
+                <textarea name="description" rows="3" [ngModel]="f.description" (ngModelChange)="patch({ description: $event })"></textarea></label>
+              <label class="wide"><span class="label-caps">Acceptance criteria, one per line</span>
+                <textarea name="ac" rows="3" [ngModel]="acText()" (ngModelChange)="acText.set($event)"></textarea></label>
+              @if (earlier(i).length) {
+                <fieldset class="wide picks"><legend class="label-caps">Depends on</legend>
+                  @for (e of earlier(i); track e.ref) {
+                    <label class="pick"><input type="checkbox" [checked]="f.depends_on.includes(e.ref)" (change)="toggleIn('depends_on', e.ref)" />
+                      <span class="mono">{{ position(e.ref) }}</span> {{ e.title }}</label>
+                  }
+                </fieldset>
+              }
+              @if (complianceKeys().length) {
+                <fieldset class="wide picks"><legend class="label-caps">Compliance</legend>
+                  @for (k of complianceKeys(); track k) {
+                    <label class="pick"><input type="checkbox" [checked]="f.compliance.includes(k)" (change)="toggleIn('compliance', k)" />{{ complianceNames()[k] }}</label>
+                  }
+                </fieldset>
+              }
+              <div class="wide form-actions">
+                <button class="btn btn-lg" type="button" (click)="cancelEdit()">Cancel</button>
+                <button class="btn btn-lg btn-primary" type="submit" [disabled]="!f.title.trim()">Done</button>
+              </div>
+            </form>
+          } @else {
+            <div class="task-body">
+              <div class="task-head">
+                <span class="type-chip" [attr.data-type]="t.type">{{ t.type }}</span>
+                <button class="task-title" (click)="toggleExpanded(t.ref)" [attr.aria-expanded]="expanded().has(t.ref)">{{ t.title }}</button>
+                @if (tickets().get(t.ref); as ticket) {
+                  @if (ticket.key) { <a class="pill mono jira-key" [href]="ticket.url" target="_blank" rel="noopener">{{ ticket.key }} ↗</a> }
+                  @else { <span class="state-pill tone-poor"><span class="glyph" aria-hidden="true">✕</span>Not created</span> }
+                }
+              </div>
+              <div class="task-tags">
+                <span class="pill mono">{{ t.repo || 'Cross-cutting' }}</span>
+                <span class="pill mono">{{ t.estimate }}</span>
+                @if (t.depends_on.length) {
+                  <span class="pill">After {{ after(t) }}</span>
+                }
+                @for (k of t.compliance; track k) { <span class="pill pill-accent">{{ complianceNames()[k] ?? k }}</span> }
+                <span class="meta">{{ originLabel(t) }}</span>
+              </div>
+              @if (expanded().has(t.ref)) {
+                <div class="task-detail">
+                  @if (t.description) { <p>{{ t.description }}</p> }
+                  @if (t.acceptance_criteria.length) {
+                    <p class="label-caps">Acceptance criteria</p>
+                    <ul class="plain">@for (c of t.acceptance_criteria; track $index) { <li>{{ c }}</li> }</ul>
+                  }
+                  @if (t.source?.quotes?.length) {
+                    <p class="label-caps">From the PRD</p>
+                    @for (q of t.source!.quotes; track q.line) {
+                      <blockquote class="quote"><span class="mono line-no">L{{ q.line }}</span> {{ q.text }}</blockquote>
+                    }
+                  }
+                  @if (tickets().get(t.ref)?.status === 'failed') { <p class="err-text">✕ {{ tickets().get(t.ref)!.message }}</p> }
+                </div>
+              }
+            </div>
+            <div class="task-actions">
+              <button class="icon-btn" [disabled]="first || editing() !== null" (click)="move(i, -1)" [attr.aria-label]="'Move ' + t.title + ' up'">↑</button>
+              <button class="icon-btn" [disabled]="last || editing() !== null" (click)="move(i, 1)" [attr.aria-label]="'Move ' + t.title + ' down'">↓</button>
+              <button class="btn btn-small" [disabled]="editing() !== null" (click)="edit(i)" [attr.aria-label]="'Edit ' + t.title">Edit</button>
+              <button class="btn btn-small" [disabled]="editing() !== null" (click)="removeTask(i)" [attr.aria-label]="'Remove ' + t.title">Remove</button>
+            </div>
+          }
+        </li>
+      }
+    </ol>
+
+    @if (dirty()) {
+      <div class="save-bar" role="status">
+        <span><span aria-hidden="true">●</span> Unsaved changes to the tasks.</span>
+        <div class="confirm-actions">
+          <button class="btn btn-lg" (click)="discard()" [disabled]="saving()">Discard</button>
+          <button class="btn btn-lg btn-primary" (click)="saveTasks()" [disabled]="saving() || editing() !== null">
+            {{ saving() ? 'Saving…' : 'Save tasks' }}
+          </button>
+        </div>
+      </div>
+    }
+  </section>
+
+  <!-- Into the backlog ---------------------------------------------------------------------------- -->
+  <section class="backlog-card" aria-labelledby="backlog-title">
+    <div class="backlog-head">
+      <span class="backlog-mark" aria-hidden="true">J</span>
+      <div>
+        <h4 class="backlog-title" id="backlog-title">Create in your backlog</h4>
+        <p class="meta">Creating it is the acceptance: until then this draft counts toward nothing. The epic comes first, then every task in this order, linked by what blocks what.</p>
+      </div>
+    </div>
+    <label class="backlog-field">
+      <span class="label-caps">Backlog link</span>
+      <input type="url" placeholder="https://your-site.atlassian.net/jira/software/c/projects/KEY/boards/12/backlog"
+             [ngModel]="backlogUrl()" (ngModelChange)="backlogUrl.set($event); confirmCreate.set(false)" />
+    </label>
+    @if (jira(); as j) {
+      @if (j.state !== 'ready') {
+        <p class="warn-text"><span aria-hidden="true">?</span> {{ j.note }}
+          <button class="btn btn-small" (click)="openSettings.emit()">Open Settings</button></p>
+      } @else {
+        <p class="meta">Written to {{ j.note }}</p>
+      }
+    }
+    @if (confirmCreate()) {
+      <div class="confirm">
+        <p>Create an epic and <strong>{{ plan.tasks.length }}</strong> tasks in this backlog, recorded as created by you? Tickets already made by this analysis are found, not duplicated.</p>
+        <div class="confirm-actions">
+          <button class="btn btn-lg" (click)="confirmCreate.set(false)">Not yet</button>
+          <button class="btn btn-lg btn-primary" [disabled]="creating()" (click)="create()">
+            @if (creating()) { <span class="spinner" aria-hidden="true"></span> Creating… } @else { Yes, create them }
+          </button>
+        </div>
+      </div>
+    } @else {
+      <button class="btn btn-xxl btn-dark" [disabled]="!canCreate() || creating()" (click)="create()">
+        {{ a.backlog ? (failedTickets() ? 'Retry the ' + failedTickets() + ' that failed' : 'Create again (adds only what’s missing)') : 'Create ' + (plan.tasks.length + 1) + ' issues in Jira' }}
+        <span aria-hidden="true">→</span>
+      </button>
+      @if (dirty()) { <p class="meta">Save or discard your task edits first.</p> }
+    }
+
+    @if (a.backlog; as b) {
+      <div class="created">
+        <p class="created-head">
+          <span class="state-pill" [class]="'state-pill tone-' + (b.failed ? 'poor' : 'good')">
+            <span class="glyph" aria-hidden="true">{{ b.failed ? '✕' : '✓' }}</span>{{ b.failed ? b.failed + ' failed' : 'In Jira' }}
+          </span>
+          <span>{{ b.project_key }} · by <strong>{{ b.created_by }}</strong> · <span class="mono">{{ b.created_at | date: 'd MMM, HH:mm' }}</span> · attempt <span class="mono">{{ b.attempts }}</span></span>
+        </p>
+        <ul class="ticket-list">
+          @for (t of allTickets(); track t.ref) {
+            <li class="ticket">
+              <span class="state-pill" [class]="'state-pill tone-' + ticketTone(t.status).tone">
+                <span class="glyph" aria-hidden="true">{{ ticketTone(t.status).glyph }}</span>{{ ticketTone(t.status).label }}
+              </span>
+              @if (t.key) { <a class="mono" [href]="t.url" target="_blank" rel="noopener">{{ t.key }} ↗</a> } @else { <span class="mono">—</span> }
+              <span class="ticket-title">{{ t.ref === 'epic' ? 'Epic: ' : '' }}{{ t.title }}</span>
+              @if (t.status === 'failed') { <span class="err-text">{{ t.message }}</span> }
+            </li>
+          }
+        </ul>
+        @if (b.note) { <p class="meta">{{ b.note }}</p> }
+        <p class="meta">Labelled <span class="mono">{{ b.label }}</span> and <span class="mono">shiftleft-tracked</span> in Jira.</p>
+      </div>
+    }
+  </section>
+}

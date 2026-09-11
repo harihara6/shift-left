@@ -1,533 +1,60 @@
-"""Feature Kickoff: from a PRD to a checked, tagged plan that a named person confirms.
+"""Feature Kickoff: a PRD taken, in seven steps, to an ordered backlog a named person creates.
 
-The steps and the rule each one enforces (docs/PROPOSAL-PRD-Intake.md):
+1. **PRD**: a Confluence page, read over REST or through the Rovo MCP server.
+2. **Repos to code in**, and 3. **repos relied on**: read from GitHub at a pinned commit.
+4. **Compliance**: proposed from the PRD, approved (or chosen by hand) by a named person.
+5. **API docs**, and 6. **third-party providers**: read from the URLs given.
+7. **The analysis**: Claude drafts what changes in which repo, what each dependency must provide,
+   and the Jira tasks in order. People edit the tasks, then create them in their backlog.
 
-1. **start** reads the PRD and extracts facts, each quoted. The page is stored at the version
-   read, so every quote stays checkable against what was actually read.
-2. **update_facts** is the person correcting what was read. Every rule re-resolves, so choices
-   and findings made on the old facts are cleared rather than silently kept.
-3. **choose** records what to do. A recommended action can be left out only with a reason,
-   because scoped-out is not passed. The selected checks run here, read-only, and what they read
-   (catalog, specs, index, registry) is frozen into the session's snapshot.
-4. **decide** accepts or dismisses recommended steps and leaves plan items out.
-5. **apply** is the only write, and only for the person who confirms it. The plan is frozen and
-   the confirmation recorded before the first write; a dry run records what would be created,
-   a live run creates it. A live run that partly fails can be retried, and the retry finds what
-   already exists instead of duplicating it.
+An analysis is saved as it goes, and can be reopened, changed and run again. The plan keeps a
+fingerprint of the inputs it was drafted from, so a plan older than its inputs says which ones
+changed, and can't be created in Jira until it's run again. Nothing here is example data: an
+input that couldn't be read stays on the page with the reason.
 """
 
-import logging
+import asyncio
+import re
 from dataclasses import asdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
+from typing import Any
 
-from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.connectors import atlassian_rest, github_specs, product_index, xray_cloud
 from app.core.config import get_settings
-from app.models.evidence import ArtifactDefinition
-from app.models.kickoff import KickoffSession
+from app.models.kickoff import KickoffAnalysis
 from app.models.project import Project
 from app.schemas import kickoff as out
-from app.services import kickoff_checks as checks_service
-from app.services import kickoff_plan as planner
+from app.services import kickoff_ai as ai
+from app.services import kickoff_backlog as backlog
+from app.services import kickoff_compliance as compliance
 from app.services import kickoff_sources as sources
-from app.services import kickoff_write as writing
 from app.services import model_provider
-from app.services.kickoff_extract import (
-    Structure,
-    facts_by_claude,
-    facts_by_rules,
-    lines_of,
-    structure,
-)
-from app.services.kickoff_rules import (
-    ACTION_BY_KEY,
-    ACTIONS,
-    ENUMS,
-    FACT_LABELS,
-    GROUP_LABELS,
-    STANDARD_FOR_ACTION,
-    VALUE_LABELS,
-    Fact,
-    Facts,
-    fact_from,
-    resolve,
-    tier_for,
-)
-from app.services.kickoff_sources import Snap
-from app.services.readiness import is_denied
+from app.services.kickoff_backlog import Refused
 
-logger = logging.getLogger("shiftleft.kickoff")
-
-OUTCOME_LABEL = {
-    "applies": "Recommended",
-    "not_applicable": "Not applicable",
-    "undetermined": "Needs your answer",
+STEPS: list[tuple[str, str]] = [
+    ("prd", "PRD"),
+    ("repos", "Repos to code in"),
+    ("dependencies", "Repos we rely on"),
+    ("compliance", "Compliance"),
+    ("api_docs", "API docs"),
+    ("third_parties", "Third-party APIs"),
+    ("plan", "Analysis"),
+]
+STALE_LABELS = {
+    "prd": "the PRD",
+    "repos": "the repos to code in",
+    "dependencies": "the repos relied on",
+    "compliance": "the approved compliance",
+    "api_docs": "the API docs",
+    "third_parties": "the third-party APIs",
 }
-# An apply that has been "applying" this long is assumed to have died mid-way, and can be retried.
-# The retry is safe: it looks up what already exists before creating anything.
-STALE_APPLY = timedelta(minutes=10)
-CONFIRMED = ("applying", "partial", "applied")
 
+__all__ = ["Refused"]
 
-class Refused(Exception):
-    """A step the rules don't allow. Carries the reasons as a list, like the rollout board."""
 
-    def __init__(self, message: str, blockers: list[str] | None = None) -> None:
-        super().__init__(message)
-        self.message = message
-        self.blockers = blockers or []
-
-
-def write_mode() -> str:
-    return get_settings().kickoff_write_mode
-
-
-# --- Reading ----------------------------------------------------------------------------------
-
-
-def prd_page(prd: dict, project: Project) -> out.PrdPage:
-    return out.PrdPage(
-        page_id=prd["page_id"], title=prd["title"], space=prd["space"], url=prd["url"],
-        version=prd["version"], updated=prd.get("updated", ""), author=prd.get("author", ""),
-        own_project=prd.get("project_key") == project.key,
-    )
-
-
-async def list_prds(project: Project, query: str = "") -> out.PrdList:
-    try:
-        found = await sources.list_prds(query)
-    except sources.SourceUnavailable as exc:
-        return out.PrdList(pages=[], note=f"PRD pages can't be listed: {exc}", available=False)
-    pages = [prd_page(p, project) for p in found]
-    pages.sort(key=lambda p: (not p.own_project, p.title))
-    return out.PrdList(pages=pages, note=sources.note())
-
-
-async def model_options() -> out.ModelOptions:
-    providers = await model_provider.providers()
-    default = next((p.key for p in providers if p.available and p.key != "rules"), "rules")
-    return out.ModelOptions(
-        providers=[out.ModelProvider(**asdict(p)) for p in providers], default_provider=default
-    )
-
-
-def connections() -> out.Connections:
-    """What each read and write goes to, from configuration alone: nothing is called to answer."""
-    settings = get_settings()
-    rows: list[out.Connection] = []
-    live_reads = sources.mode() == "live"
-    atl = atlassian_rest.AtlassianRest()
-
-    def state(ok: bool) -> str:
-        return "configured" if ok else "not_configured"
-
-    if live_reads:
-        catalog_ok = atl.available and bool(settings.software_catalog_page_id)
-        catalog_note = (f"Page {settings.software_catalog_page_id} on {atl.site}." if catalog_ok else
-                        atl.unavailable_reason or "No catalog page (SHIFTLEFT_SOFTWARE_CATALOG_PAGE_ID).")
-        github = github_specs.GitHubSpecs()
-        index_state, index_note = product_index.state()
-        rows += [
-            out.Connection(key="confluence", name="Confluence (PRD pages)", direction="read",
-                           state=state(atl.available),
-                           note=(f"Pages labelled {settings.kickoff_prd_label} on {atl.site}, as "
-                                 f"{atl.account}." if atl.available else atl.unavailable_reason)),
-            out.Connection(key="catalog", name="Software catalog", direction="read",
-                           state=state(catalog_ok), note=catalog_note),
-            out.Connection(key="github", name="GitHub (API specs)", direction="read",
-                           state=state(github.available),
-                           note=f"{github.api}, read at a pinned commit." if github.available
-                           else github.unavailable_reason),
-            out.Connection(key="product_index", name="Product index", direction="read",
-                           state=index_state, note=index_note),
-        ]
-    else:
-        rows.append(out.Connection(key="examples", name="Example pages", direction="read", state="example",
-                                   note=sources.FIXTURE_NOTE))
-    rows.append(out.Connection(
-        key="registry", name="Standards and vendor registry", direction="read", state="configured",
-        note=f"{len(sources.standards())} standards, pinned; vendors reviewed by their owners.",
-    ))
-    if write_mode() == "live":
-        xray = xray_cloud.XrayCloud()
-        rows += [
-            out.Connection(key="jira_write", name="Jira (epic, stories, tasks)", direction="write",
-                           state=state(atl.available),
-                           note=(f"As {atl.account}, into the kickoff's own project only." if atl.available
-                                 else atl.unavailable_reason)),
-            out.Connection(key="xray_write", name="Xray (tests, test plan)", direction="write",
-                           state=state(xray.available),
-                           note=xray.base if xray.available else xray.unavailable_reason),
-            out.Connection(key="confluence_write", name="Confluence (pages, catalog)", direction="write",
-                           state=state(atl.available),
-                           note="New pages under the PRD; the catalog edited by row, version-checked."
-                           if atl.available else atl.unavailable_reason),
-            out.Connection(key="index_write", name="Product index", direction="write", state="not_built",
-                           note="No writer yet: index rows are handed off to a person."),
-        ]
-    else:
-        rows.append(out.Connection(
-            key="dry_run", name="Jira, Xray and Confluence", direction="write", state="dry_run",
-            note="Dry run: confirming records what would be created.",
-        ))
-    return out.Connections(sources=sources.mode(), write_mode=write_mode(), connections=rows)
-
-
-async def start(
-    session: AsyncSession, project: Project, actor: str, page_id: str, provider_key: str, model: str
-) -> KickoffSession:
-    chosen = await model_provider.choose(provider_key, model)
-    if isinstance(chosen, str):
-        raise Refused(chosen)
-    provider, model = chosen
-    prd = await sources.prd(page_id)  # SourceUnavailable propagates: the route says why
-    if prd is None:
-        raise LookupError("PRD page not found")
-
-    lines = lines_of(prd["body"])
-    shape = structure(lines)
-    reader = "rules"
-    if provider.key == "claude":
-        try:
-            facts = await facts_by_claude(lines, shape, model)
-            reader = "claude"
-            note = (
-                f"Read by {model}. Every fact is quoted from the PRD; nothing is applied until you "
-                "confirm."
-            )
-        except Exception as exc:  # any failure degrades to the keyword reader, and says so
-            logger.warning("Claude couldn't read the PRD, falling back to the keyword reader: %s", exc)
-            facts = facts_by_rules(lines, shape)
-            note = f"{model} couldn't be reached, so the keyword reader was used instead. Check each fact."
-    else:
-        facts = facts_by_rules(lines, shape)
-        note = "Read by the keyword reader (no model). Every fact still carries the sentence it came from."
-
-    row = KickoffSession(
-        project_id=project.id, actor=actor, page_id=prd["page_id"], page_title=prd["title"][:300],
-        page_version=prd["version"], status="context", provider=provider.key, model=model,
-        reader=reader, note=note,
-        data={
-            "source_mode": sources.mode(),
-            # The page as read. PRDs are requirements, not sensitive evidence (rule 10), and the
-            # quotes are only checkable against the version they came from.
-            "prd": prd,
-            "facts": {k: asdict(f) for k, f in facts.items()},
-            "structure": asdict(shape),
-            "choices": {}, "checks": [], "checked_at": None, "snapshot": None,
-            "decisions": {}, "excluded": [], "results": [], "applied_plan": None,
-        },
-    )
-    session.add(row)
-    return row
-
-
-# --- Deciding ---------------------------------------------------------------------------------
-
-
-def _prd(row: KickoffSession) -> dict:
-    stored = row.data.get("prd")
-    if stored:
-        return stored
-    # Sessions from before pages were stored on the session read the example they came from.
-    return next(p for p in sources._fixtures()["prds"] if p["page_id"] == row.page_id)
-
-
-def _facts(row: KickoffSession) -> Facts:
-    return {k: fact_from(v) for k, v in row.data["facts"].items()}
-
-
-def _shape(row: KickoffSession) -> Structure:
-    return Structure(**row.data["structure"])
-
-
-def _snap(row: KickoffSession) -> Snap:
-    return Snap(row.data.get("snapshot"))
-
-
-def _writable(row: KickoffSession) -> None:
-    if row.status in CONFIRMED:
-        raise Refused("This kickoff has been confirmed. Start a new one to plan again.")
-
-
-def update_facts(row: KickoffSession, edits: list[out.FactEdit], actor: str) -> None:
-    _writable(row)
-    data = dict(row.data)
-    facts = dict(data["facts"])
-    shape = dict(data["structure"])
-    problems: list[str] = []
-    for edit in edits:
-        if edit.key not in FACT_LABELS:
-            problems.append(f"{edit.key!r} is not a fact this page records.")
-            continue
-        values = [v.strip() for v in edit.values if v.strip()]
-        if edit.key in ENUMS:
-            bad = [v for v in values if v not in ENUMS[edit.key]]
-            if bad:
-                problems.append(f"{FACT_LABELS[edit.key]}: {', '.join(bad)} isn't an allowed value.")
-                continue
-        previous = fact_from(facts[edit.key])
-        facts[edit.key] = asdict(Fact(
-            edit.key, list(dict.fromkeys(values)), "confirmed", previous.quotes, confirmed_by=actor,
-        ))
-        if edit.key == "services":
-            # A service the person names is checked like one the PRD named, with no operation
-            # to look for until one is added to the PRD.
-            kept = [d for d in shape["dependencies"] if d["service"] in values]
-            named = {d["service"] for d in kept}
-            kept += [
-                {"service": s, "operation": "", "quote": {"text": f"Added by {actor}", "section": "Context"}}
-                for s in values if s not in named
-            ]
-            shape["dependencies"] = kept
-    if problems:
-        raise Refused("Some facts couldn't be recorded.", problems)
-    # New facts, new outcomes: nothing decided on the old ones carries over silently.
-    data.update(facts=facts, structure=shape, choices={}, checks=[], checked_at=None, snapshot=None,
-                decisions={}, excluded=[])
-    row.data = data
-    row.status = "context"
-
-
-def _actions(row: KickoffSession, facts: Facts) -> list[out.ActionOut]:
-    choices = row.data.get("choices", {})
-    result = []
-    for action in ACTIONS:
-        resolution = resolve(action.key, facts)
-        choice = choices.get(action.key)
-        reason = (choice or {}).get("skip_reason", "")
-        result.append(out.ActionOut(
-            key=action.key, label=action.label, group=action.group,
-            group_label=GROUP_LABELS[action.group], target=action.target,
-            description=action.description, outcome=resolution.outcome,
-            outcome_label=OUTCOME_LABEL[resolution.outcome], reason=resolution.reason,
-            quotes=[out.Quote(**q) for q in resolution.quotes], question=resolution.question,
-            recommended=resolution.recommended,
-            selected=choice["selected"] if choice else resolution.recommended,
-            skip_reason=reason, skip_flagged=bool(reason) and is_denied(reason),
-        ))
-    return result
-
-
-def _selected(row: KickoffSession, facts: Facts) -> list[str]:
-    return [a.key for a in _actions(row, facts) if a.selected]
-
-
-async def choose(row: KickoffSession, choices: list[out.Choice]) -> None:
-    _writable(row)
-    facts = _facts(row)
-    by_key = {c.key: c for c in choices}
-    unknown = [k for k in by_key if k not in {a.key for a in ACTIONS}]
-    if unknown:
-        raise Refused("Unknown actions.", [f"{k!r} is not an action on this page." for k in unknown])
-
-    stored: dict[str, dict] = {}
-    missing_reasons: list[str] = []
-    for action in ACTIONS:
-        resolution = resolve(action.key, facts)
-        choice = by_key.get(action.key)
-        selected = choice.selected if choice else resolution.recommended
-        reason = (choice.skip_reason.strip() if choice else "")
-        if resolution.recommended and not selected and not reason:
-            missing_reasons.append(
-                f"{action.label} is {OUTCOME_LABEL[resolution.outcome].lower()}. Say why you're "
-                "leaving it out; the reason goes on the feasibility record."
-            )
-        stored[action.key] = {"selected": selected, "skip_reason": "" if selected else reason}
-    if missing_reasons:
-        raise Refused("Leaving a recommended action out needs a reason.", missing_reasons)
-
-    selected_keys = [k for k, c in stored.items() if c["selected"]]
-    shape = _shape(row)
-    # Only what the plan needs is read: specs for the services the PRD depends on.
-    snapshot = await sources.snapshot([d["service"] for d in shape.dependencies])
-    snap = Snap(snapshot)
-    lines = lines_of(_prd(row)["body"])
-    parties = facts["third_parties"].values if facts.get("third_parties") else []
-
-    data = dict(row.data)
-    data["choices"] = stored
-    data["snapshot"] = snapshot
-    data["checks"] = checks_service.dump(checks_service.run(selected_keys, shape, lines, parties, snap))
-    data["checked_at"] = datetime.now(timezone.utc).isoformat()
-    # Findings changed, so decisions on the suggestions they produced start again.
-    data["decisions"] = {k: v for k, v in data.get("decisions", {}).items()
-                         if not k.startswith(("dependency:", "deprecation:", "catalog_entry:", "spike:",
-                                              "standard_gap:", "standard_access:", "conformance:"))}
-    data["excluded"] = []
-    row.data = data
-    row.status = "planned"
-
-
-def _suggestions(row: KickoffSession, project: Project, facts: Facts) -> list[planner.Suggestion]:
-    tier = tier_for(facts)
-    shape = _shape(row)
-    found = planner.context_suggestions(facts, tier, shape, project.key)
-    if row.status in ("planned", *CONFIRMED):
-        found += planner.finding_suggestions(checks_service.load(row.data.get("checks", [])), _snap(row))
-    # One entry per key; the first reason stands.
-    return list({s.key: s for s in found}.values())
-
-
-async def artifacts(session: AsyncSession) -> list[dict]:
-    rows = (await session.execute(select(ArtifactDefinition).order_by(ArtifactDefinition.position))).scalars()
-    return [{"key": r.key, "name": r.name, "gate": r.gate, "accountable": r.accountable} for r in rows]
-
-
-def _plan(row: KickoffSession, project: Project, facts: Facts, defs: list[dict]) -> planner.Plan:
-    return planner.build(
-        project_key=project.key, project_name=project.name, prd=_prd(row), facts=facts, shape=_shape(row),
-        tier=tier_for(facts), selected=_selected(row, facts),
-        checks=checks_service.load(row.data.get("checks", [])),
-        suggestions=_suggestions(row, project, facts), decisions=row.data.get("decisions", {}),
-        excluded=set(row.data.get("excluded", [])), artifacts=defs, snap=_snap(row),
-    )
-
-
-def decide(row: KickoffSession, project: Project, defs: list[dict], body: out.PlanUpdate) -> None:
-    """Accept or dismiss recommended steps (any time before apply); leave plan items out (once planned)."""
-    _writable(row)
-    facts = _facts(row)
-    known = {s.key for s in _suggestions(row, project, facts)}
-    unknown = [k for k in body.decisions if k not in known]
-    if unknown:
-        raise Refused("Unknown recommended steps.", [f"{k!r} isn't recommended here." for k in unknown])
-    if body.excluded is not None and row.status != "planned":
-        raise Refused("Choose what to do first; plan items exist only once the plan is drafted.")
-    data = {**row.data, "decisions": {**row.data.get("decisions", {}), **body.decisions}}
-    row.data = data
-    if body.excluded is not None:
-        plan_ids = {i.id for i in _plan(row, project, facts, defs).items}
-        stray = [i for i in body.excluded if i not in plan_ids]
-        if stray:
-            raise Refused("Unknown plan items.", [f"{i!r} isn't in the plan." for i in stray])
-        row.data = {**data, "excluded": list(dict.fromkeys(body.excluded))}
-
-
-# --- Confirming and applying ---------------------------------------------------------------------
-
-
-def _stale(row: KickoffSession) -> bool:
-    since = row.data.get("applying_since")
-    return bool(since) and datetime.now(timezone.utc) - datetime.fromisoformat(since) > STALE_APPLY
-
-
-def prepare_apply(row: KickoffSession, project: Project, defs: list[dict]) -> tuple[dict, list[dict]]:
-    """The plan to apply (frozen, if it already was) and the results so far."""
-    mode = write_mode()
-    if mode == "live" and row.data.get("source_mode", "fixtures") != "live":
-        raise Refused("This kickoff read example pages, so it can't write to live systems. Start a new one.")
-    if row.status == "planned":
-        plan = _plan(row, project, _facts(row), defs)
-        if not any(item.included for item in plan.items):
-            raise Refused("The plan is empty, so there is nothing to create.")
-        snap = _snap(row)
-        return {**planner.dump(plan), "catalog_version": snap.catalog["version"],
-                "index_version": snap.index["version"]}, []
-    if row.status == "partial" or (row.status == "applying" and _stale(row)):
-        if row.data.get("write_mode") != mode:
-            raise Refused(f"This kickoff was applied as a {row.data.get('write_mode')}; the service now "
-                          f"writes as {mode}. Start a new kickoff.")
-        return row.data["applied_plan"], row.data.get("results", [])
-    if row.status == "applying":
-        raise Refused("This plan is being applied right now. Wait for it to finish.")
-    if row.status == "applied":
-        raise Refused("This kickoff has been applied. Start a new one to plan again.")
-    raise Refused("There is no plan to confirm yet. Choose what to do and review the plan first.")
-
-
-def write_context(row: KickoffSession, project: Project, defs: list[dict], actor: str) -> writing.Context:
-    """What the writers need to know, including everything the feasibility page records."""
-    facts = _facts(row)
-    tier = tier_for(facts)
-    prd = _prd(row)
-    snap = _snap(row)
-    checks = checks_service.load(row.data.get("checks", []))
-    selected = _selected(row, facts)
-    approved_at = as_utc(row.approved_at) or datetime.now(timezone.utc)
-    record = {
-        "session_id": row.id, "prd": {k: prd[k] for k in ("page_id", "title", "url", "version", "space")},
-        "tier": tier.tier, "tier_reason": tier.reason, "drafted_by": drafted_by(row),
-        "approved_by": row.approved_by or actor, "approved_at": approved_at.strftime("%Y-%m-%d %H:%M UTC"),
-        "facts": [{"label": FACT_LABELS[f.key], "values": [VALUE_LABELS.get(v, v) for v in f.values],
-                   "quotes": f.quotes, "confirmed_by": f.confirmed_by} for f in facts.values()],
-        "actions": [a.model_dump() for a in _actions(row, facts)],
-        "checks": checks_service.dump(checks),
-        "headline": checks_service.headline(checks).reasons if checks else [],
-        "services": facts["services"].values if facts.get("services") else [],
-        "data_classes": [VALUE_LABELS.get(v, v) for v in (facts["data_classes"].values
-                                                          if facts.get("data_classes") else [])],
-        "standards": [ACTION_BY_KEY[a].label for a in STANDARD_FOR_ACTION if a in selected],
-    }
-    return writing.Context(
-        session_id=row.id, project_key=project.key, actor=row.approved_by or actor,
-        feature=planner.feature_name(prd), prd=prd, own_space=prd["space"] == project.key,
-        snapshot=snap.data, record=record,
-    )
-
-
-async def claim(db: AsyncSession, row: KickoffSession, actor: str, plan: dict, mode: str) -> None:
-    """Record the confirmation and mark the session applying, atomically, before any write.
-
-    Two confirmations racing (a double click, two tabs) can't both proceed: only the request whose
-    conditional update matched the status it read goes on; the other is refused.
-    """
-    status = row.status
-    claimed = await db.execute(
-        update(KickoffSession).where(KickoffSession.id == row.id, KickoffSession.status == status)
-        .values(status="applying")
-    )
-    if claimed.rowcount != 1:
-        raise Refused("This plan is being applied right now. Wait for it to finish.")
-    now = datetime.now(timezone.utc)
-    data = dict(row.data)
-    if status == "planned":
-        # The plan as confirmed. Every retry applies exactly this, never a recomputed one.
-        data["applied_plan"] = plan
-        row.approved_by, row.approved_at = actor, now
-    data["write_mode"] = mode
-    data["applying_since"] = now.isoformat()
-    data["attempts"] = [*data.get("attempts", []), {"by": actor, "at": now.isoformat(), "mode": mode}]
-    row.data = data
-    row.status = "applying"
-
-
-def finish_apply(row: KickoffSession, items: list[dict], results: list[writing.Result]) -> dict:
-    data = dict(row.data)
-    data["results"] = writing.dump(results)
-    data["applying_since"] = None
-    row.data = data
-    failed = sum(1 for r in results if r.status == "failed")
-    row.status = "partial" if failed else "applied"
-    counts: dict[str, int] = {}
-    for r in results:
-        counts[r.status] = counts.get(r.status, 0) + 1
-    return {"mode": data["write_mode"], "counts": counts, "attempt": len(data.get("attempts", []))}
-
-
-def interrupted(items: list[dict], previous: list[dict], reason: str) -> list[writing.Result]:
-    """Results when the writer itself broke: what was done stays done, the rest failed with why."""
-    done = {r["item_id"]: r for r in previous if r["status"] in writing.DONE}
-    return [
-        writing.Result(**{k: v for k, v in done[i["id"]].items() if k in writing.Result.__dataclass_fields__})
-        if i["id"] in done else
-        writing.Result(i["id"], i["group"], i["title"], "failed", f"Not attempted: {reason}")
-        for i in items
-    ]
-
-
-# --- The view ---------------------------------------------------------------------------------
-
-
-def _fact_out(fact: Fact) -> out.FactOut:
-    return out.FactOut(
-        key=fact.key, label=FACT_LABELS[fact.key], values=fact.values,
-        value_labels=[VALUE_LABELS.get(v, v) for v in fact.values], status=fact.status,
-        quotes=[out.Quote(**q) for q in fact.quotes], confirmed_by=fact.confirmed_by,
-        allowed=[out.AllowedValue(value=v, label=VALUE_LABELS.get(v, v)) for v in ENUMS.get(fact.key, ())],
-    )
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 def as_utc(moment: datetime | None) -> datetime | None:
@@ -535,51 +62,714 @@ def as_utc(moment: datetime | None) -> datetime | None:
     return moment.replace(tzinfo=timezone.utc) if moment and moment.tzinfo is None else moment
 
 
-def drafted_by(row: KickoffSession) -> str:
-    return f"Claude ({row.model})" if row.reader == "claude" else "Rule-based reader"
+def _touch(row: KickoffAnalysis, actor: str, **changes: Any) -> None:
+    row.inputs = {**row.inputs, **changes}
+    row.updated_by = actor
 
 
-def view(row: KickoffSession, project: Project, defs: list[dict]) -> out.KickoffOut:
-    prd = _prd(row)
-    facts = _facts(row)
-    tier = tier_for(facts)
-    decisions = row.data.get("decisions", {})
-    check_results = checks_service.load(row.data.get("checks", []))
-    snap = _snap(row)
+def _slug(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:40] or "item"
 
-    plan: out.PlanOut | None = None
-    if row.status in CONFIRMED and row.data.get("applied_plan"):
-        frozen = row.data["applied_plan"]
-        plan = out.PlanOut(**{**frozen, "index_version": str(frozen.get("index_version", ""))})
-    elif row.status == "planned":
-        plan = out.PlanOut(**planner.dump(_plan(row, project, facts, defs)),
-                           catalog_version=snap.catalog["version"], index_version=snap.index["version"])
 
-    source_mode = row.data.get("source_mode", "fixtures")
-    return out.KickoffOut(
-        id=row.id, project_id=row.project_id, status=row.status,
-        page=prd_page(prd, project), provider=row.provider, model=row.model, reader=row.reader,
-        drafted_by=drafted_by(row), note=row.note,
-        source_note=sources.LIVE_NOTE if source_mode == "live" else sources.FIXTURE_NOTE,
-        source_mode=source_mode,
-        write_mode=row.data.get("write_mode") or write_mode(),
-        facts=[_fact_out(f) for f in facts.values()],
-        tier=out.TierOut(tier=tier.tier, reason=tier.reason, undetermined=tier.undetermined,
-                         quotes=[out.Quote(**q) for q in tier.quotes]),
-        actions=_actions(row, facts),
-        suggestions=[
-            out.SuggestionOut(
-                key=s.key, label=s.label, why=s.why, target=s.target, source=s.source, kind=s.kind,
-                decision=decisions.get(s.key, "pending"),
-                drawn_from=[out.DrawnFrom(**d) for d in s.drawn_from],
+# --- Status and catalog -----------------------------------------------------------------------------
+
+
+async def status(session: AsyncSession) -> out.KickoffStatus:
+    """Where each read and write goes, from configuration alone. Never returns a credential."""
+    rows: list[out.ConnectionOut] = []
+    confluence = await sources.atlassian(session, ("confluence", "jira"))
+    mcp = sources.rovo()
+    if confluence:
+        rows.append(
+            out.ConnectionOut(
+                key="confluence",
+                name="Confluence (the PRD)",
+                state="ready",
+                via="REST",
+                note=f"{confluence.host}, with {confluence.source}.",
             )
-            for s in _suggestions(row, project, facts)
+        )
+    elif mcp:
+        rows.append(
+            out.ConnectionOut(
+                key="confluence",
+                name="Confluence (the PRD)",
+                state="ready",
+                via="Rovo MCP",
+                note=f"Read through the Rovo MCP server on {mcp.site_url}.",
+            )
+        )
+    else:
+        rows.append(
+            out.ConnectionOut(
+                key="confluence",
+                name="Confluence (the PRD)",
+                state="not_configured",
+                via="",
+                note="Add the Confluence connector in Settings → Connectors, or configure Rovo MCP.",
+            )
+        )
+    github = await sources.github(session)
+    rows.append(
+        out.ConnectionOut(
+            key="github",
+            name="GitHub (repos)",
+            state="ready" if github.token else "fallback",
+            via="REST",
+            note=f"{github.web_host}, with {github.source}.",
+        )
+    )
+    jira = await sources.atlassian(session, ("jira", "confluence"))
+    rows.append(
+        out.ConnectionOut(
+            key="jira",
+            name="Jira (creating the backlog)",
+            state="ready" if jira else "not_configured",
+            via="REST" if jira else "",
+            note=f"{jira.host}, with {jira.source}."
+            if jira
+            else "Needed only for the last step. Add the Jira connector in Settings → Connectors.",
+        )
+    )
+    rows.append(
+        out.ConnectionOut(
+            key="ai",
+            name="Claude (the analysis)",
+            state="ready" if ai.available() else "fallback",
+            via="Anthropic API" if ai.available() else "",
+            note="Compliance proposals and the plan are drafted by Claude."
+            if ai.available()
+            else "Not configured (SHIFTLEFT_ANTHROPIC_API_KEY): drafts are rule-based and say so.",
+        )
+    )
+    providers = [p for p in await model_provider.providers() if p.key in ("claude", "rules")]
+    default = next((p.key for p in providers if p.available and p.key != "rules"), "rules")
+    return out.KickoffStatus(
+        connections=rows,
+        providers=[out.ModelProvider(**asdict(p)) for p in providers],
+        default_provider=default,
+    )
+
+
+def catalog() -> out.CatalogOut:
+    return out.CatalogOut(
+        frameworks=[
+            out.FrameworkOut(**{k: f[k] for k in out.FrameworkOut.model_fields})
+            for f in compliance.frameworks()
         ],
-        checks=[out.CheckOut(**checks_service.dump([c])[0]) for c in check_results],
-        headline=checks_service.headline(check_results) if row.status != "context" else None,
-        checked_at=row.data.get("checked_at"),
-        plan=plan, approved_by=row.approved_by, approved_at=as_utc(row.approved_at),
-        results=[out.ResultOut(**{k: v for k, v in r.items() if k != "issue_id"})
-                 for r in row.data.get("results", [])],
+        providers=[
+            out.ProviderCatalogOut(**{k: p[k] for k in out.ProviderCatalogOut.model_fields})
+            for p in compliance.providers()
+        ],
+    )
+
+
+# --- Step 1: the PRD ----------------------------------------------------------------------------------
+
+
+async def _read_prd(session: AsyncSession, url: str, actor: str) -> dict[str, Any]:
+    try:
+        prd = await sources.read_prd(session, url)
+    except sources.NotReadable as exc:
+        raise Refused(str(exc)) from exc
+    return {**prd, "read_by": actor}
+
+
+async def create(session: AsyncSession, project: Project, actor: str, prd_url: str) -> KickoffAnalysis:
+    prd = await _read_prd(session, prd_url, actor)
+    row = KickoffAnalysis(
+        project_id=project.id,
+        title=prd["title"][:300],
+        status="draft",
+        created_by=actor,
+        updated_by=actor,
+        inputs={"prd": prd},
+        runs=0,
+    )
+    session.add(row)
+    return row
+
+
+async def read_prd(session: AsyncSession, row: KickoffAnalysis, actor: str, prd_url: str) -> None:
+    prd = await _read_prd(session, prd_url, actor)
+    previous = row.inputs.get("prd") or {}
+    if row.title in ("", "Untitled analysis", previous.get("title")):
+        row.title = prd["title"][:300]
+    _touch(row, actor, prd=prd)
+
+
+def rename(row: KickoffAnalysis, actor: str, title: str) -> None:
+    row.title = title.strip()[:300]
+    row.updated_by = actor
+
+
+# --- Steps 2 and 3: repos ------------------------------------------------------------------------------
+
+
+def _clean_urls(urls: list[str]) -> list[str]:
+    return list(dict.fromkeys(u.strip().rstrip("/") for u in urls if u.strip()))
+
+
+async def set_repos(
+    session: AsyncSession, row: KickoffAnalysis, role: str, urls: list[str], refresh: bool, actor: str
+) -> None:
+    other = "dependencies" if role == "repos" else "repos"
+    wanted = _clean_urls(urls)
+    previous = {r["url"]: r for r in (row.inputs.get(role) or {}).get("items", [])}
+    access = await sources.github(session)
+
+    async def read(url: str) -> dict[str, Any]:
+        kept = previous.get(url)
+        if kept and kept.get("ok") and not refresh:
+            return kept
+        try:
+            read = await sources.read_repo(access, url)
+            return {**read, "html_url": read["url"], "url": url}
+        except sources.NotReadable as exc:
+            return sources.repo_failure(url, str(exc))
+
+    items = list(await asyncio.gather(*(read(u) for u in wanted)))
+    # One entry per repo, however it was written.
+    seen: set[str] = set()
+    unique = []
+    for item in items:
+        name = item["full_name"].lower()
+        if name not in seen:
+            seen.add(name)
+            unique.append(item)
+    elsewhere = {
+        r["full_name"].lower() for r in (row.inputs.get(other) or {}).get("items", []) if r.get("ok")
+    }
+    clash = [r["full_name"] for r in unique if r.get("ok") and r["full_name"].lower() in elsewhere]
+    if clash:
+        where = "repos we rely on" if role == "repos" else "repos to code in"
+        raise Refused(f"Already listed under {where}: {', '.join(clash)}. A repo is one or the other.")
+    _touch(row, actor, **{role: {"items": unique, "saved": True, "saved_by": actor, "saved_at": _now()}})
+
+
+# --- Step 4: compliance ---------------------------------------------------------------------------------
+
+
+def _prd_mark(prd: dict[str, Any] | None) -> str:
+    return f"{prd['page_id']}@{prd['version']}" if prd else ""
+
+
+async def suggest_compliance(row: KickoffAnalysis, actor: str) -> None:
+    prd = row.inputs.get("prd")
+    if not prd:
+        raise Refused("Fetch the PRD first: compliance is proposed from what it says.")
+    found, by, note = await ai.suggest_compliance(prd["lines"], get_settings().anthropic_model)
+    current = row.inputs.get("compliance") or {}
+    _touch(
+        row,
+        actor,
+        compliance={
+            **current,
+            "suggestions": found,
+            "suggested_by": by,
+            "suggested_note": note,
+            "suggested_at": _now(),
+            "suggested_for": _prd_mark(prd),
+        },
+    )
+
+
+def approve_compliance(row: KickoffAnalysis, actor: str, body: out.ComplianceApproval) -> None:
+    unknown = [k for k in body.selected if compliance.framework(k) is None]
+    if unknown:
+        raise Refused("Unknown compliance frameworks.", [f"{k!r} isn't in the catalog." for k in unknown])
+    custom = list({c.name.strip().lower(): c.model_dump() for c in body.custom if c.name.strip()}.values())
+    current = row.inputs.get("compliance") or {}
+    _touch(
+        row,
+        actor,
+        compliance={
+            **current,
+            "selected": list(dict.fromkeys(body.selected)),
+            "custom": custom,
+            "approved_by": actor,
+            "approved_at": _now(),
+        },
+    )
+
+
+def _approved(row: KickoffAnalysis) -> list[dict[str, Any]]:
+    c = row.inputs.get("compliance") or {}
+    if not c.get("approved_by"):
+        return []
+    items = []
+    for key in c.get("selected", []):
+        entry = compliance.framework(key)
+        if entry:
+            items.append({"key": key, "name": entry["name"], "obligations": entry["obligations"], "note": ""})
+    for custom in c.get("custom", []):
+        items.append(
+            {
+                "key": f"custom-{_slug(custom['name'])}",
+                "name": custom["name"],
+                "obligations": [],
+                "note": custom.get("note", ""),
+            }
+        )
+    return items
+
+
+# --- Steps 5 and 6: docs and providers -------------------------------------------------------------------
+
+
+async def _read_doc(url: str) -> dict[str, Any]:
+    try:
+        return await sources.read_doc(url)
+    except sources.NotReadable as exc:
+        return sources.doc_failure(url, str(exc))
+
+
+async def set_docs(row: KickoffAnalysis, urls: list[str], refresh: bool, actor: str) -> None:
+    wanted = _clean_urls(urls)
+    previous = {d["url"]: d for d in (row.inputs.get("api_docs") or {}).get("items", [])}
+
+    async def read(url: str) -> dict[str, Any]:
+        kept = previous.get(url)
+        return kept if kept and kept.get("ok") and not refresh else await _read_doc(url)
+
+    items = list(await asyncio.gather(*(read(u) for u in wanted)))
+    _touch(row, actor, api_docs={"items": items, "saved": True, "saved_by": actor, "saved_at": _now()})
+
+
+async def set_providers(row: KickoffAnalysis, body: out.ProvidersUpdate, actor: str) -> None:
+    previous = {p["name"].lower(): p for p in (row.inputs.get("third_parties") or {}).get("items", [])}
+    chosen: dict[str, dict[str, Any]] = {}
+    for p in body.providers:
+        entry = compliance.provider(p.key) if p.key else None
+        name = (p.name.strip() or (entry or {}).get("name", ""))[:120]
+        if p.key and entry is None:
+            raise Refused(f"{p.key!r} isn't a provider in the catalog. Add it by name instead.")
+        if not name:
+            raise Refused("A provider added by hand needs a name.")
+        chosen.setdefault(name.lower(), {"key": p.key, "name": name, "docs_url": p.docs_url.strip()})
+
+    async def read(item: dict[str, Any]) -> dict[str, Any]:
+        kept = previous.get(item["name"].lower())
+        if not item["docs_url"]:
+            return {**item, "doc": None}
+        if (
+            kept
+            and kept.get("docs_url") == item["docs_url"]
+            and (kept.get("doc") or {}).get("ok")
+            and not body.refresh
+        ):
+            return {**item, "doc": kept["doc"]}
+        return {**item, "doc": await _read_doc(item["docs_url"])}
+
+    items = list(await asyncio.gather(*(read(i) for i in chosen.values())))
+    _touch(row, actor, third_parties={"items": items, "saved": True, "saved_by": actor, "saved_at": _now()})
+
+
+# --- Step 7: the analysis ----------------------------------------------------------------------------------
+
+
+def _ok(row: KickoffAnalysis, role: str) -> list[dict[str, Any]]:
+    return [r for r in (row.inputs.get(role) or {}).get("items", []) if r.get("ok")]
+
+
+def fingerprints(row: KickoffAnalysis) -> dict[str, str]:
+    inputs = row.inputs
+    c = inputs.get("compliance") or {}
+    return {
+        "prd": _prd_mark(inputs.get("prd")),
+        "repos": ",".join(sorted(f"{r['full_name']}@{r.get('commit')}" for r in _ok(row, "repos"))),
+        "dependencies": ",".join(
+            sorted(f"{r['full_name']}@{r.get('commit')}" for r in _ok(row, "dependencies"))
+        ),
+        "compliance": ",".join(sorted(c.get("selected", []) + [x["name"] for x in c.get("custom", [])]))
+        if c.get("approved_by")
+        else "",
+        "api_docs": ",".join(sorted(d["url"] for d in _ok(row, "api_docs"))),
+        "third_parties": ",".join(
+            sorted(
+                f"{p['name']}|{p.get('docs_url', '')}"
+                for p in (inputs.get("third_parties") or {}).get("items", [])
+            )
+        ),
+    }
+
+
+def run_blockers(row: KickoffAnalysis) -> list[str]:
+    inputs = row.inputs
+    blockers = []
+    if not inputs.get("prd"):
+        blockers.append("Fetch the PRD (step 1).")
+    repos = (inputs.get("repos") or {}).get("items", [])
+    if not any(r.get("ok") for r in repos):
+        blockers.append("Add at least one repo to code in (step 2).")
+    unread = [
+        r["full_name"]
+        for role in ("repos", "dependencies")
+        for r in (inputs.get(role) or {}).get("items", [])
+        if not r.get("ok")
+    ]
+    if unread:
+        blockers.append(f"Fix or remove the repos that couldn't be read: {', '.join(unread)}.")
+    if not (inputs.get("compliance") or {}).get("approved_by"):
+        blockers.append("Approve the compliance selection (step 4), even if none applies.")
+    return blockers
+
+
+def context(row: KickoffAnalysis) -> ai.Context:
+    prd = row.inputs["prd"]
+    providers = []
+    for p in (row.inputs.get("third_parties") or {}).get("items", []):
+        providers.append({"name": p["name"], "docs_url": p.get("docs_url", ""), "doc": p.get("doc")})
+    return ai.Context(
+        title=row.title or prd["title"],
+        prd_url=prd["url"],
+        lines=prd["lines"],
+        code_repos=_ok(row, "repos"),
+        dependency_repos=_ok(row, "dependencies"),
+        compliance=_approved(row),
+        api_docs=_ok(row, "api_docs"),
+        providers=providers,
+    )
+
+
+async def run(row: KickoffAnalysis, actor: str, provider_key: str, model: str) -> None:
+    blockers = run_blockers(row)
+    if blockers:
+        raise Refused("The analysis can't run yet.", blockers)
+    chosen = await model_provider.choose(provider_key, model)
+    if isinstance(chosen, str):
+        raise Refused(chosen)
+    provider, model = chosen
+    plan, reader, used, note = await ai.draft_plan(context(row), provider.key, model)
+    row.runs = (row.runs or 0) + 1
+    row.plan = {
+        **plan,
+        "reader": reader,
+        "model": used,
+        "note": note,
+        "run_by": actor,
+        "run_at": _now(),
+        "run_number": row.runs,
+        "edited_by": None,
+        "edited_at": None,
+        "inputs": fingerprints(row),
+    }
+    row.analysed_at = datetime.now(timezone.utc)
+    row.status = "analysed"
+    row.updated_by = actor
+
+
+def edit_plan(row: KickoffAnalysis, actor: str, body: out.PlanEdit) -> None:
+    """A person editing the drafted tasks: reorder, rewrite, remove, add. Recorded as theirs."""
+    if not row.plan:
+        raise Refused("Run the analysis first: there are no tasks to edit yet.")
+    before = {t["ref"]: t for t in row.plan["tasks"]}
+    keys = {c["key"] for c in _approved(row)}
+    repos = {r["full_name"] for r in _ok(row, "repos")}
+    numbers = [int(r[1:]) for r in before if r[1:].isdigit()]
+    next_number = max(numbers, default=0) + 1
+    tasks: list[dict[str, Any]] = []
+    problems: list[str] = []
+    placed: set[str] = set()
+    for item in body.tasks:
+        ref = item.ref if item.ref in before and item.ref not in placed else ""
+        if not ref:
+            ref = f"T{next_number}"
+            next_number += 1
+        late = [d for d in item.depends_on if d not in placed]
+        if late:
+            problems.append(
+                f"“{item.title}” depends on {', '.join(late)}, which isn't above it. "
+                "Move it down, or remove the dependency."
+            )
+        if item.repo and item.repo not in repos:
+            problems.append(f"“{item.title}” names {item.repo}, which isn't a repo to code in.")
+        old = before.get(ref)
+        fields = {
+            "title": item.title.strip(),
+            "type": item.type,
+            "repo": item.repo,
+            "description": item.description.strip(),
+            "acceptance_criteria": [a.strip() for a in item.acceptance_criteria if a.strip()],
+            "depends_on": list(dict.fromkeys(item.depends_on)),
+            "estimate": item.estimate,
+            "compliance": [k for k in dict.fromkeys(item.compliance) if k in keys],
+        }
+        if old is None:
+            tasks.append({"ref": ref, **fields, "quotes": [], "origin": "person", "edited_by": actor})
+        else:
+            changed = any(old.get(k) != v for k, v in fields.items())
+            tasks.append({**old, **fields, "edited_by": actor if changed else old.get("edited_by")})
+        placed.add(ref)
+    if problems:
+        raise Refused("The tasks weren't saved.", problems)
+    row.plan = {
+        **row.plan,
+        "epic_title": body.epic_title.strip(),
+        "tasks": tasks,
+        "edited_by": actor,
+        "edited_at": _now(),
+    }
+    row.updated_by = actor
+
+
+def stale(row: KickoffAnalysis) -> list[str]:
+    if not row.plan:
+        return []
+    then = row.plan.get("inputs") or {}
+    current = fingerprints(row)
+    return [STALE_LABELS[k] for k in STALE_LABELS if then.get(k) != current.get(k)]
+
+
+async def create_backlog(session: AsyncSession, row: KickoffAnalysis, actor: str, backlog_url: str) -> dict:
+    if not row.plan or not row.plan.get("tasks"):
+        raise Refused("There are no tasks to create. Run the analysis first.")
+    changed = stale(row)
+    if changed:
+        raise Refused(
+            "The plan is older than its inputs: run the analysis again before creating it.",
+            [f"Changed since it ran: {', '.join(changed)}."],
+        )
+    try:
+        ref = backlog.backlog_ref(backlog_url)
+    except sources.NotReadable as exc:
+        raise Refused(str(exc)) from exc
+    jira = await sources.atlassian(session, ("jira", "confluence"))
+    if jira is None:
+        raise Refused(
+            "Jira isn't connected. Add the Jira connector in Settings → Connectors, then create again."
+        )
+    if ref["host"] and ref["host"] != jira.host:
+        raise Refused(f"That backlog is on {ref['host']}, but Feature Kickoff is connected to {jira.host}.")
+    prd = row.inputs["prd"]
+    result = await backlog.create(
+        jira.client,
+        analysis_id=row.id,
+        plan=row.plan,
+        ref=ref,
+        actor=actor,
+        drafted_by=_drafted_by(row.plan),
+        prd=prd,
+        compliance_names={c["key"]: c["name"] for c in _approved(row)},
+        repo_urls={r["full_name"]: r["html_url"] for r in _ok(row, "repos")},
+        previous=row.backlog,
+    )
+    row.backlog = result
+    _touch(
+        row,
+        actor,
+        backlog_target={"url": ref["url"], "project_key": ref["project_key"], "board_id": ref["board_id"]},
+    )
+    row.status = "partial" if result["failed"] else "created"
+    return result
+
+
+# --- The view -----------------------------------------------------------------------------------
+
+
+def _drafted_by(plan: dict[str, Any]) -> str:
+    return f"Claude ({plan['model']})" if plan.get("reader") == "claude" else "the rule-based drafter (no AI)"
+
+
+def _steps(row: KickoffAnalysis) -> list[out.StepOut]:
+    inputs = row.inputs
+    prd = inputs.get("prd")
+    repos = [r for r in (inputs.get("repos") or {}).get("items", []) if r.get("ok")]
+    deps = inputs.get("dependencies") or {}
+    comp = inputs.get("compliance") or {}
+    docs = inputs.get("api_docs") or {}
+    parties = inputs.get("third_parties") or {}
+    plan = row.plan
+
+    def count(n: int, word: str) -> str:
+        return f"{n} {word}{'' if n == 1 else 's'}"
+
+    approved = len(comp.get("selected", [])) + len(comp.get("custom", []))
+    summaries = {
+        "prd": (bool(prd), f"{prd['title']} · v{prd['version']}" if prd else "Paste a Confluence page link"),
+        "repos": (bool(repos), count(len(repos), "repo") if repos else "At least one repo"),
+        "dependencies": (
+            bool(deps.get("saved")),
+            (count(len(deps.get("items", [])), "repo") if deps.get("items") else "None")
+            if deps.get("saved")
+            else "Optional",
+        ),
+        "compliance": (
+            bool(comp.get("approved_by")),
+            (f"{approved} approved" if approved else "None apply")
+            if comp.get("approved_by")
+            else "Awaiting approval",
+        ),
+        "api_docs": (
+            bool(docs.get("saved")),
+            (count(len(docs.get("items", [])), "doc") if docs.get("items") else "None")
+            if docs.get("saved")
+            else "Optional",
+        ),
+        "third_parties": (
+            bool(parties.get("saved")),
+            (count(len(parties.get("items", [])), "provider") if parties.get("items") else "None")
+            if parties.get("saved")
+            else "Optional",
+        ),
+        "plan": (bool(plan), count(len(plan["tasks"]), "task") if plan else "Not run yet"),
+    }
+    return [
+        out.StepOut(key=k, label=label, done=summaries[k][0], summary=summaries[k][1]) for k, label in STEPS
+    ]
+
+
+def _repo_out(r: dict[str, Any]) -> out.RepoOut:
+    if not r.get("ok"):
+        return out.RepoOut(
+            url=r["url"],
+            full_name=r.get("full_name") or r["url"],
+            ok=False,
+            error=r.get("error", ""),
+            read_at=r.get("read_at"),
+        )
+    return out.RepoOut(
+        **{
+            k: r[k]
+            for k in (
+                "url",
+                "html_url",
+                "full_name",
+                "description",
+                "default_branch",
+                "ref",
+                "commit",
+                "commit_url",
+                "language",
+                "topics",
+                "visibility",
+                "archived",
+                "file_count",
+                "tree_truncated",
+                "top_level",
+                "manifests",
+                "read_with",
+                "read_at",
+            )
+            if k in r
+        },
+        ok=True,
+        languages=[out.LanguageShare(**lang) for lang in r.get("languages", [])],
+        readme_excerpt=" ".join(r.get("readme", "").split())[:600],
+        specs=[
+            out.SpecOut(
+                **{k: s[k] for k in ("path", "url", "ok", "error", "title", "version", "deprecated")},
+                operation_count=len(s.get("operations", [])),
+                operations=s.get("operations", [])[:60],
+            )
+            for s in r.get("specs", [])
+        ],
+    )
+
+
+def _doc_out(d: dict[str, Any]) -> out.DocOut:
+    return out.DocOut(
+        **{
+            k: d.get(k)
+            for k in ("url", "final_url", "ok", "error", "kind", "title", "version", "summary", "read_at")
+            if d.get(k) is not None
+        },
+        operation_count=len(d.get("operations", [])),
+        operations=d.get("operations", [])[:60],
+    )
+
+
+def _repo_group(row: KickoffAnalysis, role: str) -> out.RepoGroupOut:
+    group = row.inputs.get(role) or {}
+    return out.RepoGroupOut(
+        repos=[_repo_out(r) for r in group.get("items", [])],
+        saved=bool(group.get("saved")),
+        saved_by=group.get("saved_by"),
+    )
+
+
+def view(row: KickoffAnalysis) -> out.AnalysisOut:
+    inputs = row.inputs
+    prd = inputs.get("prd")
+    comp = inputs.get("compliance") or {}
+    docs = inputs.get("api_docs") or {}
+    parties = inputs.get("third_parties") or {}
+    mentioned = compliance.mentioned_providers(prd["lines"]) if prd else {}
+    plan = row.plan
+    return out.AnalysisOut(
+        id=row.id,
+        project_id=row.project_id,
+        title=row.title,
+        status=row.status,
+        created_by=row.created_by,
         created_at=as_utc(row.created_at),
+        updated_by=row.updated_by,
+        updated_at=as_utc(row.updated_at),
+        steps=_steps(row),
+        run_blockers=run_blockers(row),
+        prd=out.PrdOut(**{k: prd[k] for k in out.PrdOut.model_fields}) if prd else None,
+        repos=_repo_group(row, "repos"),
+        dependencies=_repo_group(row, "dependencies"),
+        compliance=out.ComplianceOut(
+            suggestions=[out.SuggestionOut(**s) for s in comp.get("suggestions", [])],
+            suggested_by=comp.get("suggested_by"),
+            suggested_note=comp.get("suggested_note", ""),
+            suggested_at=comp.get("suggested_at"),
+            suggestions_stale=bool(comp.get("suggested_for")) and comp.get("suggested_for") != _prd_mark(prd),
+            selected=comp.get("selected", []),
+            custom=[out.CustomCompliance(**c) for c in comp.get("custom", [])],
+            approved_by=comp.get("approved_by"),
+            approved_at=comp.get("approved_at"),
+        ),
+        api_docs=out.DocGroupOut(
+            docs=[_doc_out(d) for d in docs.get("items", [])],
+            saved=bool(docs.get("saved")),
+            saved_by=docs.get("saved_by"),
+        ),
+        third_parties=out.ProvidersOut(
+            providers=[
+                out.ProviderOut(
+                    key=p.get("key", ""),
+                    name=p["name"],
+                    docs_url=p.get("docs_url", ""),
+                    doc=_doc_out(p["doc"]) if p.get("doc") else None,
+                    mentioned=mentioned.get(p.get("key", ""), []),
+                )
+                for p in parties.get("items", [])
+            ],
+            mentioned={k: [out.Quote(**q) for q in v] for k, v in mentioned.items()},
+            saved=bool(parties.get("saved")),
+            saved_by=parties.get("saved_by"),
+        ),
+        plan=out.PlanOut(
+            **{k: v for k, v in plan.items() if k in out.PlanOut.model_fields and k != "stale"},
+            drafted_by=_drafted_by(plan),
+            stale=stale(row),
+        )
+        if plan
+        else None,
+        backlog_target=out.BacklogTargetOut(**inputs["backlog_target"])
+        if inputs.get("backlog_target")
+        else None,
+        backlog=out.BacklogOut(**row.backlog) if row.backlog else None,
+    )
+
+
+def summary(row: KickoffAnalysis) -> out.AnalysisSummary:
+    steps = _steps(row)
+    return out.AnalysisSummary(
+        id=row.id,
+        title=row.title,
+        status=row.status,
+        created_by=row.created_by,
+        created_at=as_utc(row.created_at),
+        updated_by=row.updated_by,
+        updated_at=as_utc(row.updated_at),
+        steps_done=sum(1 for s in steps if s.done),
+        steps_total=len(steps),
+        repo_count=len(_ok(row, "repos")),
+        task_count=len(row.plan["tasks"]) if row.plan else 0,
+        drafted_by=_drafted_by(row.plan) if row.plan else None,
+        backlog_key=(row.backlog or {}).get("project_key"),
+        stale=bool(stale(row)),
     )

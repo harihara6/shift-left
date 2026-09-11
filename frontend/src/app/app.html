@@ -94,7 +94,14 @@
         </div>
       } @else {
         @switch (screen()) {
-          @case ('kickoff') { <sl-kickoff [projectId]="projectId()" /> }
+          @case ('kickoff') {
+            <!-- Its own chunk: a guided flow, not the screen the app opens on. -->
+            @defer (on immediate) {
+              <sl-kickoff [projectId]="projectId()" (openSettings)="go('settings', true)" />
+            } @loading {
+              <p class="card empty-state">Loading Feature Kickoff…</p>
+            }
+          }
           @case ('discipline') {
             <sl-feature-readiness [projectId]="projectId()" (openFlow)="go('delivery', true)" />
           }

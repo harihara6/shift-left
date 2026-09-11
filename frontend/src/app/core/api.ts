@@ -11,13 +11,13 @@ import {
   ConnectorTestResult,
   FeatureReadiness,
   FilterOptions,
-  Kickoff,
-  KickoffChoice,
-  KickoffConnections,
-  KickoffSummary,
-  ModelOptions,
+  KickoffAnalysis,
+  KickoffAnalysisSummary,
+  KickoffCatalog,
+  KickoffStatus,
+  KickoffTaskInput,
+  CustomCompliance,
   PeriodSelection,
-  PrdList,
   PerspectiveGuide,
   ProjectDetail,
   ProjectSummary,
@@ -187,56 +187,109 @@ export class Api {
     return this.http.post<RolloutBoard>(`${API}/projects/${projectId}/rollout/rollback`, { note });
   }
 
-  /** PRD pages the kickoff can start from. The project's own space is listed first. */
-  kickoffPrds(projectId: string, query = ''): Observable<PrdList> {
-    const params = query ? new HttpParams().set('q', query) : undefined;
-    return this.http.get<PrdList>(`${API}/projects/${projectId}/kickoff/prds`, { params });
+  // --- Feature Kickoff ------------------------------------------------------------------------
+
+  /** Where each step reads and writes, from configuration. Never carries a credential. */
+  kickoffStatus(projectId: string): Observable<KickoffStatus> {
+    return this.http.get<KickoffStatus>(`${API}/projects/${projectId}/kickoff/status`);
   }
 
-  /** Where reads and writes go, from configuration. Never carries a credential. */
-  kickoffConnections(projectId: string): Observable<KickoffConnections> {
-    return this.http.get<KickoffConnections>(`${API}/projects/${projectId}/kickoff/connections`);
+  kickoffCatalog(projectId: string): Observable<KickoffCatalog> {
+    return this.http.get<KickoffCatalog>(`${API}/projects/${projectId}/kickoff/catalog`);
   }
 
-  /** Fetched from each provider on request, never a hardcoded list. */
-  kickoffModels(projectId: string): Observable<ModelOptions> {
-    return this.http.get<ModelOptions>(`${API}/projects/${projectId}/kickoff/models`);
+  kickoffAnalyses(projectId: string): Observable<KickoffAnalysisSummary[]> {
+    return this.http.get<KickoffAnalysisSummary[]>(`${API}/projects/${projectId}/kickoff/analyses`);
   }
 
-  myKickoffs(projectId: string): Observable<KickoffSummary[]> {
-    return this.http.get<KickoffSummary[]>(`${API}/projects/${projectId}/kickoff`);
+  /** Step 1: reads the PRD and saves a new analysis. Writes nothing outside ShiftLeft. */
+  createKickoffAnalysis(projectId: string, prdUrl: string): Observable<KickoffAnalysis> {
+    return this.http.post<KickoffAnalysis>(`${API}/projects/${projectId}/kickoff/analyses`, { prd_url: prdUrl });
   }
 
-  /** Reads the PRD and extracts its facts. Writes nothing but the session. */
-  startKickoff(projectId: string, body: { page_id: string; provider: string; model: string }): Observable<Kickoff> {
-    return this.http.post<Kickoff>(`${API}/projects/${projectId}/kickoff`, body);
+  kickoffAnalysis(projectId: string, id: number): Observable<KickoffAnalysis> {
+    return this.http.get<KickoffAnalysis>(this.analysisUrl(projectId, id));
   }
 
-  kickoff(projectId: string, id: number): Observable<Kickoff> {
-    return this.http.get<Kickoff>(`${API}/projects/${projectId}/kickoff/${id}`);
+  renameKickoffAnalysis(projectId: string, id: number, title: string): Observable<KickoffAnalysis> {
+    return this.http.patch<KickoffAnalysis>(this.analysisUrl(projectId, id), { title });
   }
 
-  /** A person correcting what was read. Every rule re-resolves from the corrected facts. */
-  updateKickoffFacts(projectId: string, id: number, facts: { key: string; values: string[] }[]): Observable<Kickoff> {
-    return this.http.put<Kickoff>(`${API}/projects/${projectId}/kickoff/${id}/facts`, { facts });
+  deleteKickoffAnalysis(projectId: string, id: number): Observable<void> {
+    return this.http.delete<void>(this.analysisUrl(projectId, id));
   }
 
-  /** Leaving a recommended action out is refused without a reason. Runs the selected checks. */
-  chooseKickoffActions(projectId: string, id: number, choices: KickoffChoice[]): Observable<Kickoff> {
-    return this.http.put<Kickoff>(`${API}/projects/${projectId}/kickoff/${id}/actions`, { choices });
+  readKickoffPrd(projectId: string, id: number, prdUrl: string): Observable<KickoffAnalysis> {
+    return this.http.put<KickoffAnalysis>(`${this.analysisUrl(projectId, id)}/prd`, { prd_url: prdUrl });
   }
 
-  updateKickoffPlan(
+  /** Steps 2 and 3. Repos already read are kept unless `refresh`. */
+  setKickoffRepos(
     projectId: string,
     id: number,
-    body: { decisions?: Record<string, string>; excluded?: string[] },
-  ): Observable<Kickoff> {
-    return this.http.put<Kickoff>(`${API}/projects/${projectId}/kickoff/${id}/plan`, body);
+    role: 'repos' | 'dependencies',
+    urls: string[],
+    refresh = false,
+  ): Observable<KickoffAnalysis> {
+    return this.http.put<KickoffAnalysis>(`${this.analysisUrl(projectId, id)}/${role}`, { urls, refresh });
   }
 
-  /** The confirmation, then the writes (or a dry run). Also retries a plan that partly failed. */
-  applyKickoff(projectId: string, id: number): Observable<Kickoff> {
-    return this.http.post<Kickoff>(`${API}/projects/${projectId}/kickoff/${id}/apply`, {});
+  suggestKickoffCompliance(projectId: string, id: number): Observable<KickoffAnalysis> {
+    return this.http.post<KickoffAnalysis>(`${this.analysisUrl(projectId, id)}/compliance/suggest`, {});
+  }
+
+  /** Recorded against the person approving. Required before the analysis can run. */
+  approveKickoffCompliance(
+    projectId: string,
+    id: number,
+    selected: string[],
+    custom: CustomCompliance[],
+  ): Observable<KickoffAnalysis> {
+    return this.http.put<KickoffAnalysis>(`${this.analysisUrl(projectId, id)}/compliance`, { selected, custom });
+  }
+
+  setKickoffDocs(projectId: string, id: number, urls: string[], refresh = false): Observable<KickoffAnalysis> {
+    return this.http.put<KickoffAnalysis>(`${this.analysisUrl(projectId, id)}/api-docs`, { urls, refresh });
+  }
+
+  setKickoffProviders(
+    projectId: string,
+    id: number,
+    providers: { key: string; name: string; docs_url: string }[],
+    refresh = false,
+  ): Observable<KickoffAnalysis> {
+    return this.http.put<KickoffAnalysis>(`${this.analysisUrl(projectId, id)}/third-parties`, {
+      providers,
+      refresh,
+    });
+  }
+
+  /** Step 7: drafts the plan. Replaces the previous draft and its edits. */
+  runKickoffAnalysis(projectId: string, id: number, provider: string, model: string): Observable<KickoffAnalysis> {
+    return this.http.post<KickoffAnalysis>(`${this.analysisUrl(projectId, id)}/run`, { provider, model });
+  }
+
+  editKickoffPlan(
+    projectId: string,
+    id: number,
+    epicTitle: string,
+    tasks: KickoffTaskInput[],
+  ): Observable<KickoffAnalysis> {
+    return this.http.put<KickoffAnalysis>(`${this.analysisUrl(projectId, id)}/plan`, {
+      epic_title: epicTitle,
+      tasks,
+    });
+  }
+
+  /** The only external write: the epic and tasks in Jira, recorded against whoever presses it. */
+  createKickoffBacklog(projectId: string, id: number, backlogUrl: string): Observable<KickoffAnalysis> {
+    return this.http.post<KickoffAnalysis>(`${this.analysisUrl(projectId, id)}/backlog`, {
+      backlog_url: backlogUrl,
+    });
+  }
+
+  private analysisUrl(projectId: string, id: number): string {
+    return `${API}/projects/${projectId}/kickoff/analyses/${id}`;
   }
 
   guide(perspective: string): Observable<PerspectiveGuide> {

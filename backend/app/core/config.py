@@ -62,35 +62,23 @@ class Settings(BaseSettings):
     # Discovery is interactive: a slow model call degrades to name matching rather than
     # holding the request open for the SDK's ten-minute default.
     anthropic_timeout_seconds: float = 30.0
-    # Feature Kickoff reads a whole PRD, which takes longer than matching a team name. A timeout
-    # still degrades to the keyword reader rather than failing the step.
-    kickoff_model_timeout_seconds: float = 60.0
+    # Feature Kickoff's analysis reads a PRD, several repos and their docs in one call and drafts
+    # the whole plan, which takes minutes rather than seconds. A timeout degrades to the rule-based
+    # draft, labelled as such, rather than failing the step.
+    kickoff_model_timeout_seconds: float = 300.0
 
-    # --- Feature Kickoff: where it reads, and whether it writes -----------------------------
-    # "fixtures" reads the example pages in seed/data/kickoff.json. "live" reads Confluence,
-    # GitHub and the product index for real; a live source that isn't configured reads as
-    # unavailable, never as example data, so the two are never mixed in one session.
-    kickoff_sources: Literal["fixtures", "live"] = "fixtures"
-    # "dry-run" records what would be created. "live" writes to Jira, Xray and Confluence, and
-    # only for a session that read live pages (see `_kickoff_guards`).
-    kickoff_write_mode: Literal["dry-run", "live"] = "dry-run"
-    # Confluence pages carrying this label are offered as PRDs.
-    kickoff_prd_label: str = "sl-requirements"
-    # The Confluence page holding the software catalog table (docs/PROPOSAL-PRD-Intake.md s6.1).
-    software_catalog_page_id: str = ""
-    # The product index is not in Confluence. It's read from this URL and parsed by
-    # app/connectors/product_index_parser.py, which is written in the environment that can
-    # reach it. Until then the index reads as unavailable and index rows are handed off.
-    product_index_url: str = ""
-    product_index_token: SecretStr | None = None
-
+    # --- Feature Kickoff ---------------------------------------------------------------------
+    # Credentials come from Settings -> Connectors first (Confluence, Jira, GitHub), then from
+    # the variables below. Nothing is ever read from example data: a source that can't be
+    # reached says why.
+    #
     # Jira and Confluence REST (Cloud). The site is `atlassian_site_url`. An API token acts as
-    # the account that owns it, which is why kickoff writes stay inside the project's own Jira
-    # project and space; per-person OAuth is the production path (proposal s11).
+    # the account that owns it; every created ticket also names the person who created it.
     atlassian_email: str = ""
     atlassian_api_token: SecretStr | None = None
 
-    # GitHub REST, for reading each service's API spec at a commit. Enterprise hosts set the URL.
+    # GitHub REST, for reading the repos a feature is coded in and relies on. Enterprise hosts set
+    # the URL. Public repos are readable without a token, at GitHub's lower anonymous rate limit.
     github_api_url: str = "https://api.github.com"
     github_token: SecretStr | None = None
 
@@ -115,25 +103,11 @@ class Settings(BaseSettings):
         return self.environment == "production"
 
     @model_validator(mode="after")
-    def _kickoff_guards(self) -> "Settings":
-        """Tickets drafted from example pages must never reach a real backlog."""
-        if self.kickoff_write_mode == "live" and self.kickoff_sources != "live":
-            raise ValueError(
-                "SHIFTLEFT_KICKOFF_WRITE_MODE=live needs SHIFTLEFT_KICKOFF_SOURCES=live - live "
-                "writes from example pages would create real tickets for features nobody wrote"
-            )
-        return self
-
-    @model_validator(mode="after")
     def _production_guards(self) -> "Settings":
         """Refuse to start a production service in a configuration that is only safe locally."""
         if not self.is_production:
             return self
         problems = []
-        if self.kickoff_sources != "live":
-            problems.append(
-                "SHIFTLEFT_KICKOFF_SOURCES must be 'live' - the kickoff fixtures are example pages"
-            )
         if self.auth_mode != "trusted-proxy":
             problems.append(
                 "SHIFTLEFT_AUTH_MODE must be 'trusted-proxy' - in dev-header mode any caller can "
