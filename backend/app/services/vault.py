@@ -69,6 +69,16 @@ async def read(ref: str) -> str | None:
         return None
 
 
+async def stored(ref: str) -> bool:
+    """Whether anything is stored for `ref`, without decrypting it.
+
+    `read` returning None cannot tell "nobody ever set this" from "set on a machine whose key
+    this one doesn't have" - and those call for different words in front of a person.
+    """
+    async with SessionLocal() as session:
+        return await session.get(VaultSecret, ref) is not None
+
+
 async def delete(ref: str) -> None:
     async with SessionLocal() as session:
         row = await session.get(VaultSecret, ref)

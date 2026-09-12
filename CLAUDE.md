@@ -221,6 +221,17 @@ actions, and **colour-plus-shape for every RAG state** — the prototype's dots 
   fixtures on that frame, and add them per quarter — never as a pre-baked comparison.
 - Authorization tests are a required CI suite — API-layer, not UI-level hiding.
 - Alembic owns the schema. A model change ships with a migration (`make migration m="..."`);
-  `test_migrations_build_exactly_the_schema_the_models_declare` fails otherwise.
+  `test_migrations_build_exactly_the_schema_the_models_declare` fails otherwise. Locally, startup
+  reconciles rather than assuming (`backend/app/db/schema.py`): a fresh database is built and
+  stamped at head, one behind head upgrades itself, and one with tables but no revision refuses to
+  start and names the fix. `create_all` alone could add a table but never a column, which reached a
+  developer as a 500 from a column their database had never heard of.
+- **`shiftleft.db` is tracked**, because connector configuration, project settings and the Feature
+  Kickoff defaults live in it and were lost on every copy to another machine. **Credentials are not**:
+  every secret in it is ciphertext, and `backend/.vault_key` — generated per machine — is not tracked.
+  So on a second machine the configuration is all there and each connector reports "No credential
+  stored" until someone re-enters the token, with the field saying which of the two it is. Never
+  commit `.vault_key`, and never set `SHIFTLEFT_VAULT_ENCRYPTION_KEY` anywhere tracked: either one
+  turns that ciphertext back into readable secrets.
 - Service-wide configuration (connectors) is platform-admin only (`require_platform_admin`); project
   data goes through `require(role)`. Never gate a write on "signed in" alone.

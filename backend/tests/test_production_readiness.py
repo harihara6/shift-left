@@ -131,3 +131,78 @@ def test_migrations_build_exactly_the_schema_the_models_declare():
         assert check.returncode == 0, check.stdout + check.stderr
         downgrade = _alembic("downgrade", "base", url=url)
         assert downgrade.returncode == 0, downgrade.stderr
+
+
+# --- Keeping a local database at the models' schema ---------------------------------------------
+
+
+def _reconcile(url: str) -> subprocess.CompletedProcess:
+    """Run the startup reconciliation in its own process, so settings resolve from `url`."""
+    return subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import asyncio\n"
+            "from app.db.session import engine\n"
+            "from app.db import schema\n"
+            "try:\n"
+            "    asyncio.run(schema.reconcile(engine))\n"
+            "    print('RECONCILED')\n"
+            "except schema.SchemaBehind as exc:\n"
+            "    print('REFUSED', exc)\n",
+        ],
+        cwd=BACKEND,
+        env={**os.environ, "SHIFTLEFT_DATABASE_URL": url},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def _sqlite(url: str, sql: str) -> str:
+    import sqlite3
+
+    with sqlite3.connect(url.split("///")[1]) as db:
+        return "\n".join(str(row[0]) for row in db.execute(sql))
+
+
+def test_a_fresh_local_database_is_built_and_stamped_so_later_migrations_apply():
+    """Unstamped is how a database becomes unmigratable, which is what this prevents."""
+    with tempfile.TemporaryDirectory() as tmp:
+        url = f"sqlite+aiosqlite:///{tmp}/fresh.db"
+        result = _reconcile(url)
+        assert "RECONCILED" in result.stdout, result.stdout + result.stderr
+        assert _sqlite(url, "select version_num from alembic_version") == "0005"
+        assert "kickoff_settings" in _sqlite(url, "select name from sqlite_master where type='table'")
+
+
+def test_a_local_database_behind_head_upgrades_itself():
+    """Pulling a schema change and starting the service is the whole ceremony."""
+    with tempfile.TemporaryDirectory() as tmp:
+        url = f"sqlite+aiosqlite:///{tmp}/behind.db"
+        assert _alembic("upgrade", "0004", url=url).returncode == 0
+        assert "tdd" not in _sqlite(url, "select name from pragma_table_info('kickoff_analyses')")
+
+        result = _reconcile(url)
+        assert "RECONCILED" in result.stdout, result.stdout + result.stderr
+        assert "tdd" in _sqlite(url, "select name from pragma_table_info('kickoff_analyses')")
+        assert _sqlite(url, "select version_num from alembic_version") == "0005"
+
+
+def test_a_database_missing_a_column_refuses_to_start_and_says_how_to_fix_it():
+    """A column the models declare and the database lacks used to surface as a 500 at request
+    time, from a query naming a column that was never there. It is a startup failure now."""
+    with tempfile.TemporaryDirectory() as tmp:
+        url = f"sqlite+aiosqlite:///{tmp}/legacy.db"
+        assert _alembic("upgrade", "head", url=url).returncode == 0
+        # A database built by an older `create_all`: the tables of its day, and no revision.
+        import sqlite3
+
+        with sqlite3.connect(f"{tmp}/legacy.db") as db:
+            db.execute("alter table kickoff_analyses drop column tdd")
+            db.execute("drop table alembic_version")
+
+        result = _reconcile(url)
+        assert "REFUSED" in result.stdout, result.stdout + result.stderr
+        assert "kickoff_analyses is missing tdd" in result.stdout
+        assert "alembic stamp" in result.stdout

@@ -19,7 +19,7 @@ from app.api.routes import (
 )
 from app.core.config import get_settings
 from app.core.logging import RequestContextMiddleware, configure_logging
-from app.db.base import Base
+from app.db import schema
 from app.db.session import SessionLocal, engine, ping
 from app.seed.loader import seed, seed_reference
 from app.services.guides import verify as verify_guides
@@ -35,8 +35,9 @@ VERSION = "0.1.0"
 async def lifespan(_: FastAPI):
     if settings.auto_create_schema:
         # Alembic owns schema in every deployed environment; this keeps local dev one command.
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+        # It reconciles rather than only creating: `create_all` cannot add a column to a table that
+        # already exists, which used to surface as a 500 from a column the database never had.
+        await schema.reconcile(engine)
     async with SessionLocal() as session:
         # Guides, catalogs and canonical artifacts are product content: every environment has them.
         if await seed_reference(session):

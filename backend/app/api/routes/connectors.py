@@ -40,6 +40,10 @@ INACTIVE = ("not_configured", "disabled")
 # Shown in place of a credential. There is no endpoint that returns a secret value.
 VAULT_PLACEHOLDER = "•••••••• stored in vault"
 NOT_STORED = "Not set: nothing stored yet"
+# The database travels between machines; the key that decrypts its secrets does not. So a stored
+# secret that won't decrypt is not a fault - it is the expected state on a machine this credential
+# was never typed into, and saying which it is turns "why is this broken" into one obvious action.
+FROM_ANOTHER_MACHINE = "Set on another machine: it can't be read here, so enter it again"
 
 
 async def _type_or_404(session: AsyncSession, key: str) -> ConnectorType:
@@ -152,7 +156,16 @@ async def _detail(session: AsyncSession, ctype: ConnectorType) -> ConnectorDetai
             # Write-only: a secret comes back as a placeholder, never as a value - and the
             # placeholder only claims a value is stored when one resolves in the vault.
             ref = refs.get(field["key"])
-            placeholder = VAULT_PLACEHOLDER if ref and await vault.read(ref) else NOT_STORED
+            if not ref:
+                placeholder = NOT_STORED
+            elif await vault.read(ref):
+                placeholder = VAULT_PLACEHOLDER
+            elif await vault.stored(ref):
+                # A value is there but this machine's key can't open it. A seeded reference with
+                # nothing behind it is a different thing, and says "Not set" as it always did.
+                placeholder = FROM_ANOTHER_MACHINE
+            else:
+                placeholder = NOT_STORED
         else:
             # The catalog's example is a hint, not a value: nothing reads a value that was only
             # ever shown, so showing it as one would look configured and be empty.

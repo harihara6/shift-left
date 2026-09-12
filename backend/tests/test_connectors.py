@@ -321,3 +321,51 @@ async def test_a_rotated_credential_is_encrypted_at_rest_not_stored_as_plaintext
     assert row is not None
     assert "the-actual-secret-value" not in row.ciphertext
     assert await vault.read("vault://shiftleft/jira/api_token") == "the-actual-secret-value"
+
+
+async def test_a_database_copied_to_another_machine_keeps_config_but_not_credentials(client, admin):
+    """The local database travels with the code; the key that decrypts its secrets does not.
+
+    So on a second machine the connector's configuration is all still there and its credentials
+    are simply unreadable - which must read as a gap needing one action, never as connected.
+    """
+    from cryptography.fernet import Fernet
+
+    # Imported here, not at module scope: the app's modules are reloaded per booted client.
+    from app.api.routes.connectors import FROM_ANOTHER_MACHINE, VAULT_PLACEHOLDER
+    from app.services import vault
+
+    await client.put(
+        "/api/connectors/jira", headers=admin,
+        json={"config": {"site_url": "https://acme.atlassian.net"}},
+    )
+    await client.post(
+        "/api/connectors/jira/secrets", headers=admin,
+        json={"field_key": "api_token", "value": "a-token-typed-on-the-first-machine"},
+    )
+    before = (await client.get("/api/connectors/jira", headers=admin)).json()
+    assert before["state"] == "connected"
+    assert next(f for f in before["fields"] if f["key"] == "api_token")["placeholder"] == VAULT_PLACEHOLDER
+
+    # The same database, on a machine whose vault key was generated there.
+    vault._fernet.cache_clear()
+    original = vault._local_dev_key
+    vault._local_dev_key = lambda: Fernet.generate_key()
+    try:
+        after = (await client.get("/api/connectors/jira", headers=admin)).json()
+        # Configuration survived the copy: this is the point of carrying the database.
+        assert next(f for f in after["fields"] if f["key"] == "site_url")["value"] == (
+            "https://acme.atlassian.net"
+        )
+        # The credential did not, and nothing pretends otherwise.
+        assert after["state"] == "not_configured"
+        assert after["state_label"] == "No credential stored"
+        token = next(f for f in after["fields"] if f["key"] == "api_token")
+        assert token["value"] is None
+        assert token["placeholder"] == FROM_ANOTHER_MACHINE
+        assert "a-token-typed-on-the-first-machine" not in (await client.get(
+            "/api/connectors/jira", headers=admin
+        )).text
+    finally:
+        vault._local_dev_key = original
+        vault._fernet.cache_clear()

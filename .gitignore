@@ -2,8 +2,20 @@
 .env
 backend/.venv/
 backend/*.db
-/shiftleft.db
-# Local-dev vault encryption key (app/services/vault.py) - never committed, generated on first use.
+# Copies taken before a migration: useful locally, never part of the history.
+/shiftleft.db.backup-*
+
+# The local database travels with the code: it is where connector configuration, project settings
+# and the Feature Kickoff defaults live, and losing them on every copy to another machine was
+# worse than the noise of a binary file in git. Startup reconciles its schema, so a database from
+# an older checkout upgrades itself rather than failing.
+#
+# Credentials do not travel with it. Every secret in there is Fernet ciphertext, and the key that
+# decrypts it is the untracked file below - generated per machine, never committed. On a new
+# machine those values cannot be read, so each connector reports "No credential stored" until
+# someone enters the token again. That is deliberate: a credential should exist only on the
+# machine it was typed into. Never commit .vault_key, and never set SHIFTLEFT_VAULT_ENCRYPTION_KEY
+# anywhere tracked - either one turns the ciphertext above back into readable secrets.
 backend/.vault_key
 backend/**/__pycache__/
 backend/.pytest_cache/
