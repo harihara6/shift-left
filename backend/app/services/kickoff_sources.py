@@ -204,7 +204,9 @@ def _prd(page: dict[str, Any], lines: list[str], url: str, via: str, via_label: 
     }
 
 
-async def read_prd(session: AsyncSession, url: str) -> dict[str, Any]:
+async def read_page(session: AsyncSession, url: str) -> tuple[dict[str, Any], list[str], str, str]:
+    """(page, lines, via, via_label) for any Confluence page: REST when there is a credential for
+    its site, the Rovo MCP server otherwise. The callers decide what the page has to contain."""
     host, page_id, tiny = page_ref(url)
     access = await atlassian(session, ("confluence", "jira"))
     if access is not None and (not host or host == access.host):
@@ -218,17 +220,16 @@ async def read_prd(session: AsyncSession, url: str) -> dict[str, Any]:
                     f"Page {page_id} wasn't found on {access.host}, or {access.client.account} can't see it."
                 ) from exc
             raise NotReadable(str(exc)) from exc
-        return _prd(
+        return (
             {
                 "page_id": page.page_id,
                 "title": page.title,
                 "space": page.space_key,
                 "version": page.version,
                 "updated": page.updated,
-                "url": page.url,
+                "url": page.url or url,
             },
             storage.body_lines(page.storage),
-            page.url or url,
             "rest",
             f"Confluence REST · {access.source}",
         )
@@ -240,7 +241,8 @@ async def read_prd(session: AsyncSession, url: str) -> dict[str, Any]:
             page = await mcp.read_page(page_id)
         except atlassian_mcp.RovoUnavailable as exc:
             raise NotReadable(f"The Rovo MCP server couldn't read the page: {exc}") from exc
-        return _prd(page, markdown_lines(page["body"]), url, "mcp", "Atlassian Rovo MCP")
+        page = {**page, "url": page.get("url") or url}
+        return page, markdown_lines(page["body"]), "mcp", "Atlassian Rovo MCP"
 
     if access is not None or mcp is not None:
         connected = access.host if access else mcp_host
@@ -252,6 +254,37 @@ async def read_prd(session: AsyncSession, url: str) -> dict[str, Any]:
         "Confluence isn't connected. Add the Confluence connector in Settings → Connectors (site URL, "
         "account email and API token), or configure the Rovo MCP server, then fetch the page again."
     )
+
+
+async def read_prd(session: AsyncSession, url: str) -> dict[str, Any]:
+    page, lines, via, via_label = await read_page(session, url)
+    return _prd(page, lines, page.get("url") or url, via, via_label)
+
+
+async def read_confluence_doc(session: AsyncSession, url: str) -> dict[str, Any]:
+    """A Confluence page read as reference material. Unlike the PRD it may be mostly headings, so
+    an empty page is a read that says so rather than a refusal."""
+    page, lines, _via, via_label = await read_page(session, url)
+    text = "\n".join(lines)
+    return {
+        "url": url.strip(),
+        "final_url": page.get("url") or url.strip(),
+        "ok": True,
+        "error": "",
+        "kind": "confluence",
+        "title": page.get("title") or "Untitled page",
+        "version": f"v{page.get('version') or 0}",
+        "page_id": page.get("page_id", ""),
+        "space": page.get("space", ""),
+        "summary": " ".join(text.split())[:400] or "The page has no text; only its link is used.",
+        "operations": [],
+        "deprecated": [],
+        "security": [],
+        "servers": [],
+        "text": text[:DOC_TEXT_CHARS],
+        "read_with": f"{via_label}",
+        "read_at": now(),
+    }
 
 
 # --- GitHub repos -------------------------------------------------------------------------------
@@ -599,3 +632,31 @@ def doc_failure(url: str, reason: str) -> dict[str, Any]:
         "text": "",
         "read_at": now(),
     }
+
+
+# --- Routing a pasted link ------------------------------------------------------------------------
+
+# A Confluence link, whatever the site is called: the wiki prefix, a page path, or a pageId query.
+CONFLUENCE_LINK = re.compile(r"(^|/)wiki(/|$)|/pages/\d+|[?&]pageId=\d+")
+
+Kind = str  # "repo" | "confluence" | "doc"
+
+
+def classify(url: str, github_host: str, atlassian_host: str = "") -> Kind:
+    """Which reader a pasted link belongs to. Material we rely on can be code, a Confluence page,
+    or any other document, and the person shouldn't have to say which."""
+    text = url.strip()
+    if text.startswith("git@"):
+        return "repo"
+    if "://" not in text and "." not in text.split("/", 1)[0]:
+        # `owner/name`, the shorthand GitHub itself uses.
+        return "repo" if REPO_URL.match(text) else "doc"
+    parsed = urlparse(text if "://" in text else f"https://{text}")
+    host = (parsed.netloc or "").lower().removeprefix("www.")
+    if host == github_host:
+        return "repo"
+    if (atlassian_host and host == atlassian_host) or CONFLUENCE_LINK.search(
+        f"{parsed.path}?{parsed.query}"
+    ):
+        return "confluence"
+    return "doc"

@@ -1,0 +1,110 @@
+{
+  "provenance": "The sections a technical design is expected to carry, so a thin template still offers a usable checklist. Reference data: changed by a pull request, never at runtime.",
+  "sections": [
+    {
+      "key": "context",
+      "name": "Context and scope",
+      "summary": "What the feature is, what it is not, and the decision this design serves.",
+      "default": true,
+      "aliases": ["overview", "introduction", "background", "purpose", "summary", "scope"]
+    },
+    {
+      "key": "hld",
+      "name": "High-level design",
+      "summary": "The services, stores and boundaries involved, and how the feature moves through them.",
+      "default": true,
+      "aliases": ["high level design", "architecture", "solution overview", "hld", "system design"]
+    },
+    {
+      "key": "lld",
+      "name": "Low-level design",
+      "summary": "Per repository: the modules, classes and interfaces that change, and how.",
+      "default": true,
+      "aliases": ["low level design", "detailed design", "lld", "implementation", "component design"]
+    },
+    {
+      "key": "sequence_diagrams",
+      "name": "Sequence diagrams",
+      "summary": "The call order for each main path, including the failure paths.",
+      "default": true,
+      "aliases": ["sequence diagram", "interaction diagram", "flows", "call flow"]
+    },
+    {
+      "key": "data_model",
+      "name": "Data model and database diagrams",
+      "summary": "Entities, their relationships, what is stored where, and the migrations needed.",
+      "default": true,
+      "aliases": ["database design", "data design", "er diagram", "erd", "schema", "persistence"]
+    },
+    {
+      "key": "api_contracts",
+      "name": "API contracts",
+      "summary": "The operations added or changed, their shapes, and what already exists.",
+      "default": true,
+      "aliases": ["api design", "interfaces", "contracts", "endpoints", "api specification"]
+    },
+    {
+      "key": "integrations",
+      "name": "Integrations and dependencies",
+      "summary": "What this relies on from other teams and third parties, and what it must ask for.",
+      "default": true,
+      "aliases": ["dependencies", "external systems", "third party", "upstream", "downstream"]
+    },
+    {
+      "key": "security",
+      "name": "Security and privacy",
+      "summary": "Authentication, authorisation, the personal data involved, and how it is protected.",
+      "default": true,
+      "aliases": ["security design", "privacy", "data protection", "threat model", "authz"]
+    },
+    {
+      "key": "nfr",
+      "name": "Non-functional requirements",
+      "summary": "Throughput, latency, availability and the limits the design is built to.",
+      "default": false,
+      "aliases": ["nfrs", "performance", "scalability", "quality attributes", "slas", "slo"]
+    },
+    {
+      "key": "monitoring",
+      "name": "Monitoring and alerting",
+      "summary": "What is measured, what is alerted on, and what a person does when it fires.",
+      "default": true,
+      "aliases": ["observability", "alerting", "metrics", "logging", "telemetry", "operations"]
+    },
+    {
+      "key": "testing",
+      "name": "Test approach",
+      "summary": "What is covered at which level, and what the evidence of done looks like.",
+      "default": false,
+      "aliases": ["test strategy", "testing", "quality", "test plan", "verification"]
+    },
+    {
+      "key": "rollout",
+      "name": "Rollout and rollback",
+      "summary": "How this reaches production, behind what flag, and how it is taken back out.",
+      "default": true,
+      "aliases": ["deployment", "release plan", "migration plan", "rollback", "cutover"]
+    },
+    {
+      "key": "traceability",
+      "name": "Traceability matrix",
+      "summary": "Every task against the PRD lines, compliance and repos behind it. Built from the analysis, not drafted.",
+      "default": true,
+      "aliases": ["traceability", "requirements matrix", "coverage matrix", "rtm"]
+    },
+    {
+      "key": "risks",
+      "name": "Risks",
+      "summary": "What could go wrong, how likely, and what reduces it.",
+      "default": true,
+      "aliases": ["risk", "risks and mitigations", "concerns", "assumptions"]
+    },
+    {
+      "key": "open_questions",
+      "name": "Open questions",
+      "summary": "What the inputs do not answer, and who can answer it.",
+      "default": true,
+      "aliases": ["open question", "questions", "to be decided", "tbd", "unknowns"]
+    }
+  ]
+}

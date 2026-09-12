@@ -26,6 +26,7 @@ from app.models.evidence import (
     NormalizedArtifact,
 )
 from app.models.guide import PerspectiveGuide, WidgetGuide
+from app.models.kickoff import KickoffSettings
 from app.models.metrics import MetricsSnapshot
 from app.models.project import Project, ProjectAccess
 from app.models.rollout import DetectionAudit, RolloutSprint, RolloutState, RolloutSurface
@@ -530,6 +531,11 @@ async def seed_reference(session: AsyncSession) -> bool:
         changed = True
     if await _empty(session, ArtifactDefinition.key):
         await _seed_artifact_definitions(session)
+        changed = True
+    # Exactly one row of Feature Kickoff defaults, empty until someone fills it in. It is created
+    # here as well as in the migration so a store built straight from the models has one too.
+    if await session.get(KickoffSettings, 1) is None:
+        session.add(KickoffSettings(id=1))
         changed = True
     have = set((await session.execute(select(PerspectiveGuide.perspective))).scalars().all())
     # A page whose widgets changed (a rebuilt page) gets its guide again: a guide describing

@@ -12,6 +12,7 @@ import {
   untracked,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Observable } from 'rxjs';
 
 import { Api } from '../../core/api';
 import { Refusal, errorMessage, writeRefusal } from '../../core/errors';
@@ -19,6 +20,9 @@ import {
   Estimate,
   KickoffAnalysis,
   KickoffCatalog,
+  KickoffPlan,
+  KickoffRunDetail,
+  KickoffRunSummary,
   KickoffStatus,
   KickoffStepKey,
   KickoffTask,
@@ -27,6 +31,7 @@ import {
   ModelProvider,
   TaskType,
 } from '../../core/models';
+import { TicketOptions } from './ticket-options';
 
 interface Tone {
   glyph: string;
@@ -92,7 +97,7 @@ function slug(text: string): string {
 @Component({
   selector: 'sl-kickoff-analysis',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, FormsModule],
+  imports: [DatePipe, FormsModule, TicketOptions],
   templateUrl: './kickoff-analysis.html',
   styleUrls: ['./kickoff-shared.css', './kickoff-analysis.css', './kickoff-tasks.css'],
 })
@@ -181,6 +186,31 @@ export class KickoffAnalysisStep {
     const b = this.analysis().backlog;
     return b ? [b.epic, ...b.tickets] : [];
   });
+  /** Steers what the draft emphasises. Prefilled from the service-wide standing instruction. */
+  readonly instructions = signal('');
+  /** What a refine should change. Deliberately separate: it is asked once, not standing. */
+  readonly refinement = signal('');
+  readonly runs = signal<KickoffRunSummary[] | null>(null);
+  readonly openOptions = signal(false);
+  /** What the tickets will carry beyond the two identity labels, in one line. */
+  readonly optionSummary = computed(() => {
+    const o = this.analysis().backlog_options;
+    const parts = [
+      o.labels.length ? `labels ${o.labels.join(', ')}` : '',
+      o.components.length ? `components ${o.components.join(', ')}` : '',
+      o.priority ? `priority ${o.priority}` : '',
+      o.fix_version ? `fix version ${o.fix_version}` : '',
+      o.assignee_account_id ? 'assigned' : '',
+      o.due_in_days === null ? '' : `due in ${o.due_in_days} days`,
+    ].filter(Boolean);
+    return parts.length
+      ? `Every ticket also gets: ${parts.join(' · ')}.`
+      : 'Tickets carry only the two labels that let ShiftLeft find them again.';
+  });
+  readonly openRun = signal<KickoffRunDetail | null>(null);
+  readonly canRefine = computed(
+    () => !!this.plan()?.tasks.length && !this.dirty() && this.providerKey() !== 'rules',
+  );
   readonly canCreate = computed(
     () =>
       !!this.plan()?.tasks.length &&
@@ -201,6 +231,8 @@ export class KickoffAnalysisStep {
       const a = this.analysis();
       untracked(() => {
         if (!this.backlogUrl()) this.backlogUrl.set(a.backlog_target?.url ?? a.backlog?.url ?? '');
+        // The standing instruction, or what the last run was told. Editable either way.
+        if (!this.instructions()) this.instructions.set(a.plan?.instructions ?? a.instructions ?? '');
       });
     });
     this.destroyRef.onDestroy(() => this.stopTimer());
@@ -225,24 +257,132 @@ export class KickoffAnalysisStep {
     }
     const a = this.analysis();
     this.confirmRun.set(false);
+    this.announcement.set('Running the analysis. This can take a few minutes.');
+    this.draftWith(
+      this.api.runKickoffAnalysis(
+        this.projectId(),
+        a.id,
+        this.providerKey(),
+        this.model(),
+        this.instructions().trim(),
+      ),
+      'The analysis could not run.',
+      (plan) => `Drafted by ${plan.drafted_by}: ${plan.tasks.length} tasks. Review them below.`,
+    );
+  }
+
+  /**
+   * Amend the plan rather than draft over it. This is the cheap iteration while a requirement is
+   * still moving: tasks the model leaves alone keep their wording, their refs and their edits.
+   */
+  refine(): void {
+    const a = this.analysis();
+    const asked = this.refinement().trim();
+    if (!asked) return;
+    this.announcement.set('Refining the plan.');
+    this.draftWith(
+      this.api.refineKickoffPlan(this.projectId(), a.id, this.providerKey(), this.model(), asked),
+      'The plan was not changed.',
+      (plan) => {
+        this.refinement.set('');
+        return `Refined: ${plan.tasks.length} tasks. Review what changed below.`;
+      },
+    );
+  }
+
+  private draftWith(
+    call: Observable<KickoffAnalysis>,
+    failure: string,
+    done: (plan: KickoffPlan) => string,
+  ): void {
     this.refusal.set(null);
     this.running.set(true);
     this.startTimer();
-    this.announcement.set('Running the analysis. This can take a few minutes.');
-    this.api.runKickoffAnalysis(this.projectId(), a.id, this.providerKey(), this.model()).subscribe({
+    call.subscribe({
       next: (next) => {
         this.stopTimer();
         this.running.set(false);
         this.discard();
+        this.runs.set(null);
+        this.openRun.set(null);
         this.changed.emit(next);
-        const plan = next.plan!;
-        this.announcement.set(`Drafted by ${plan.drafted_by}: ${plan.tasks.length} tasks. Review them below.`);
+        this.announcement.set(done(next.plan!));
       },
       error: (err) => {
         this.stopTimer();
         this.running.set(false);
-        this.fail(err, 'The analysis could not run.');
+        this.fail(err, failure);
       },
+    });
+  }
+
+  // --- The design ---------------------------------------------------------------------------------
+
+  readonly publishing = signal(false);
+
+  /** Section keys as their names, for a line a person can read. */
+  sectionNames(keys: string[]): string {
+    const named = this.analysis().tdd.sections;
+    return keys.map((k) => named.find((s) => s.key === k)?.name ?? k).join(', ');
+  }
+
+  /** Write the drafted design again, after a write that didn't land. */
+  publishTdd(): void {
+    this.publishing.set(true);
+    this.api.publishKickoffTdd(this.projectId(), this.analysis().id).subscribe({
+      next: (next) => {
+        this.publishing.set(false);
+        this.changed.emit(next);
+        const note = next.tdd_document?.note;
+        this.announcement.set(note || 'The design was written to Confluence.');
+      },
+      error: (err) => {
+        this.publishing.set(false);
+        this.fail(err, 'The design could not be written.');
+      },
+    });
+  }
+
+  onOptionsSaved(next: KickoffAnalysis): void {
+    this.openOptions.set(false);
+    this.changed.emit(next);
+    this.announcement.set('Ticket options saved. They apply to every ticket this analysis creates.');
+  }
+
+  // --- Earlier drafts -----------------------------------------------------------------------------
+
+  /** Loaded when asked for: most analyses are read without anyone opening the history. */
+  toggleRuns(): void {
+    if (this.runs()) {
+      this.runs.set(null);
+      this.openRun.set(null);
+      return;
+    }
+    const a = this.analysis();
+    this.api.kickoffRuns(this.projectId(), a.id).subscribe({
+      next: (runs) => this.runs.set(runs),
+      error: (err) => this.fail(err, 'The earlier drafts could not be listed.'),
+    });
+  }
+
+  showRun(number: number): void {
+    if (this.openRun()?.run_number === number) {
+      this.openRun.set(null);
+      return;
+    }
+    const a = this.analysis();
+    this.api.kickoffRun(this.projectId(), a.id, number).subscribe({
+      next: (run) => {
+        this.openRun.set(run);
+        const d = run.diff;
+        this.announcement.set(
+          d
+            ? `Run ${number}: ${d.added.length} added, ${d.removed.length} removed, ` +
+              `${d.changed.length} changed since the run before it.`
+            : `Run ${number}: the first draft.`,
+        );
+      },
+      error: (err) => this.fail(err, 'That draft could not be read.'),
     });
   }
 

@@ -4,7 +4,9 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 AnalysisStatus = Literal["draft", "analysed", "created", "partial"]
-StepKey = Literal["prd", "repos", "dependencies", "compliance", "api_docs", "third_parties", "plan"]
+StepKey = Literal[
+    "prd", "repos", "dependencies", "compliance", "api_docs", "third_parties", "tdd", "plan"
+]
 
 
 class Quote(BaseModel):
@@ -159,6 +161,16 @@ class DocGroupOut(BaseModel):
     saved_by: str | None = None
 
 
+class MaterialGroupOut(BaseModel):
+    """Step 3: what we rely on. Code and documents alike — a service we call, a Confluence page
+    describing it, a docs site. Both lists can be empty; the step is still done once saved."""
+
+    repos: list[RepoOut]
+    docs: list[DocOut]
+    saved: bool
+    saved_by: str | None = None
+
+
 class SuggestionOut(BaseModel):
     # Empty for an obligation outside the catalog (added as a custom item if approved).
     key: str
@@ -201,6 +213,99 @@ class ProvidersOut(BaseModel):
     mentioned: dict[str, list[Quote]]
     saved: bool
     saved_by: str | None = None
+
+
+# --- The technical design ---------------------------------------------------------------------------
+
+
+class TddSourceOut(BaseModel):
+    url: str
+    page_id: str
+    title: str
+    space: str
+    version: int
+    read_with: str
+    read_at: datetime | None = None
+    line_count: int = 0
+
+
+class TddSectionChoice(BaseModel):
+    key: str
+    name: str
+    summary: str = ""
+    level: int = 2
+    # Whether the page already has this section. A sample also offers the standard ones it lacks.
+    present: bool
+    chars: int = 0
+    recommended: bool = False
+
+
+class TddOut(BaseModel):
+    """Step 7 as it stands: what will be written, where, and who confirmed it."""
+
+    enabled: bool = False
+    mode: Literal["sample", "existing"] = "sample"
+    source: TddSourceOut | None = None
+    sections: list[TddSectionChoice] = Field(default_factory=list)
+    selected: list[str] = Field(default_factory=list)
+    space_key: str = ""
+    parent_url: str = ""
+    title: str = ""
+    approved_by: str | None = None
+    approved_at: datetime | None = None
+
+
+class TddDiagramOut(BaseModel):
+    kind: str
+    title: str
+    source: str
+
+
+class TddSectionOut(BaseModel):
+    key: str
+    name: str
+    body_markdown: str = ""
+    diagrams: list[TddDiagramOut] = Field(default_factory=list)
+    # Assembled from the analysis rather than drafted: the traceability matrix.
+    built: bool = False
+    note: str = ""
+    header: list[str] = Field(default_factory=list)
+    rows: list[list[str]] = Field(default_factory=list)
+
+
+class TddPublishedOut(BaseModel):
+    url: str
+    page_id: str
+    version: int
+    space_key: str
+    title: str
+    written: list[str]
+    appended: list[str]
+    published_by: str
+    published_at: datetime
+
+
+class TddDocumentOut(BaseModel):
+    sections: list[TddSectionOut]
+    notes: list[str]
+    drafted: bool
+    # Why it wasn't drafted, or wasn't written. Empty when it was.
+    note: str
+    run_number: int
+    published: TddPublishedOut | None = None
+
+
+class TddPageRequest(BaseModel):
+    mode: Literal["sample", "existing"]
+    url: str = Field(min_length=1, max_length=2000)
+
+
+class TddUpdate(BaseModel):
+    enabled: bool
+    selected: list[str] = Field(default_factory=list, max_length=40)
+    space_key: str = Field(default="", max_length=64)
+    parent_url: str = Field(default="", max_length=2000)
+    title: str = Field(default="", max_length=250)
 
 
 # --- The plan and the backlog --------------------------------------------------------------------------
@@ -261,6 +366,8 @@ class PlanOut(BaseModel):
     run_by: str
     run_at: datetime
     run_number: int
+    # What the person asked for on top of the prompt, so a reader can see what it was told.
+    instructions: str = ""
     edited_by: str | None = None
     edited_at: datetime | None = None
     # Inputs changed since this plan was drafted: which ones. Run again to draft from them.
@@ -297,6 +404,31 @@ class BacklogTargetOut(BaseModel):
     board_id: str = ""
 
 
+class JiraDefaults(BaseModel):
+    """What every ticket this service creates should carry, where a team has a convention for it.
+
+    The two identity labels (`shiftleft-kickoff-<id>` and `shiftleft-tracked`) are always applied
+    on top of these: finding the tickets again depends on them.
+    """
+
+    labels: list[str] = Field(default_factory=list, max_length=20)
+    components: list[str] = Field(default_factory=list, max_length=20)
+    priority: str = Field(default="", max_length=60)
+    fix_version: str = Field(default="", max_length=120)
+    assignee_account_id: str = Field(default="", max_length=128)
+    due_in_days: int | None = Field(default=None, ge=0, le=365)
+    story_points_field: str = Field(default="", max_length=60)
+
+
+class TddCatalogSection(BaseModel):
+    """A section a technical design is expected to carry. Reference data."""
+
+    key: str
+    name: str
+    summary: str
+    default: bool
+
+
 class StepOut(BaseModel):
     key: StepKey
     label: str
@@ -318,11 +450,17 @@ class AnalysisOut(BaseModel):
     run_blockers: list[str]
     prd: PrdOut | None
     repos: RepoGroupOut
-    dependencies: RepoGroupOut
+    dependencies: MaterialGroupOut
     compliance: ComplianceOut
     api_docs: DocGroupOut
     third_parties: ProvidersOut
+    tdd: TddOut
+    tdd_document: TddDocumentOut | None
     plan: PlanOut | None
+    # Prefilled into the next run from the service-wide standing instruction. Editable per run.
+    instructions: str = ""
+    # What every ticket this analysis creates will carry, on top of the two identity labels.
+    backlog_options: JiraDefaults = Field(default_factory=lambda: JiraDefaults())
     backlog_target: BacklogTargetOut | None
     backlog: BacklogOut | None
 
@@ -381,6 +519,14 @@ class ProvidersUpdate(BaseModel):
 class RunRequest(BaseModel):
     provider: str = Field(min_length=1, max_length=32)
     model: str = Field(min_length=1, max_length=120)
+    # Steers what the draft emphasises. It never relaxes what the draft is held to.
+    instructions: str = Field(default="", max_length=2000)
+
+
+class RefineRequest(BaseModel):
+    provider: str = Field(min_length=1, max_length=32)
+    model: str = Field(min_length=1, max_length=120)
+    instructions: str = Field(min_length=1, max_length=2000)
 
 
 class TaskIn(BaseModel):
@@ -402,3 +548,95 @@ class PlanEdit(BaseModel):
 
 class BacklogRequest(BaseModel):
     backlog_url: str = Field(min_length=1, max_length=2000)
+
+
+# --- Run history ------------------------------------------------------------------------------------------
+
+
+class RunSummaryOut(BaseModel):
+    run_number: int
+    kind: Literal["run", "refine"]
+    reader: str
+    model: str
+    instructions: str
+    task_count: int
+    created_by: str
+    created_at: datetime | None
+    # Whether this run's draft is the one on the page now.
+    is_current: bool
+
+
+class RunTaskOut(BaseModel):
+    ref: str
+    title: str
+    repo: str = ""
+
+
+class RunChangeOut(BaseModel):
+    ref: str
+    title: str
+    field: str
+    before: str
+    after: str
+
+
+class RunDiffOut(BaseModel):
+    """What changed between two drafts. A list of differences, never a similarity score."""
+
+    added: list[RunTaskOut]
+    removed: list[RunTaskOut]
+    changed: list[RunChangeOut]
+    epic_title_changed: bool
+    summary_changed: bool
+
+
+class RunDetailOut(BaseModel):
+    run_number: int
+    kind: Literal["run", "refine"]
+    instructions: str
+    created_by: str
+    created_at: datetime | None
+    plan: PlanOut
+    # Against the run before it, when there was one.
+    diff: RunDiffOut | None
+
+
+# --- Service-wide defaults --------------------------------------------------------------------------------
+
+
+class BacklogFieldsOut(BaseModel):
+    """What the target Jira project offers. A field this account can't read comes back empty, and
+    is then simply not offered - never guessed at."""
+
+    project_key: str
+    components: list[str]
+    fix_versions: list[str]
+    priorities: list[str]
+
+
+class KickoffSettingsOut(BaseModel):
+    tdd_template_url: str
+    tdd_space_key: str
+    tdd_parent_url: str
+    tdd_sections: list[str]
+    jira_project_url: str
+    jira_defaults: JiraDefaults
+    analysis_prompt: str
+    tdd_prompt: str
+    updated_by: str
+    updated_at: datetime | None
+    # The sections a technical design is expected to carry, to tick defaults from. Reference data.
+    section_catalog: list[TddCatalogSection]
+    # Whether this caller may change these. The API decides; the page only renders the answer.
+    editable: bool
+
+
+class KickoffSettingsWrite(BaseModel):
+    tdd_template_url: str = Field(default="", max_length=2000)
+    tdd_space_key: str = Field(default="", max_length=64)
+    tdd_parent_url: str = Field(default="", max_length=2000)
+    tdd_sections: list[str] = Field(default_factory=list, max_length=40)
+    jira_project_url: str = Field(default="", max_length=2000)
+    jira_defaults: JiraDefaults = Field(default_factory=JiraDefaults)
+    analysis_prompt: str = Field(default="", max_length=2000)
+    tdd_prompt: str = Field(default="", max_length=2000)

@@ -10,7 +10,9 @@
 * **Attributed.** Every description says who created it and that it was drafted by AI or rules.
 """
 
+import asyncio
 import re
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
@@ -30,6 +32,15 @@ TYPE_CHOICES = {
 }
 # Fields this writer always sets, or that Jira fills itself.
 FILLED = {"summary", "issuetype", "project", "reporter", "description", "labels", "parent"}
+# Fields the ticket options can set, and the Jira field each one writes to. A project that requires
+# one of these is creatable once it is filled in - which is what the options are for.
+OPTION_FIELDS = {
+    "components": "components",
+    "priority": "priority",
+    "fix_version": "fixVersions",
+    "assignee_account_id": "assignee",
+    "due_in_days": "duedate",
+}
 TRACKING_LABEL = "shiftleft-tracked"
 
 
@@ -159,7 +170,53 @@ def task_description(task: dict[str, Any], keys: dict[str, str], ctx: dict[str, 
 # --- Writing ---------------------------------------------------------------------------------------------
 
 
-async def preflight(jira: AtlassianRest, project: str, kinds: set[str]) -> tuple[dict[str, str], list[str]]:
+async def offered(jira: AtlassianRest, project: str) -> dict[str, list[str]]:
+    """What this project actually offers for each ticket option, so nothing is typed blind.
+
+    A field the account can't read comes back empty rather than failing the whole page: the option
+    is then simply not offered, which is truthful, and the create still validates before writing.
+    """
+    async def safe(call: Any) -> list[str]:
+        try:
+            return await call
+        except AtlassianError:
+            return []
+
+    components, versions, priorities = await asyncio.gather(
+        safe(jira.project_components(project)),
+        safe(jira.project_versions(project)),
+        safe(jira.priorities()),
+    )
+    return {"components": components, "fix_versions": versions, "priorities": priorities}
+
+
+def option_fields(options: dict[str, Any], available: dict[str, list[str]]) -> dict[str, Any]:
+    """The ticket options as Jira fields, dropping anything this project doesn't offer.
+
+    Validated here as well as in the page, because a page can be minutes old by the time it is
+    used and a component that has since been deleted would fail every single create.
+    """
+    fields: dict[str, Any] = {}
+    names = [c for c in options.get("components") or [] if c in (available.get("components") or [])]
+    if names:
+        fields["components"] = [{"name": n} for n in names]
+    priority = options.get("priority") or ""
+    if priority and priority in (available.get("priorities") or []):
+        fields["priority"] = {"name": priority}
+    version = options.get("fix_version") or ""
+    if version and version in (available.get("fix_versions") or []):
+        fields["fixVersions"] = [{"name": version}]
+    if account := (options.get("assignee_account_id") or "").strip():
+        fields["assignee"] = {"accountId": account}
+    days = options.get("due_in_days")
+    if isinstance(days, int):
+        fields["duedate"] = (datetime.now(timezone.utc).date() + timedelta(days=days)).isoformat()
+    return fields
+
+
+async def preflight(
+    jira: AtlassianRest, project: str, kinds: set[str], filled: set[str] | None = None
+) -> tuple[dict[str, str], list[str]]:
     """Issue type ids per task type, or the reasons nothing can be created."""
     try:
         available = await jira.issue_types(project)
@@ -184,10 +241,11 @@ async def preflight(jira: AtlassianRest, project: str, kinds: set[str]) -> tuple
             problems.append(str(exc))
             continue
         for f in required:
-            if (f.get("key") or f.get("fieldId")) not in FILLED:
+            if (f.get("key") or f.get("fieldId")) not in (FILLED | (filled or set())):
                 problems.append(
                     f"{project} requires “{f.get('name') or f.get('key')}” on {kind.lower()}s, "
-                    "which Feature Kickoff can't fill in. Make it optional or give it a default."
+                    "which Feature Kickoff can't fill in. Set it under Ticket options if it's one "
+                    "of those, or make it optional in Jira."
                 )
     return chosen, problems
 
@@ -215,11 +273,15 @@ async def create(
     compliance_names: dict[str, str],
     repo_urls: dict[str, str],
     previous: dict[str, Any] | None,
+    options: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     project = ref["project_key"]
     tasks = plan["tasks"]
     kinds = {"Epic", *(t["type"] for t in tasks)}
-    type_ids, problems = await preflight(jira, project, kinds)
+    options = options or {}
+    available = await offered(jira, project)
+    extra = option_fields(options, available)
+    type_ids, problems = await preflight(jira, project, kinds, filled=set(extra))
     if problems:
         raise Refused("Nothing was created: fix these in Jira first.", problems)
 
@@ -240,7 +302,9 @@ async def create(
         "compliance_names": compliance_names,
         "repo_urls": repo_urls,
     }
-    labels = [label, TRACKING_LABEL]
+    # The two identity labels always go on: finding these tickets again depends on them. A team's
+    # own labels are added to them, never in place of them.
+    labels = list(dict.fromkeys([label, TRACKING_LABEL, *(options.get("labels") or [])]))
 
     # The epic
     title = plan["epic_title"]
@@ -264,6 +328,7 @@ async def create(
                     "summary": title,
                     "description": epic_description(plan, ctx),
                     "labels": labels,
+                    **extra,
                 }
             )
             epic = {
@@ -309,6 +374,7 @@ async def create(
             "summary": summary,
             "description": task_description(task, keys, ctx),
             "labels": labels,
+            **extra,
         }
         if epic.get("key"):
             fields["parent"] = {"key": epic["key"]}
@@ -371,6 +437,7 @@ async def create(
         "epic": epic,
         "tickets": results,
         "note": link_note,
+        "applied": {"labels": labels, **{k: v for k, v in options.items() if v and k != "labels"}},
         "failed": failed,
         "attempts": (previous or {}).get("attempts", 0) + 1,
     }

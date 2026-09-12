@@ -279,6 +279,27 @@ class AtlassianRest:
         rows = (body or {}).get("fields") or (body or {}).get("values") or []
         return [r for r in rows if r.get("required") and not r.get("hasDefaultValue")]
 
+    async def project_components(self, project: str) -> list[str]:
+        body = await self._call(
+            "GET", f"/rest/api/3/project/{quote(project)}/components", "Reading components"
+        )
+        rows = body if isinstance(body, list) else (body or {}).get("values") or []
+        return [r["name"] for r in rows if r.get("name")]
+
+    async def project_versions(self, project: str) -> list[str]:
+        """Unreleased and unarchived versions first: those are the ones worth choosing."""
+        body = await self._call(
+            "GET", f"/rest/api/3/project/{quote(project)}/versions", "Reading versions"
+        )
+        rows = body if isinstance(body, list) else (body or {}).get("values") or []
+        open_first = sorted(rows, key=lambda r: (bool(r.get("released")), bool(r.get("archived"))))
+        return [r["name"] for r in open_first if r.get("name") and not r.get("archived")]
+
+    async def priorities(self) -> list[str]:
+        body = await self._call("GET", "/rest/api/3/priority", "Reading priorities")
+        rows = body if isinstance(body, list) else (body or {}).get("values") or []
+        return [r["name"] for r in rows if r.get("name")]
+
     async def search_issues(self, jql: str) -> list[dict]:
         body = await self._call(
             "GET", "/rest/api/3/search/jql", "Searching Jira",

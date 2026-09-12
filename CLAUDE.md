@@ -27,7 +27,9 @@ freshness rules) carries forward unchanged.
 - **DB**: PostgreSQL. Redis for query/connector-state cache.
 - **Frontend**: Angular (standalone components, signals, typed reactive forms). No component library —
   the design system in `design/DESIGN-HANDOFF.md` §3 is implemented as CSS custom properties + local components.
-- **API client**: generated from FastAPI's OpenAPI schema. Do not hand-write DTOs that already exist server-side.
+- **API client**: `frontend/src/app/core/api.ts` and `core/models.ts` are hand-written mirrors of the
+  Pydantic schemas, one method and one interface per endpoint. A new endpoint means editing both, and
+  each new model block names the server file it mirrors.
 - **Layout**: `backend/` (FastAPI service), `frontend/` (Angular app), `docs/`, `design/`.
 
 ## Non-negotiable product rules
@@ -80,17 +82,50 @@ Build order here departs from the PRD's phasing at the owner's direction — Tea
 3. **Shift-left Rollout** (Evidence) — tracks `docs/PROPOSAL-ShiftLeft-Pivot.md`: stage path with computed exit
    criteria, detection accuracy vs manual audit, surfaces at the point of work, warning outcomes. Thresholds are
    named constants in `backend/app/services/rollout_rules.py`; change the proposal first, then the constant.
-4. **Feature Kickoff** (Evidence) — seven steps, saved as an analysis per feature
+4. **Feature Kickoff** (Evidence) — eight steps, saved as an analysis per feature
    (`kickoff_analyses`): PRD (Confluence link, read over REST, or Rovo MCP when there's no REST
-   credential) → repos to code in → repos relied on (GitHub, at a pinned commit) → compliance
-   (proposed with PRD quotes, approved by a named person) → API docs → third-party APIs → the
-   analysis (Claude drafts work per repo, dependency needs and ordered Jira tasks; people edit them)
-   → create in the backlog (Jira REST, the only external write). No example data anywhere: an input
-   that can't be read shows why. Credentials come from Settings → Connectors first, then env. The
-   compliance and provider catalog is `backend/app/seed/data/kickoff_catalog.json`. A plan keeps a
-   fingerprint of its inputs; one older than its inputs says which changed and can't be created
-   until it's run again. Model output is sanitized in `kickoff_ai.py`: unknown repos, PRD lines,
-   compliance keys and forward dependencies are dropped or reordered, never trusted.
+   credential) → repos to code in → what we rely on (a GitHub repo at a pinned commit, a Confluence
+   page, or any document — the link decides the reader, `sources.classify`) → compliance (proposed
+   with PRD quotes, approved by a named person) → API docs → third-party APIs → the technical design
+   (optional) → the analysis (Claude drafts work per repo, dependency needs and ordered Jira tasks;
+   people edit them) → create in the backlog. No example data anywhere: an input that can't be read
+   shows why. Credentials come from Settings → Connectors first, then env. The compliance and
+   provider catalog is `backend/app/seed/data/kickoff_catalog.json`. A plan keeps a fingerprint of
+   its inputs; one older than its inputs says which changed and can't be created until it's run
+   again. Model output is sanitized in `kickoff_ai.py`: unknown repos, PRD lines, compliance keys
+   and forward dependencies are dropped or reordered, never trusted.
+
+   **Iterating.** The loop from a requirement to a backlog is run repeatedly while the requirement
+   is still moving, so nothing about it is one-shot. Every draft is kept whole in `kickoff_runs`
+   (the live plan is the one people edit); `GET …/runs/{n}` returns an earlier draft with a diff
+   against the one before it, matched on task title — refs are renumbered by a run, so matching on
+   them would invent a continuity that isn't there. `POST …/refine` amends the plan in place instead
+   of drafting over it: `ai.keep_refs` carries the ref, origin and editor of any task the model left
+   alone, so human edits survive and tickets already created still match by summary. A refine that
+   fails leaves the plan exactly as it was. Every run takes an `instructions` string (prefilled from
+   the service-wide standing instruction), rendered under its own heading and explicitly unable to
+   relax what the draft is held to.
+
+   **The technical design (step 7).** Optional. Point at a sample to follow or at the design itself
+   to update; its headings are read and offered as a checklist (`kickoff_tdd.page_sections`, keyed
+   through `tdd_sections.json`). Nothing is written for a section nobody ticked — that ticking is
+   the acceptance product rule 6 asks for, so it is recorded with a name and time and audited before
+   the run. The run drafts the ticked sections and publishes at the end. **An existing page is
+   spliced, never rewritten**: `kickoff_tdd.splice` replaces only the ticked sections between their
+   heading and the next heading of equal-or-higher level, preserving every other byte; the update is
+   version-guarded, labelled, and the version message names the analysis and the sections. A publish
+   that fails is a note on the page with a retry, never a failed run — the plan is what the backlog
+   is made from. The traceability matrix is **assembled from the analysis, never drafted**: a
+   model-invented traceability matrix is the "score in disguise" this project forbids.
+
+   **Ticket options and defaults.** `PUT …/backlog-options` sets what every ticket carries
+   (labels, components, priority, fix version, assignee, due date). Choices come from
+   `GET …/backlog-fields`, which reads the project itself, and are validated against Jira again
+   before any write. The two identity labels (`shiftleft-kickoff-<id>`, `shiftleft-tracked`) are
+   always applied and never removable — idempotency depends on them. `kickoff_settings` (one row,
+   readable by anyone, writable only by `require_platform_admin`) holds the defaults a new analysis
+   is copied from: TDD template, space, ticked sections, backlog, ticket defaults, standing prompts.
+   Copied, not referenced — changing a default never reaches an analysis already under way.
 5. Everything else follows the PRD phasing.
 
 **Data strategy for this pass:** the prototype's seed data (`DECKS`, `PROJECT_CFG`, `TEMPLATE_DEFS`, `CONNECTORS`,
@@ -144,7 +179,8 @@ says which, and the generator's docstring says what it derived and why.
 `users`, `projects`, `project_access`, `dashboards`, `dashboard_versions`, `widgets`, `templates`,
 `connector_types`, `connector_instances`, `connector_filters`, `ingestion_jobs`, `normalized_artifacts`,
 `metrics_snapshots`, `rules`, `rule_results`, `artifact_waivers`, `action_records`, `alert_routes`,
-`audit_logs`, `share_links`.
+`audit_logs`, `share_links`. Feature Kickoff adds `kickoff_analyses`, `kickoff_runs` (every draft,
+kept whole) and `kickoff_settings` (one row of service-wide defaults).
 
 Notes: dashboard config is versioned JSON with searchable metadata in relational columns; audit logging is
 append-only and covers access-control changes at a higher sensitivity tier; dashboards soft-delete.

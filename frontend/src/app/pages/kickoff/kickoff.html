@@ -147,7 +147,7 @@
       <nav class="stepper" aria-label="Kickoff steps">
         <div class="stepper-head">
           <span class="label-caps">Progress</span>
-          <span class="mono stepper-count">{{ doneCount() }}/7</span>
+          <span class="mono stepper-count">{{ doneCount() }}/{{ stepCount }}</span>
         </div>
         <ol>
           @for (s of journey; track s.key; let i = $index) {
@@ -171,7 +171,7 @@
       <main class="panel-wrap">
         <section class="step-card" [attr.aria-labelledby]="'step-' + step()">
           <header class="step-head">
-            <span class="kicker">Step {{ stepIndex() + 1 }} of 7 @if (copy[step()].optional) { · optional }</span>
+            <span class="kicker">Step {{ stepIndex() + 1 }} of {{ stepCount }} @if (copy[step()].optional) { · optional }</span>
             <h3 class="step-title" tabindex="-1" [id]="'step-' + step()">{{ copy[step()].title }}</h3>
             <p class="step-lede">{{ copy[step()].lede }}</p>
           </header>
@@ -234,9 +234,11 @@
               <p class="meta">Fetch again after the page changes, or paste a different page. A plan drafted from an older version says so.</p>
             }
 
-            <!-- 2 · Repos to code in, 3 · Repos we rely on ------------------------------------------ -->
+            <!-- 2 · Repos to code in ------------------------------------------------------------------ -->
             @case ('repos') { <ng-container *ngTemplateOutlet="repoStep; context: { role: 'repos' }" /> }
-            @case ('dependencies') { <ng-container *ngTemplateOutlet="repoStep; context: { role: 'dependencies' }" /> }
+
+            <!-- 3 · What we rely on: repos and documents ------------------------------------------------ -->
+            @case ('dependencies') { <ng-container *ngTemplateOutlet="materialStep" /> }
 
             <!-- 4 · Compliance ------------------------------------------------------------------------ -->
             @case ('compliance') {
@@ -450,7 +452,111 @@
               </form>
             }
 
-            <!-- 7 · The analysis --------------------------------------------------------------------- -->
+            <!-- 7 · The technical design ---------------------------------------------------------- -->
+            @case ('tdd') {
+              @let t = a.tdd;
+              <div class="choice-grid two" role="radiogroup" aria-label="Where the design is written">
+                <button class="choice" [class.on]="tddMode() === 'sample'" (click)="tddMode.set('sample')"
+                        role="radio" [attr.aria-checked]="tddMode() === 'sample'">
+                  <span class="choice-mark" aria-hidden="true">✎</span>
+                  <span class="choice-text">
+                    <span class="choice-title">From a sample</span>
+                    <span class="meta">A design that shows the house style. A new page is written in the space you pick.</span>
+                  </span>
+                </button>
+                <button class="choice" [class.on]="tddMode() === 'existing'" (click)="tddMode.set('existing')"
+                        role="radio" [attr.aria-checked]="tddMode() === 'existing'">
+                  <span class="choice-mark" aria-hidden="true">⟲</span>
+                  <span class="choice-text">
+                    <span class="choice-title">Update an existing design</span>
+                    <span class="meta">The sections you tick are replaced in place. Everything else on that page is left exactly as it is.</span>
+                  </span>
+                </button>
+              </div>
+
+              <form class="add-row big" (ngSubmit)="readTddPage()">
+                <label class="sr-only" for="tdd-url">Confluence link</label>
+                <input id="tdd-url" name="tdd" type="url" [ngModel]="tddUrl()" (ngModelChange)="tddUrl.set($event)"
+                       [placeholder]="tddMode() === 'sample' ? 'Link to a sample TDD' : 'Link to the design to update'" />
+                <button class="btn btn-xl btn-primary" type="submit" [disabled]="!tddUrl().trim() || busy() === 'tdd'">
+                  @if (busy() === 'tdd') { <span class="spinner" aria-hidden="true"></span> Reading… } @else { Read its sections }
+                </button>
+              </form>
+              <p class="meta">Nothing is written by reading. The sections below are the ones that page actually has, plus the standard ones it doesn't.</p>
+
+              @if (t.source; as src) {
+                <article class="card prd-card">
+                  <div class="item-head">
+                    <a class="item-title" [href]="src.url" target="_blank" rel="noopener">{{ src.title }} ↗</a>
+                    <span class="pill mono">{{ src.space }} · v{{ src.version }}</span>
+                  </div>
+                  <p class="meta">Read with {{ src.read_with }} · <span class="mono">{{ src.read_at | date: 'd MMM, HH:mm' }}</span></p>
+                </article>
+
+                <div class="tick-head">
+                  <p class="sub-title">What to write</p>
+                  <button class="btn btn-small" (click)="tickRecommended()">Tick the usual set</button>
+                </div>
+                <ul class="tick-list">
+                  @for (sec of t.sections; track sec.key) {
+                    <li>
+                      <label class="tick" [class.on]="isTicked(sec.key)">
+                        <input type="checkbox" [checked]="isTicked(sec.key)" (change)="toggleTick(sec.key)" />
+                        <span class="tick-text">
+                          <span class="tick-name">
+                            {{ sec.name }}
+                            @if (sec.present) {
+                              <span class="state-pill tone-watch"><span class="glyph" aria-hidden="true">~</span>Replaces what's there<span class="mono"> · {{ sec.chars }} chars</span></span>
+                            } @else {
+                              <span class="state-pill tone-good"><span class="glyph" aria-hidden="true">+</span>Added at the end</span>
+                            }
+                            @if (sec.key === 'traceability') {
+                              <span class="state-pill tone-accent"><span class="glyph" aria-hidden="true">≡</span>Built from the analysis</span>
+                            }
+                          </span>
+                          @if (sec.summary) { <span class="meta">{{ sec.summary }}</span> }
+                        </span>
+                      </label>
+                    </li>
+                  }
+                </ul>
+
+                @if (tddMode() === 'sample') {
+                  <p class="sub-title">Where it goes</p>
+                  <div class="tdd-where">
+                    <label>
+                      <span class="label-caps">Space</span>
+                      <input type="text" placeholder="ENT" [ngModel]="tddSpace()" (ngModelChange)="tddSpace.set($event)" />
+                    </label>
+                    <label>
+                      <span class="label-caps">Page title</span>
+                      <input type="text" [ngModel]="tddTitle()" (ngModelChange)="tddTitle.set($event)" />
+                    </label>
+                    <label class="wide">
+                      <span class="label-caps">Under this page <span class="optional">optional</span></span>
+                      <input type="url" placeholder="Parent page link" [ngModel]="tddParent()" (ngModelChange)="tddParent.set($event)" />
+                    </label>
+                  </div>
+                }
+
+                <div class="notice">
+                  <p>
+                    <span aria-hidden="true">!</span>
+                    When the analysis runs it writes {{ ticked().length }} section{{ ticked().length === 1 ? '' : 's' }}
+                    @if (tddMode() === 'existing') { into <strong>{{ src.title }}</strong>, as a new version. } @else { to a page in <strong>{{ tddSpace() || 'the space above' }}</strong>. }
+                    Confirming this is your acceptance of it — nothing else on that page is touched.
+                  </p>
+                </div>
+                <button class="btn btn-xxl btn-primary" [disabled]="!ticked().length || busy() === 'tdd'" (click)="saveTdd(true)">
+                  @if (busy() === 'tdd') { <span class="spinner" aria-hidden="true"></span> Saving… } @else { Confirm these sections }
+                </button>
+                @if (t.approved_by) {
+                  <p class="meta">Confirmed by {{ t.approved_by }} · <span class="mono">{{ t.approved_at | date: 'd MMM, HH:mm' }}</span></p>
+                }
+              }
+            }
+
+            <!-- 8 · The analysis --------------------------------------------------------------------- -->
             @case ('plan') {
               <sl-kickoff-analysis [projectId]="projectId()" [analysis]="a" [status]="status()" [catalog]="catalog()"
                                    (changed)="onAnalysisChange($event)" (goStep)="go($event)"
@@ -462,7 +568,7 @@
             <footer class="step-foot">
               <button class="btn btn-xl btn-ghost" [disabled]="stepIndex() === 0" (click)="prev()"><span aria-hidden="true">←</span> Back</button>
               <div class="foot-right">
-                @if (step() === 'dependencies' && !a.dependencies.repos.length) {
+                @if (step() === 'dependencies' && !a.dependencies.repos.length && !a.dependencies.docs.length) {
                   <button class="btn btn-xl" [disabled]="busy() === 'dependencies'" (click)="skipDependencies()">None — skip</button>
                 }
                 @if (step() === 'api_docs' && !docs().length) {
@@ -471,8 +577,11 @@
                 @if (step() === 'third_parties' && !a.third_parties.providers.length) {
                   <button class="btn btn-xl" [disabled]="busy() === 'third_parties'" (click)="skipProviders()">None — skip</button>
                 }
+                @if (step() === 'tdd' && !a.tdd.enabled) {
+                  <button class="btn btn-xl" [disabled]="busy() === 'tdd'" (click)="saveTdd(false)">No design — skip</button>
+                }
                 <button class="btn btn-xl btn-primary" (click)="next()">
-                  {{ stepIndex() === 5 ? 'Go to the analysis' : 'Continue' }} <span aria-hidden="true">→</span>
+                  {{ stepIndex() === stepCount - 2 ? 'Go to the analysis' : 'Continue' }} <span aria-hidden="true">→</span>
                 </button>
               </div>
             </footer>
@@ -530,12 +639,106 @@
       } @empty {
         <li class="saved-empty">
           <span class="empty-mark" aria-hidden="true">⌥</span>
-          <span>{{ role === 'repos' ? 'No repos yet. Add at least one: it is where the analysis puts the work.' : 'No dependencies yet. Add the repos this feature calls, or skip if there are none.' }}</span>
+          <span>No repos yet. Add at least one: it is where the analysis puts the work.</span>
         </li>
       }
     </ul>
     @if (repos(role).length) {
       <button class="btn" [disabled]="busy() === role" (click)="refreshRepos(role)">Read all again at their latest commit</button>
+    }
+  </ng-template>
+
+  <!--
+    Step 3 takes anything the feature is built on: a repo, a Confluence page, a docs site. One box,
+    because which reader a link needs is the server's call, not something a person should have to say.
+  -->
+  <ng-template #materialStep>
+    <form class="add-row big" (ngSubmit)="addRepo('dependencies')">
+      <label class="sr-only" for="material-link">Repository, Confluence page or document link</label>
+      <input id="material-link" name="material" type="text" placeholder="https://github.com/owner/repo, a Confluence page, or a docs link"
+             [ngModel]="draft('dependencies')" (ngModelChange)="setDraft('dependencies', $event)" autocomplete="off" />
+      <button class="btn btn-xl btn-primary" type="submit" [disabled]="!draft('dependencies').trim() || busy() === 'dependencies'">
+        @if (busy() === 'dependencies') { <span class="spinner" aria-hidden="true"></span> Reading… } @else { Add }
+      </button>
+    </form>
+    <p class="meta">Paste one or more links, separated by spaces. owner/repo works too. A repo is read at a pinned commit; a Confluence page with your Confluence credentials; anything else as text.</p>
+
+    @if (repos('dependencies').length) { <p class="sub-title">Repos</p> }
+    <ul class="item-list">
+      @for (r of repos('dependencies'); track r.url) {
+        <li class="item" [class.failed]="!r.ok">
+          <span class="item-mark" [class]="'item-mark tone-' + (r.ok ? 'accent' : 'poor')" aria-hidden="true">{{ r.ok ? '⌥' : '✕' }}</span>
+          <div class="item-body">
+            @if (r.ok) {
+              <div class="item-head">
+                <a class="item-title mono" [href]="r.html_url" target="_blank" rel="noopener">{{ r.full_name }} ↗</a>
+                <a class="pill mono" [href]="r.commit_url" target="_blank" rel="noopener">{{ r.ref }} @ {{ r.commit }}</a>
+                @if (r.archived) { <span class="state-pill tone-watch"><span class="glyph" aria-hidden="true">!</span>Archived</span> }
+              </div>
+              @if (r.description) { <p class="item-desc">{{ r.description }}</p> }
+              <div class="repo-facts">
+                <span><span class="mono">{{ r.file_count | number }}</span> files</span>
+                @if (r.languages.length) { <span>{{ languages(r) }}</span> }
+                @if (r.specs.length) {
+                  <span class="state-pill tone-good"><span class="glyph" aria-hidden="true">✓</span>{{ r.specs.length }} API spec{{ r.specs.length === 1 ? '' : 's' }} · <span class="mono">{{ specOperations(r) }}</span> operations</span>
+                } @else {
+                  <span class="state-pill tone-neutral"><span class="glyph" aria-hidden="true">—</span>No API spec found</span>
+                }
+              </div>
+              <p class="meta">Read with {{ r.read_with }} · <span class="mono">{{ r.read_at | date: 'd MMM, HH:mm' }}</span></p>
+            } @else {
+              <div class="item-head"><span class="item-title mono">{{ r.full_name }}</span></div>
+              <p class="err-text"><span aria-hidden="true">✕</span> {{ r.error }}</p>
+            }
+          </div>
+          <div class="item-actions">
+            @if (!r.ok) { <button class="btn btn-small" [disabled]="busy() === 'dependencies'" (click)="refreshRepos('dependencies')">Retry</button> }
+            <button class="btn btn-small" (click)="removeRepo('dependencies', r.url)" [attr.aria-label]="'Remove ' + r.full_name">Remove</button>
+          </div>
+        </li>
+      }
+    </ul>
+
+    @if (materials('dependencies').length) { <p class="sub-title">Documents</p> }
+    <ul class="item-list">
+      @for (d of materials('dependencies'); track d.url) {
+        <li class="item" [class.failed]="!d.ok">
+          <span class="item-mark" [class]="'item-mark tone-' + (d.ok ? (d.kind === 'openapi' ? 'accent' : 'neutral') : 'poor')" aria-hidden="true">
+            {{ d.ok ? (d.kind === 'openapi' ? '{ }' : (d.kind === 'confluence' ? '☰' : '¶')) : '✕' }}
+          </span>
+          <div class="item-body">
+            <div class="item-head">
+              <span class="item-title">{{ d.ok ? d.title : d.url }}</span>
+              @if (d.ok) {
+                <span class="pill">{{ d.kind === 'openapi' ? 'OpenAPI ' + d.version : (d.kind === 'confluence' ? 'Confluence ' + d.version : 'Page') }}</span>
+                @if (d.operation_count) { <span class="pill mono">{{ d.operation_count }} operations</span> }
+              }
+            </div>
+            @if (d.ok) {
+              <a class="mono drill" [href]="d.final_url || d.url" target="_blank" rel="noopener">{{ d.final_url || d.url }} ↗</a>
+              <p class="meta clamp">{{ d.summary }}</p>
+            } @else {
+              <p class="err-text"><span aria-hidden="true">✕</span> {{ d.error }}</p>
+            }
+          </div>
+          <div class="item-actions">
+            @if (!d.ok) { <button class="btn btn-small" [disabled]="busy() === 'dependencies'" (click)="refreshRepos('dependencies')">Retry</button> }
+            <button class="btn btn-small" (click)="removeRepo('dependencies', d.url)" [attr.aria-label]="'Remove ' + (d.title || d.url)">Remove</button>
+          </div>
+        </li>
+      }
+    </ul>
+
+    @if (!repos('dependencies').length && !materials('dependencies').length) {
+      <ul class="item-list">
+        <li class="saved-empty">
+          <span class="empty-mark" aria-hidden="true">⌥</span>
+          <span>Nothing yet. Add the repos this feature calls and the pages that describe them, or skip if there are none.</span>
+        </li>
+      </ul>
+    }
+    @if (repos('dependencies').length || materials('dependencies').length) {
+      <button class="btn" [disabled]="busy() === 'dependencies'" (click)="refreshRepos('dependencies')">Read everything again</button>
     }
   </ng-template>
 }

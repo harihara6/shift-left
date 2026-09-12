@@ -56,6 +56,13 @@
     </label>
   }
 
+  <label class="model-field instruct">
+    <span class="label-caps">Anything to say before it runs <span class="optional">optional</span></span>
+    <textarea rows="2" [ngModel]="instructions()" (ngModelChange)="instructions.set($event)" [disabled]="running()"
+              placeholder="Split the work by region. Call out anything that needs another team."></textarea>
+    <span class="meta">Steers what the draft emphasises. It can't relax what the draft is held to: the repos, the approved compliance and the PRD lines it cites.</span>
+  </label>
+
   @if (running()) {
     <div class="running" role="status">
       <span class="pulse" aria-hidden="true"></span>
@@ -71,7 +78,11 @@
     </div>
   } @else if (confirmRun()) {
     <div class="confirm">
-      <p>Running again replaces this draft{{ plan()?.edited_by ? ', including the edits ' + plan()!.edited_by + ' made' : '' }}. Tasks already created in Jira stay there.</p>
+      <p>
+        Running again drafts from scratch and replaces what's on the page{{ plan()?.edited_by ? ', including the edits ' + plan()!.edited_by + ' made' : '' }}.
+        It's kept as run {{ plan()?.run_number }} and can be read back. Tasks already created in Jira stay there.
+        To change only part of it, use <em>Change something</em> below instead.
+      </p>
       <div class="confirm-actions">
         <button class="btn btn-lg" (click)="confirmRun.set(false)">Keep this draft</button>
         <button class="btn btn-lg btn-primary" (click)="run()">Run again</button>
@@ -104,7 +115,169 @@
     <p class="summary-text">{{ plan.summary }}</p>
     <p class="meta">{{ plan.note }}</p>
     @for (n of plan.notes; track n) { <p class="warn-text"><span aria-hidden="true">!</span> {{ n }}</p> }
+    @if (plan.instructions) {
+      <p class="meta">It was also told: <em>“{{ plan.instructions }}”</em></p>
+    }
+    <div class="result-actions">
+      <button class="btn btn-small" (click)="toggleRuns()" [attr.aria-expanded]="!!runs()">
+        {{ runs() ? 'Hide earlier drafts' : 'Earlier drafts' }}
+      </button>
+    </div>
   </section>
+
+  <!-- The design it wrote --------------------------------------------------------------------- -->
+  @if (analysis().tdd_document; as doc) {
+    <section class="result-card" aria-labelledby="tdd-title">
+      <div class="drafted">
+        <span class="ai-badge"><span aria-hidden="true">✎</span> Technical design</span>
+        @if (doc.published; as pub) {
+          <span class="meta">
+            <a class="drill" [href]="pub.url" target="_blank" rel="noopener">{{ pub.title }} ↗</a> ·
+            version <span class="mono">{{ pub.version }}</span> · by {{ pub.published_by }} ·
+            <span class="mono">{{ pub.published_at | date: 'd MMM, HH:mm' }}</span>
+          </span>
+        }
+      </div>
+      <h4 class="result-title" id="tdd-title">
+        {{ doc.sections.length }} section{{ doc.sections.length === 1 ? '' : 's' }}
+      </h4>
+
+      @if (doc.note) {
+        <div class="notice notice-watch" role="status">
+          <p><span aria-hidden="true">!</span> {{ doc.note }}</p>
+          <button class="btn btn-lg" [disabled]="publishing()" (click)="publishTdd()">
+            @if (publishing()) { <span class="spinner dark" aria-hidden="true"></span> Writing… } @else { Publish it again }
+          </button>
+        </div>
+      }
+      @for (n of doc.notes; track n) { <p class="warn-text"><span aria-hidden="true">!</span> {{ n }}</p> }
+
+      @if (doc.published; as pub) {
+        <p class="meta">
+          @if (pub.written.length) { Replaced: {{ sectionNames(pub.written) }}. }
+          @if (pub.appended.length) { Added: {{ sectionNames(pub.appended) }}. }
+          Every other part of that page was left exactly as it was.
+        </p>
+      }
+
+      <ul class="tdd-sections">
+        @for (sec of doc.sections; track sec.key) {
+          <li class="tdd-section">
+            <div class="item-head">
+              <span class="item-title">{{ sec.name }}</span>
+              @if (sec.built) {
+                <span class="state-pill tone-accent"><span class="glyph" aria-hidden="true">≡</span>Built from the analysis</span>
+              }
+              @for (d of sec.diagrams; track d.title) {
+                <span class="pill">{{ d.kind }} diagram</span>
+              }
+            </div>
+            @if (sec.built) {
+              <p class="meta">{{ sec.note }}</p>
+              <div class="table-scroll">
+                <table class="trace">
+                  <caption class="sr-only">Traceability: every task against the PRD lines, compliance and repos behind it</caption>
+                  <thead><tr>@for (h of sec.header; track h) { <th scope="col">{{ h }}</th> }</tr></thead>
+                  <tbody>
+                    @for (row of sec.rows; track row[0]) {
+                      <tr>@for (cell of row; track $index) { <td>{{ cell }}</td> }</tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            } @else {
+              <p class="meta clamp">{{ sec.body_markdown }}</p>
+            }
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
+  <!-- Changing a little, instead of drafting over it ------------------------------------------- -->
+  <section class="result-card" aria-labelledby="refine-title">
+    <h4 class="sub-title" id="refine-title">Change something</h4>
+    <p class="meta">
+      Amends this plan instead of drafting a new one. Tasks it leaves alone keep their wording,
+      their order and whoever edited them — so a ticket already created still matches.
+    </p>
+    <form class="add-row big" (ngSubmit)="refine()">
+      <label class="sr-only" for="refine-text">What should change</label>
+      <input id="refine-text" name="refine" type="text" [disabled]="running() || !canRefine()"
+             placeholder="Split T3 per region, and add rollback tasks"
+             [ngModel]="refinement()" (ngModelChange)="refinement.set($event)" />
+      <button class="btn btn-xl" type="submit" [disabled]="!refinement().trim() || running() || !canRefine()">
+        @if (running()) { <span class="spinner dark" aria-hidden="true"></span> Working… } @else { Refine }
+      </button>
+    </form>
+    @if (dirty()) {
+      <p class="meta"><span aria-hidden="true">!</span> Save or undo your task edits first, so a refine amends what you see.</p>
+    } @else if (providerKey() === 'rules') {
+      <p class="meta"><span aria-hidden="true">!</span> Refining needs a model: the rule-based drafter can only draft from scratch.</p>
+    }
+  </section>
+
+  @if (runs(); as history) {
+    <section class="result-card" aria-labelledby="runs-title">
+      <h4 class="sub-title" id="runs-title">Earlier drafts</h4>
+      <ul class="run-list">
+        @for (r of history; track r.run_number) {
+          <li class="run-row" [class.on]="openRun()?.run_number === r.run_number">
+            <button class="run-open" (click)="showRun(r.run_number)"
+                    [attr.aria-expanded]="openRun()?.run_number === r.run_number">
+              <span class="state-pill" [class]="'state-pill tone-' + (r.is_current ? 'accent' : 'neutral')">
+                <span class="glyph" aria-hidden="true">{{ r.kind === 'refine' ? '±' : '✦' }}</span>
+                Run {{ r.run_number }}{{ r.is_current ? ' · on the page now' : '' }}
+              </span>
+              <span class="meta">
+                {{ r.kind === 'refine' ? 'Refined' : 'Drafted' }} by {{ r.created_by }} ·
+                <span class="mono">{{ r.created_at | date: 'd MMM, HH:mm' }}</span> ·
+                <span class="mono">{{ r.task_count }}</span> task{{ r.task_count === 1 ? '' : 's' }}
+              </span>
+              @if (r.instructions) { <span class="meta">“{{ r.instructions }}”</span> }
+            </button>
+          </li>
+        }
+      </ul>
+
+      @if (openRun(); as open) {
+        <div class="run-detail">
+          <h5 class="sub-title">Run {{ open.run_number }}: {{ open.plan.epic_title }}</h5>
+          @if (open.diff; as d) {
+            @if (!d.added.length && !d.removed.length && !d.changed.length) {
+              <p class="meta">Nothing changed in the tasks since the draft before it.</p>
+            }
+            @if (d.added.length) {
+              <p class="diff-head"><span class="diff-mark tone-good" aria-hidden="true">+</span> Added</p>
+              <ul class="diff-list">@for (t of d.added; track t.ref) { <li><span class="mono">{{ t.ref }}</span> {{ t.title }}</li> }</ul>
+            }
+            @if (d.removed.length) {
+              <p class="diff-head"><span class="diff-mark tone-poor" aria-hidden="true">−</span> Gone</p>
+              <ul class="diff-list">@for (t of d.removed; track t.ref) { <li><span class="mono">{{ t.ref }}</span> {{ t.title }}</li> }</ul>
+            }
+            @if (d.changed.length) {
+              <p class="diff-head"><span class="diff-mark tone-watch" aria-hidden="true">~</span> Changed</p>
+              <ul class="diff-list">
+                @for (ch of d.changed; track ch.ref + ch.field) {
+                  <li>
+                    <span class="mono">{{ ch.ref }}</span> {{ ch.title }} — {{ ch.field }}:
+                    <span class="was">{{ ch.before }}</span> → <span>{{ ch.after }}</span>
+                  </li>
+                }
+              </ul>
+            }
+          } @else {
+            <p class="meta">The first draft: there is nothing before it to compare against.</p>
+          }
+          <ol class="run-tasks">
+            @for (t of open.plan.tasks; track t.ref) {
+              <li><span class="mono">{{ t.ref }}</span> {{ t.title }} <span class="meta">{{ t.type }}{{ t.repo ? ' · ' + t.repo : '' }}</span></li>
+            }
+          </ol>
+        </div>
+      }
+    </section>
+  }
 
   @if (plan.repo_work.length) {
     <section aria-labelledby="work-title">
@@ -304,6 +477,13 @@
         <p class="meta">Written to {{ j.note }}</p>
       }
     }
+    <div class="backlog-options">
+      <button class="btn btn-small" (click)="openOptions.set(true)" [disabled]="!backlogUrl().trim()">
+        Ticket options
+      </button>
+      <span class="meta">{{ optionSummary() }}</span>
+    </div>
+
     @if (confirmCreate()) {
       <div class="confirm">
         <p>Create an epic and <strong>{{ plan.tasks.length }}</strong> tasks in this backlog, recorded as created by you? Tickets already made by this analysis are found, not duplicated.</p>
@@ -347,4 +527,10 @@
       </div>
     }
   </section>
+}
+
+@if (openOptions()) {
+  <sl-ticket-options [projectId]="projectId()" [analysisId]="analysis().id" [backlogUrl]="backlogUrl()"
+                     [options]="analysis().backlog_options"
+                     (saved)="onOptionsSaved($event)" (closed)="openOptions.set(false)" />
 }

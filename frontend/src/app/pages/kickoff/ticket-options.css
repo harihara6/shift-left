@@ -1,0 +1,11 @@
+.opt-field { display: flex; flex-direction: column; gap: 6px; }
+.opt-field .meta { margin: 0; }
+.opt-picks { display: flex; flex-wrap: wrap; gap: 7px; }
+.opt-pick {
+  display: inline-flex; align-items: center; gap: 7px; padding: 7px 11px;
+  border: 1px solid var(--border); border-radius: 99px; background: var(--surface);
+  font-size: 12.5px; cursor: pointer;
+}
+.opt-pick:hover { border-color: var(--accent-border); }
+.opt-pick.on { border-color: var(--accent); background: var(--accent-bg); color: var(--accent-hover); }
+.opt-pick input { width: auto; margin: 0; }

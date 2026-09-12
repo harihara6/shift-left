@@ -538,6 +538,7 @@ export type KickoffStepKey =
   | 'compliance'
   | 'api_docs'
   | 'third_parties'
+  | 'tdd'
   | 'plan';
 
 export interface KickoffQuote {
@@ -668,6 +669,191 @@ export interface KickoffDoc {
   read_at: string | null;
 }
 
+/**
+ * What the target Jira project offers. A field this account can't read comes back empty and is
+ * then simply not offered — never guessed at.
+ */
+// --- The technical design -----------------------------------------------------------------------
+
+export interface KickoffTddSource {
+  url: string;
+  page_id: string;
+  title: string;
+  space: string;
+  version: number;
+  read_with: string;
+  read_at: string | null;
+  line_count: number;
+}
+
+export interface KickoffTddSectionChoice {
+  key: string;
+  name: string;
+  summary: string;
+  level: number;
+  /** Whether the page already has it: present is replaced in place, absent is added at the end. */
+  present: boolean;
+  chars: number;
+  recommended: boolean;
+}
+
+/** Step 7 as it stands: what will be written, where, and who confirmed it. */
+export interface KickoffTdd {
+  enabled: boolean;
+  mode: 'sample' | 'existing';
+  source: KickoffTddSource | null;
+  sections: KickoffTddSectionChoice[];
+  selected: string[];
+  space_key: string;
+  parent_url: string;
+  title: string;
+  approved_by: string | null;
+  approved_at: string | null;
+}
+
+export interface KickoffTddDiagram {
+  kind: string;
+  title: string;
+  source: string;
+}
+
+export interface KickoffTddSection {
+  key: string;
+  name: string;
+  body_markdown: string;
+  diagrams: KickoffTddDiagram[];
+  /** Assembled from the analysis rather than drafted: the traceability matrix. */
+  built: boolean;
+  note: string;
+  header: string[];
+  rows: string[][];
+}
+
+export interface KickoffTddPublished {
+  url: string;
+  page_id: string;
+  version: number;
+  space_key: string;
+  title: string;
+  written: string[];
+  appended: string[];
+  published_by: string;
+  published_at: string;
+}
+
+export interface KickoffTddDocument {
+  sections: KickoffTddSection[];
+  notes: string[];
+  drafted: boolean;
+  /** Why it wasn't drafted, or wasn't written. Empty when it was. */
+  note: string;
+  run_number: number;
+  published: KickoffTddPublished | null;
+}
+
+export interface BacklogFields {
+  project_key: string;
+  components: string[];
+  fix_versions: string[];
+  priorities: string[];
+}
+
+export interface KickoffRunSummary {
+  run_number: number;
+  kind: 'run' | 'refine';
+  reader: string;
+  model: string;
+  instructions: string;
+  task_count: number;
+  created_by: string;
+  created_at: string | null;
+  /** Whether this run's draft is the one on the page now. */
+  is_current: boolean;
+}
+
+export interface KickoffRunTask {
+  ref: string;
+  title: string;
+  repo: string;
+}
+
+export interface KickoffRunChange {
+  ref: string;
+  title: string;
+  field: string;
+  before: string;
+  after: string;
+}
+
+/** What changed between two drafts. A list of differences, never a similarity score. */
+export interface KickoffRunDiff {
+  added: KickoffRunTask[];
+  removed: KickoffRunTask[];
+  changed: KickoffRunChange[];
+  epic_title_changed: boolean;
+  summary_changed: boolean;
+}
+
+export interface KickoffRunDetail {
+  run_number: number;
+  kind: 'run' | 'refine';
+  instructions: string;
+  created_by: string;
+  created_at: string | null;
+  plan: KickoffPlan;
+  diff: KickoffRunDiff | null;
+}
+
+export interface TddSection {
+  key: string;
+  name: string;
+  summary: string;
+  default: boolean;
+}
+
+export interface JiraTicketDefaults {
+  labels: string[];
+  components: string[];
+  priority: string;
+  fix_version: string;
+  assignee_account_id: string;
+  due_in_days: number | null;
+  story_points_field: string;
+}
+
+/**
+ * Service-wide Feature Kickoff defaults. Starting values for a new analysis, never a lock:
+ * every one of them stays editable on the analysis itself.
+ */
+export interface KickoffSettings {
+  tdd_template_url: string;
+  tdd_space_key: string;
+  tdd_parent_url: string;
+  tdd_sections: string[];
+  jira_project_url: string;
+  jira_defaults: JiraTicketDefaults;
+  analysis_prompt: string;
+  tdd_prompt: string;
+  updated_by: string;
+  updated_at: string | null;
+  section_catalog: TddSection[];
+  /** Whether this person may change them. Decided by the API; the page only renders the answer. */
+  editable: boolean;
+}
+
+export type KickoffSettingsWrite = Omit<
+  KickoffSettings,
+  'updated_by' | 'updated_at' | 'section_catalog' | 'editable'
+>;
+
+/** Step 3: what we rely on — repos and documents alike. */
+export interface KickoffMaterialGroup {
+  repos: KickoffRepo[];
+  docs: KickoffDoc[];
+  saved: boolean;
+  saved_by: string | null;
+}
+
 export interface KickoffComplianceSuggestion {
   key: string;
   name: string;
@@ -743,6 +929,8 @@ export interface KickoffPlan {
   run_by: string;
   run_at: string;
   run_number: number;
+  /** What the person asked for on top of the prompt, so a reader can see what it was told. */
+  instructions: string;
   edited_by: string | null;
   edited_at: string | null;
   stale: string[];
@@ -792,7 +980,7 @@ export interface KickoffAnalysis {
   run_blockers: string[];
   prd: KickoffPrd | null;
   repos: KickoffRepoGroup;
-  dependencies: KickoffRepoGroup;
+  dependencies: KickoffMaterialGroup;
   compliance: KickoffCompliance;
   api_docs: { docs: KickoffDoc[]; saved: boolean; saved_by: string | null };
   third_parties: {
@@ -801,7 +989,13 @@ export interface KickoffAnalysis {
     saved: boolean;
     saved_by: string | null;
   };
+  tdd: KickoffTdd;
+  tdd_document: KickoffTddDocument | null;
   plan: KickoffPlan | null;
+  /** Prefilled into the next run from the service-wide standing instruction. Editable per run. */
+  instructions: string;
+  /** What every ticket this analysis creates will carry, on top of the two identity labels. */
+  backlog_options: JiraTicketDefaults;
   backlog_target: { url: string; project_key: string; board_id: string } | null;
   backlog: KickoffBacklog | null;
 }

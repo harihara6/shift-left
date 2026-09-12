@@ -1,0 +1,17 @@
+/* Step 7: which sections of a design to write. */
+.tick-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.tick-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.tick {
+  display: flex; gap: 11px; align-items: flex-start; padding: 11px 13px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--surface); cursor: pointer;
+}
+.tick:hover { border-color: var(--accent-border); }
+.tick.on { border-color: var(--accent); background: var(--accent-bg); }
+.tick input { width: auto; margin-top: 3px; flex: 0 0 auto; }
+.tick-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tick-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; font-weight: 500; }
+.tdd-where { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.tdd-where label { display: flex; flex-direction: column; gap: 5px; }
+.tdd-where .wide { grid-column: 1 / -1; }
+.tdd-where .optional { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--faint); }
+@media (max-width: 620px) { .tdd-where { grid-template-columns: minmax(0, 1fr); } }

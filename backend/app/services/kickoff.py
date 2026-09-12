@@ -20,34 +20,40 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.kickoff import KickoffAnalysis
+from app.connectors import atlassian_rest
+from app.models.kickoff import KickoffAnalysis, KickoffRun
 from app.models.project import Project
 from app.schemas import kickoff as out
 from app.services import kickoff_ai as ai
 from app.services import kickoff_backlog as backlog
 from app.services import kickoff_compliance as compliance
+from app.services import kickoff_settings as settings_service
 from app.services import kickoff_sources as sources
+from app.services import kickoff_tdd as tdd
 from app.services import model_provider
 from app.services.kickoff_backlog import Refused
 
 STEPS: list[tuple[str, str]] = [
     ("prd", "PRD"),
     ("repos", "Repos to code in"),
-    ("dependencies", "Repos we rely on"),
+    ("dependencies", "What we rely on"),
     ("compliance", "Compliance"),
     ("api_docs", "API docs"),
     ("third_parties", "Third-party APIs"),
+    ("tdd", "Technical design"),
     ("plan", "Analysis"),
 ]
 STALE_LABELS = {
     "prd": "the PRD",
     "repos": "the repos to code in",
-    "dependencies": "the repos relied on",
+    "dependencies": "what you rely on",
     "compliance": "the approved compliance",
     "api_docs": "the API docs",
     "third_parties": "the third-party APIs",
+    "tdd": "the technical design sections",
 }
 
 __all__ = ["Refused"]
@@ -179,13 +185,16 @@ async def _read_prd(session: AsyncSession, url: str, actor: str) -> dict[str, An
 
 async def create(session: AsyncSession, project: Project, actor: str, prd_url: str) -> KickoffAnalysis:
     prd = await _read_prd(session, prd_url, actor)
+    # The service-wide defaults are copied in, not referenced: a later change to them never reaches
+    # an analysis already under way, and every one of them stays editable here.
+    inherited = settings_service.prefill(await settings_service.load(session))
     row = KickoffAnalysis(
         project_id=project.id,
         title=prd["title"][:300],
         status="draft",
         created_by=actor,
         updated_by=actor,
-        inputs={"prd": prd},
+        inputs={**inherited, "prd": prd},
         runs=0,
     )
     session.add(row)
@@ -215,12 +224,23 @@ def _clean_urls(urls: list[str]) -> list[str]:
 async def set_repos(
     session: AsyncSession, row: KickoffAnalysis, role: str, urls: list[str], refresh: bool, actor: str
 ) -> None:
+    """Step 2 takes repos to code in. Step 3 takes whatever we rely on — a repo, a Confluence page,
+    or any other document — so the person pastes what they have and the link says which reader."""
     other = "dependencies" if role == "repos" else "repos"
+    material = role == "dependencies"
     wanted = _clean_urls(urls)
-    previous = {r["url"]: r for r in (row.inputs.get(role) or {}).get("items", [])}
+    group = row.inputs.get(role) or {}
+    previous = {r["url"]: r for r in group.get("items", [])}
+    previous_docs = {d["url"]: d for d in group.get("docs", [])}
     access = await sources.github(session)
+    atlassian = await sources.atlassian(session, ("confluence", "jira")) if material else None
 
-    async def read(url: str) -> dict[str, Any]:
+    def kind(url: str) -> str:
+        if not material:
+            return "repo"
+        return sources.classify(url, access.web_host, atlassian.host if atlassian else "")
+
+    async def read_repo(url: str) -> dict[str, Any]:
         kept = previous.get(url)
         if kept and kept.get("ok") and not refresh:
             return kept
@@ -230,7 +250,24 @@ async def set_repos(
         except sources.NotReadable as exc:
             return sources.repo_failure(url, str(exc))
 
-    items = list(await asyncio.gather(*(read(u) for u in wanted)))
+    async def read_material(url: str, as_page: bool) -> dict[str, Any]:
+        kept = previous_docs.get(url)
+        if kept and kept.get("ok") and not refresh:
+            return kept
+        try:
+            if as_page:
+                return await sources.read_confluence_doc(session, url)
+            return await sources.read_doc(url)
+        except sources.NotReadable as exc:
+            return sources.doc_failure(url, str(exc))
+
+    kinds = {u: kind(u) for u in wanted}
+    repo_urls = [u for u in wanted if kinds[u] == "repo"]
+    doc_urls = [u for u in wanted if kinds[u] != "repo"]
+    items, docs = await asyncio.gather(
+        asyncio.gather(*(read_repo(u) for u in repo_urls)),
+        asyncio.gather(*(read_material(u, kinds[u] == "confluence") for u in doc_urls)),
+    )
     # One entry per repo, however it was written.
     seen: set[str] = set()
     unique = []
@@ -244,9 +281,12 @@ async def set_repos(
     }
     clash = [r["full_name"] for r in unique if r.get("ok") and r["full_name"].lower() in elsewhere]
     if clash:
-        where = "repos we rely on" if role == "repos" else "repos to code in"
+        where = "what we rely on" if role == "repos" else "repos to code in"
         raise Refused(f"Already listed under {where}: {', '.join(clash)}. A repo is one or the other.")
-    _touch(row, actor, **{role: {"items": unique, "saved": True, "saved_by": actor, "saved_at": _now()}})
+    saved = {"items": unique, "saved": True, "saved_by": actor, "saved_at": _now()}
+    if material:
+        saved["docs"] = list(docs)
+    _touch(row, actor, **{role: saved})
 
 
 # --- Step 4: compliance ---------------------------------------------------------------------------------
@@ -367,11 +407,126 @@ async def set_providers(row: KickoffAnalysis, body: out.ProvidersUpdate, actor: 
     _touch(row, actor, third_parties={"items": items, "saved": True, "saved_by": actor, "saved_at": _now()})
 
 
-# --- Step 7: the analysis ----------------------------------------------------------------------------------
+# --- Step 7: the technical design ----------------------------------------------------------------
+
+
+async def read_tdd_page(session: AsyncSession, row: KickoffAnalysis, actor: str, mode: str, url: str) -> None:
+    """Read the page a design is written from or into, and offer its sections to tick.
+
+    Nothing is written here. Reading is what makes the checklist real: the sections offered are the
+    ones the page actually has, plus - for a sample - the standard ones it doesn't.
+    """
+    try:
+        page, lines, _via, via_label = await sources.read_page(session, url)
+        storage = await _tdd_storage(session, page["page_id"])
+    except sources.NotReadable as exc:
+        raise Refused(str(exc)) from exc
+    offered = tdd.page_sections(storage, mode)
+    if not offered:
+        raise Refused(
+            "That page has no headings, so there are no sections to choose. "
+            "Point at a design with headings, or at a template that has them."
+        )
+    current = row.inputs.get("tdd") or {}
+    _touch(
+        row,
+        actor,
+        tdd={
+            **current,
+            "enabled": True,
+            "mode": mode,
+            "source": {
+                "url": page.get("url") or url,
+                "page_id": page["page_id"],
+                "title": page.get("title", ""),
+                "space": page.get("space", ""),
+                "version": int(page.get("version") or 0),
+                "read_with": via_label,
+                "read_at": _now(),
+                "line_count": len(lines),
+            },
+            "sections": offered,
+            # A page read again is a different page: the ticks are confirmed against what it says now.
+            "selected": [k for k in current.get("selected", []) if any(o["key"] == k for o in offered)]
+            or [o["key"] for o in offered if o.get("recommended")],
+            "approved_by": None,
+            "approved_at": None,
+            "title": current.get("title") or "",
+        },
+    )
+
+
+async def _tdd_storage(session: AsyncSession, page_id: str) -> str:
+    """The page's storage markup, which is what a section is replaced inside of."""
+    access = await sources.atlassian(session, ("confluence", "jira"))
+    if access is None:
+        raise sources.NotReadable(
+            "A design is written over Confluence REST, which needs the Confluence connector in "
+            "Settings → Connectors. Reading through Rovo MCP isn't enough to write a page."
+        )
+    try:
+        return (await access.client.page(page_id)).storage
+    except atlassian_rest.AtlassianError as exc:
+        raise sources.NotReadable(str(exc)) from exc
+
+
+def set_tdd(row: KickoffAnalysis, actor: str, body: out.TddUpdate) -> None:
+    """Confirm what will be written, and where.
+
+    This confirmation is the acceptance: the run writes these sections and no others, so it is
+    recorded against a named person with the time they gave it.
+    """
+    current = row.inputs.get("tdd") or {}
+    if not body.enabled:
+        _touch(row, actor, tdd={**current, "enabled": False, "approved_by": actor, "approved_at": _now()})
+        return
+    if not current.get("source"):
+        raise Refused("Read the page first: the sections are the ones it actually has.")
+    offered = {o["key"] for o in current.get("sections", [])}
+    unknown = [k for k in body.selected if k not in offered]
+    if unknown:
+        raise Refused("Those sections aren't on that page.", [f"{k!r} wasn't offered." for k in unknown])
+    if not body.selected:
+        raise Refused("Tick at least one section, or turn the design off for this analysis.")
+    if current.get("mode") == "sample" and not body.space_key.strip():
+        raise Refused("Say which space the design is created in.")
+    _touch(
+        row,
+        actor,
+        tdd={
+            **current,
+            "enabled": True,
+            "selected": [k for k in [o["key"] for o in current["sections"]] if k in set(body.selected)],
+            "space_key": body.space_key.strip().upper(),
+            "parent_url": body.parent_url.strip(),
+            "title": body.title.strip()[:250],
+            "approved_by": actor,
+            "approved_at": _now(),
+        },
+    )
+
+
+def _tdd_mark(row: KickoffAnalysis) -> str:
+    t = row.inputs.get("tdd") or {}
+    if not t.get("enabled") or not t.get("approved_by"):
+        return ""
+    source = t.get("source") or {}
+    return (
+        f"{t.get('mode', '')}|{source.get('page_id', '')}@{source.get('version', 0)}"
+        f"|{','.join(sorted(t.get('selected', [])))}|{t.get('space_key', '')}/{t.get('title', '')}"
+    )
+
+
+# --- Step 8: the analysis ----------------------------------------------------------------------------------
 
 
 def _ok(row: KickoffAnalysis, role: str) -> list[dict[str, Any]]:
     return [r for r in (row.inputs.get(role) or {}).get("items", []) if r.get("ok")]
+
+
+def _ok_docs(row: KickoffAnalysis, role: str) -> list[dict[str, Any]]:
+    """The material read at a step that carries documents beside its repos (step 3)."""
+    return [d for d in (row.inputs.get(role) or {}).get("docs", []) if d.get("ok")]
 
 
 def fingerprints(row: KickoffAnalysis) -> dict[str, str]:
@@ -382,17 +537,21 @@ def fingerprints(row: KickoffAnalysis) -> dict[str, str]:
         "repos": ",".join(sorted(f"{r['full_name']}@{r.get('commit')}" for r in _ok(row, "repos"))),
         "dependencies": ",".join(
             sorted(f"{r['full_name']}@{r.get('commit')}" for r in _ok(row, "dependencies"))
+            + sorted(f"{d['url']}@{d.get('version', '')}" for d in _ok_docs(row, "dependencies"))
         ),
         "compliance": ",".join(sorted(c.get("selected", []) + [x["name"] for x in c.get("custom", [])]))
         if c.get("approved_by")
         else "",
         "api_docs": ",".join(sorted(d["url"] for d in _ok(row, "api_docs"))),
+        # Only what was read counts, as for the API docs: a failed re-read isn't a changed input.
         "third_parties": ",".join(
             sorted(
                 f"{p['name']}|{p.get('docs_url', '')}"
                 for p in (inputs.get("third_parties") or {}).get("items", [])
+                if not p.get("docs_url") or (p.get("doc") or {}).get("ok")
             )
         ),
+        "tdd": _tdd_mark(row),
     }
 
 
@@ -417,7 +576,7 @@ def run_blockers(row: KickoffAnalysis) -> list[str]:
     return blockers
 
 
-def context(row: KickoffAnalysis) -> ai.Context:
+def context(row: KickoffAnalysis, instructions: str = "") -> ai.Context:
     prd = row.inputs["prd"]
     providers = []
     for p in (row.inputs.get("third_parties") or {}).get("items", []):
@@ -428,30 +587,44 @@ def context(row: KickoffAnalysis) -> ai.Context:
         lines=prd["lines"],
         code_repos=_ok(row, "repos"),
         dependency_repos=_ok(row, "dependencies"),
+        dependency_docs=_ok_docs(row, "dependencies"),
         compliance=_approved(row),
         api_docs=_ok(row, "api_docs"),
         providers=providers,
+        instructions=instructions,
     )
 
 
-async def run(row: KickoffAnalysis, actor: str, provider_key: str, model: str) -> None:
-    blockers = run_blockers(row)
-    if blockers:
-        raise Refused("The analysis can't run yet.", blockers)
-    chosen = await model_provider.choose(provider_key, model)
-    if isinstance(chosen, str):
-        raise Refused(chosen)
-    provider, model = chosen
-    plan, reader, used, note = await ai.draft_plan(context(row), provider.key, model)
+def _record(
+    session: AsyncSession, row: KickoffAnalysis, kind: str, actor: str, instructions: str
+) -> None:
+    """Keep the draft whole beside the live plan, so running again never costs anyone a draft."""
+    session.add(
+        KickoffRun(
+            analysis_id=row.id,
+            run_number=row.runs,
+            kind=kind,
+            provider=row.plan.get("reader", ""),
+            model=row.plan.get("model", ""),
+            reader=row.plan.get("reader", ""),
+            note=row.plan.get("note", ""),
+            instructions=instructions,
+            plan=row.plan,
+            tdd=row.tdd,
+            inputs=row.plan.get("inputs", {}),
+            created_by=actor,
+        )
+    )
+
+
+def _drafted(row: KickoffAnalysis, plan: dict[str, Any], actor: str, instructions: str) -> None:
     row.runs = (row.runs or 0) + 1
     row.plan = {
         **plan,
-        "reader": reader,
-        "model": used,
-        "note": note,
         "run_by": actor,
         "run_at": _now(),
         "run_number": row.runs,
+        "instructions": instructions,
         "edited_by": None,
         "edited_at": None,
         "inputs": fingerprints(row),
@@ -459,6 +632,174 @@ async def run(row: KickoffAnalysis, actor: str, provider_key: str, model: str) -
     row.analysed_at = datetime.now(timezone.utc)
     row.status = "analysed"
     row.updated_by = actor
+
+
+async def run(
+    session: AsyncSession,
+    row: KickoffAnalysis,
+    actor: str,
+    provider_key: str,
+    model: str,
+    instructions: str = "",
+) -> None:
+    blockers = run_blockers(row)
+    if blockers:
+        raise Refused("The analysis can't run yet.", blockers)
+    chosen = await model_provider.choose(provider_key, model)
+    if isinstance(chosen, str):
+        raise Refused(chosen)
+    provider, model = chosen
+    plan, reader, used, note = await ai.draft_plan(context(row, instructions), provider.key, model)
+    _drafted(row, {**plan, "reader": reader, "model": used, "note": note}, actor, instructions)
+    await run_tdd(session, row, actor, provider.key, model, instructions)
+    _record(session, row, "run", actor, instructions)
+
+
+# --- The design the run produces ------------------------------------------------------------------
+
+
+def _tdd_wanted(row: KickoffAnalysis) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """The TDD step as confirmed, and the sections a model is asked to write (not the built one)."""
+    t = row.inputs.get("tdd") or {}
+    chosen = set(t.get("selected", []))
+    wanted = [s for s in t.get("sections", []) if s["key"] in chosen and s["key"] != "traceability"]
+    return t, wanted
+
+
+async def run_tdd(
+    session: AsyncSession,
+    row: KickoffAnalysis,
+    actor: str,
+    provider_key: str,
+    model: str,
+    instructions: str,
+) -> None:
+    """Draft the design and write it, when step 7 asked for one and a person confirmed the sections.
+
+    A design that can't be drafted or can't be written never fails the run: the plan is what the
+    backlog is made from. The failure is recorded on the page with a way to try the write again.
+    """
+    t, wanted = _tdd_wanted(row)
+    if not t.get("enabled") or not t.get("approved_by"):
+        row.tdd = None
+        return
+    names = {c["key"]: c["name"] for c in _approved(row)}
+    try:
+        existing = await _tdd_existing(session, row) if t.get("mode") == "existing" else {}
+        draft = await ai.draft_tdd(
+            context(row, instructions or t.get("prompt", "")),
+            row.plan,
+            wanted,
+            existing,
+            provider_key,
+            model,
+        )
+        parts, notes = tdd.sanitize(draft.sections, t["selected"], names)
+    except ai.ModelFailed as exc:
+        row.tdd = {
+            "sections": [],
+            "notes": [],
+            "drafted": False,
+            "note": f"The design wasn't drafted: {exc}. The plan below is unaffected.",
+            "run_number": row.runs,
+            "published": None,
+        }
+        return
+    if "traceability" in t["selected"]:
+        built = tdd.traceability(row.plan, names, row.backlog)
+        at = t["selected"].index("traceability")
+        parts.insert(min(at, len(parts)), built)
+    row.tdd = {
+        "sections": parts,
+        "notes": notes,
+        "drafted": True,
+        "note": "",
+        "run_number": row.runs,
+        "published": None,
+    }
+    await publish_tdd(session, row, actor)
+
+
+async def _tdd_existing(session: AsyncSession, row: KickoffAnalysis) -> dict[str, str]:
+    """What each ticked section says now, so the draft updates it rather than reinventing it."""
+    t = row.inputs["tdd"]
+    storage = await _tdd_storage(session, t["source"]["page_id"])
+    chosen = set(t.get("selected", []))
+    return {h.key: tdd.text_of_section(storage, h) for h in tdd.headings(storage) if h.key in chosen}
+
+
+async def publish_tdd(session: AsyncSession, row: KickoffAnalysis, actor: str) -> None:
+    """Write the drafted design to Confluence. Never raises: a failed write is recorded, not fatal."""
+    if not row.tdd or not row.tdd.get("sections"):
+        return
+    t = row.inputs["tdd"]
+    source = t.get("source") or {}
+    access = await sources.atlassian(session, ("confluence", "jira"))
+    if access is None:
+        row.tdd = {**row.tdd, "note": tdd.NO_CREDENTIAL}
+        return
+    published = row.tdd.get("published") or {}
+    prd_title = (row.inputs.get("prd") or {}).get("title", "")
+    try:
+        result = await tdd.publish(
+            access,
+            mode=t.get("mode", "sample"),
+            parts=row.tdd["sections"],
+            # An existing design is written back to itself. A sample writes the page it made last
+            # time - kept on the step, not on the draft, so running again updates one page rather
+            # than leaving a trail of near-identical ones.
+            page_id=source["page_id"] if t.get("mode") == "existing" else t.get("page_id", ""),
+            space_key=t.get("space_key", ""),
+            title=t.get("title") or f"{prd_title} — TDD",
+            parent_id=await _parent_id(session, t.get("parent_url", "")),
+            label=backlog.label_for(row.id),
+            actor=actor,
+        )
+    # Deliberately broad: every failure here is reported on the page, never raised past the run.
+    except Exception as exc:
+        row.tdd = {**row.tdd, "note": tdd.failure(exc), "published": published or None}
+        return
+    row.tdd = {**row.tdd, "note": "", "published": result}
+    if t.get("mode") != "existing" and result["page_id"] != t.get("page_id"):
+        _touch(row, actor, tdd={**t, "page_id": result["page_id"]})
+
+
+async def _parent_id(session: AsyncSession, url: str) -> str:
+    if not url.strip():
+        return ""
+    try:
+        _host, page_id, _tiny = sources.page_ref(url)
+    except sources.NotReadable:
+        return ""
+    return page_id
+
+
+async def refine(
+    session: AsyncSession, row: KickoffAnalysis, actor: str, provider_key: str, model: str, instructions: str
+) -> None:
+    """Amend the plan that is already there rather than drafting over it.
+
+    This is the cheap iteration: a requirement moves a little, so the plan moves a little. Tasks the
+    model leaves alone keep their wording, their refs and whoever edited them - which is what makes
+    it safe to do repeatedly while people are still reading the draft.
+    """
+    if not row.plan or not row.plan.get("tasks"):
+        raise Refused("There is no plan to refine yet. Run the analysis first.")
+    if not instructions.strip():
+        raise Refused("Say what should change: a refine needs something to act on.")
+    chosen = await model_provider.choose(provider_key, model)
+    if isinstance(chosen, str):
+        raise Refused(chosen)
+    provider, model = chosen
+    try:
+        plan, reader, used, note = await ai.refine_plan(
+            context(row, instructions), row.plan, provider.key, model
+        )
+    except ai.ModelFailed as exc:
+        # The plan is left exactly as it was: a failed refine must never cost anyone their draft.
+        raise Refused(f"The plan wasn't changed: {exc}.") from exc
+    _drafted(row, {**plan, "reader": reader, "model": used, "note": note}, actor, instructions)
+    _record(session, row, "refine", actor, instructions)
 
 
 def edit_plan(row: KickoffAnalysis, actor: str, body: out.PlanEdit) -> None:
@@ -515,12 +856,112 @@ def edit_plan(row: KickoffAnalysis, actor: str, body: out.PlanEdit) -> None:
     row.updated_by = actor
 
 
+# --- Run history and what changed between two runs ---------------------------------------------
+
+
+async def runs(session: AsyncSession, row: KickoffAnalysis) -> list[KickoffRun]:
+    result = await session.execute(
+        select(KickoffRun)
+        .where(KickoffRun.analysis_id == row.id)
+        .order_by(KickoffRun.run_number.desc(), KickoffRun.id.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def one_run(session: AsyncSession, row: KickoffAnalysis, number: int) -> KickoffRun | None:
+    return next((r for r in await runs(session, row) if r.run_number == number), None)
+
+
+def _task_key(title: str) -> str:
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", title.lower()).split())
+
+
+# Not "title": tasks are matched by it, so it is equal wherever a pair was found.
+COMPARED = ("type", "repo", "description", "acceptance_criteria", "estimate", "compliance", "depends_on")
+
+
+def diff(before: dict[str, Any], after: dict[str, Any]) -> out.RunDiffOut:
+    """What changed between two drafts, task by task.
+
+    Tasks are matched on their title alone. A fresh run renumbers every ref, so matching on refs
+    would report a task that merely moved as one whose title changed - a continuity that isn't
+    there. A task whose title changed is reported as one gone and one arrived, which is all that
+    can honestly be said about it.
+    """
+    old_tasks = before.get("tasks", [])
+    new_tasks = after.get("tasks", [])
+    by_title: dict[str, list[dict[str, Any]]] = {}
+    for task in old_tasks:
+        by_title.setdefault(_task_key(task["title"]), []).append(task)
+    matched: set[int] = set()
+    added: list[out.RunTaskOut] = []
+    changed: list[out.RunChangeOut] = []
+    for task in new_tasks:
+        # Same title twice in one plan: pair them up in order rather than against each other.
+        candidates = [t for t in by_title.get(_task_key(task["title"]), []) if id(t) not in matched]
+        if not candidates:
+            added.append(out.RunTaskOut(ref=task["ref"], title=task["title"], repo=task.get("repo", "")))
+            continue
+        old = candidates[0]
+        matched.add(id(old))
+        for key in COMPARED:
+            if old.get(key) != task.get(key):
+                changed.append(
+                    out.RunChangeOut(
+                        ref=task["ref"],
+                        title=task["title"],
+                        field=key,
+                        before=_readable(old.get(key)),
+                        after=_readable(task.get(key)),
+                    )
+                )
+    removed = [
+        out.RunTaskOut(ref=t["ref"], title=t["title"], repo=t.get("repo", ""))
+        for t in old_tasks
+        if id(t) not in matched
+    ]
+    return out.RunDiffOut(
+        added=added,
+        removed=removed,
+        changed=changed,
+        epic_title_changed=before.get("epic_title") != after.get("epic_title"),
+        summary_changed=before.get("summary") != after.get("summary"),
+    )
+
+
+def _readable(value: Any) -> str:
+    if isinstance(value, list):
+        return "; ".join(str(v) for v in value) or "—"
+    return str(value or "—")
+
+
 def stale(row: KickoffAnalysis) -> list[str]:
     if not row.plan:
         return []
     then = row.plan.get("inputs") or {}
     current = fingerprints(row)
     return [STALE_LABELS[k] for k in STALE_LABELS if then.get(k) != current.get(k)]
+
+
+async def backlog_fields(session: AsyncSession, backlog_url: str) -> out.BacklogFieldsOut:
+    """What the target project offers for each ticket option, so nothing is typed blind."""
+    try:
+        ref = backlog.backlog_ref(backlog_url)
+    except sources.NotReadable as exc:
+        raise Refused(str(exc)) from exc
+    jira = await sources.atlassian(session, ("jira", "confluence"))
+    if jira is None:
+        raise Refused("Jira isn't connected. Add the Jira connector in Settings → Connectors.")
+    if ref["host"] and ref["host"] != jira.host:
+        raise Refused(f"That backlog is on {ref['host']}, but Feature Kickoff is connected to {jira.host}.")
+    offered = await backlog.offered(jira.client, ref["project_key"])
+    return out.BacklogFieldsOut(project_key=ref["project_key"], **offered)
+
+
+def set_backlog_options(row: KickoffAnalysis, actor: str, body: out.JiraDefaults) -> None:
+    """What every ticket this analysis creates should carry. Applied at create time, and checked
+    against the project again then: a page can be minutes old by the time it is used."""
+    _touch(row, actor, backlog_options=body.model_dump())
 
 
 async def create_backlog(session: AsyncSession, row: KickoffAnalysis, actor: str, backlog_url: str) -> dict:
@@ -555,6 +996,7 @@ async def create_backlog(session: AsyncSession, row: KickoffAnalysis, actor: str
         compliance_names={c["key"]: c["name"] for c in _approved(row)},
         repo_urls={r["full_name"]: r["html_url"] for r in _ok(row, "repos")},
         previous=row.backlog,
+        options=row.inputs.get("backlog_options") or {},
     )
     row.backlog = result
     _touch(
@@ -563,7 +1005,26 @@ async def create_backlog(session: AsyncSession, row: KickoffAnalysis, actor: str
         backlog_target={"url": ref["url"], "project_key": ref["project_key"], "board_id": ref["board_id"]},
     )
     row.status = "partial" if result["failed"] else "created"
+    await _refresh_traceability(session, row, actor)
     return result
+
+
+async def _refresh_traceability(session: AsyncSession, row: KickoffAnalysis, actor: str) -> None:
+    """Put the Jira keys into the design's traceability matrix, now that there are some.
+
+    Same guarded write as any other: only that section is touched, and a failure is a note on the
+    page rather than something that undoes a backlog that was created successfully.
+    """
+    if not row.tdd or not row.tdd.get("sections"):
+        return
+    at = next((i for i, s in enumerate(row.tdd["sections"]) if s.get("key") == "traceability"), None)
+    if at is None:
+        return
+    names = {c["key"]: c["name"] for c in _approved(row)}
+    sections = list(row.tdd["sections"])
+    sections[at] = tdd.traceability(row.plan, names, row.backlog)
+    row.tdd = {**row.tdd, "sections": sections}
+    await publish_tdd(session, row, actor)
 
 
 # --- The view -----------------------------------------------------------------------------------
@@ -575,6 +1036,18 @@ def _drafted_by(plan: dict[str, Any]) -> str:
     if plan.get("reader") == "cursor":
         return f"{plan['model']} through Cursor"
     return "the rule-based drafter (no AI)"
+
+
+def _material_count(group: dict[str, Any]) -> str:
+    def count(n: int, word: str) -> str:
+        return f"{n} {word}{'' if n == 1 else 's'}"
+
+    parts = []
+    if repos := len(group.get("items", [])):
+        parts.append(count(repos, "repo"))
+    if docs := len(group.get("docs", [])):
+        parts.append(count(docs, "document"))
+    return " · ".join(parts)
 
 
 def _steps(row: KickoffAnalysis) -> list[out.StepOut]:
@@ -596,7 +1069,7 @@ def _steps(row: KickoffAnalysis) -> list[out.StepOut]:
         "repos": (bool(repos), count(len(repos), "repo") if repos else "At least one repo"),
         "dependencies": (
             bool(deps.get("saved")),
-            (count(len(deps.get("items", [])), "repo") if deps.get("items") else "None")
+            (_material_count(deps) if deps.get("items") or deps.get("docs") else "None")
             if deps.get("saved")
             else "Optional",
         ),
@@ -618,11 +1091,52 @@ def _steps(row: KickoffAnalysis) -> list[out.StepOut]:
             if parties.get("saved")
             else "Optional",
         ),
+        "tdd": _tdd_summary(inputs.get("tdd") or {}),
         "plan": (bool(plan), count(len(plan["tasks"]), "task") if plan else "Not run yet"),
     }
     return [
         out.StepOut(key=k, label=label, done=summaries[k][0], summary=summaries[k][1]) for k, label in STEPS
     ]
+
+
+def _tdd_summary(t: dict[str, Any]) -> tuple[bool, str]:
+    if not t.get("approved_by"):
+        return False, "Optional"
+    if not t.get("enabled"):
+        return True, "None"
+    n = len(t.get("selected", []))
+    where = "a new page" if t.get("mode") == "sample" else (t.get("source") or {}).get("title", "the design")
+    return True, f"{n} section{'' if n == 1 else 's'} → {where}"
+
+
+def _tdd_out(row: KickoffAnalysis) -> out.TddOut:
+    t = row.inputs.get("tdd") or {}
+    return out.TddOut(
+        enabled=bool(t.get("enabled")),
+        mode=t.get("mode") or "sample",
+        source=out.TddSourceOut(**t["source"]) if t.get("source") else None,
+        sections=[out.TddSectionChoice(**s) for s in t.get("sections", [])],
+        selected=t.get("selected", []),
+        space_key=t.get("space_key", ""),
+        parent_url=t.get("parent_url", ""),
+        title=t.get("title", ""),
+        approved_by=t.get("approved_by"),
+        approved_at=t.get("approved_at"),
+    )
+
+
+def _tdd_document(row: KickoffAnalysis) -> out.TddDocumentOut | None:
+    if not row.tdd:
+        return None
+    return out.TddDocumentOut(
+        sections=[out.TddSectionOut(**{k: v for k, v in s.items() if k in out.TddSectionOut.model_fields})
+                  for s in row.tdd.get("sections", [])],
+        notes=row.tdd.get("notes", []),
+        drafted=bool(row.tdd.get("drafted")),
+        note=row.tdd.get("note", ""),
+        run_number=row.tdd.get("run_number", 0),
+        published=out.TddPublishedOut(**row.tdd["published"]) if row.tdd.get("published") else None,
+    )
 
 
 def _repo_out(r: dict[str, Any]) -> out.RepoOut:
@@ -694,6 +1208,17 @@ def _repo_group(row: KickoffAnalysis, role: str) -> out.RepoGroupOut:
     )
 
 
+def _material_group(row: KickoffAnalysis, role: str) -> out.MaterialGroupOut:
+    """Step 3: the repos we rely on, and the documents we rely on, read the same way."""
+    group = row.inputs.get(role) or {}
+    return out.MaterialGroupOut(
+        repos=[_repo_out(r) for r in group.get("items", [])],
+        docs=[_doc_out(d) for d in group.get("docs", [])],
+        saved=bool(group.get("saved")),
+        saved_by=group.get("saved_by"),
+    )
+
+
 def view(row: KickoffAnalysis) -> out.AnalysisOut:
     inputs = row.inputs
     prd = inputs.get("prd")
@@ -715,7 +1240,7 @@ def view(row: KickoffAnalysis) -> out.AnalysisOut:
         run_blockers=run_blockers(row),
         prd=out.PrdOut(**{k: prd[k] for k in out.PrdOut.model_fields}) if prd else None,
         repos=_repo_group(row, "repos"),
-        dependencies=_repo_group(row, "dependencies"),
+        dependencies=_material_group(row, "dependencies"),
         compliance=out.ComplianceOut(
             suggestions=[out.SuggestionOut(**s) for s in comp.get("suggestions", [])],
             suggested_by=comp.get("suggested_by"),
@@ -747,17 +1272,50 @@ def view(row: KickoffAnalysis) -> out.AnalysisOut:
             saved=bool(parties.get("saved")),
             saved_by=parties.get("saved_by"),
         ),
-        plan=out.PlanOut(
-            **{k: v for k, v in plan.items() if k in out.PlanOut.model_fields and k != "stale"},
-            drafted_by=_drafted_by(plan),
-            stale=stale(row),
-        )
-        if plan
-        else None,
+        tdd=_tdd_out(row),
+        tdd_document=_tdd_document(row),
+        plan=_plan_out(row, plan, stale(row)) if plan else None,
+        instructions=inputs.get("instructions", ""),
+        backlog_options=out.JiraDefaults(**(inputs.get("backlog_options") or {})),
         backlog_target=out.BacklogTargetOut(**inputs["backlog_target"])
         if inputs.get("backlog_target")
         else None,
         backlog=out.BacklogOut(**row.backlog) if row.backlog else None,
+    )
+
+
+def _plan_out(row: KickoffAnalysis, plan: dict[str, Any], stale_labels: list[str]) -> out.PlanOut:
+    return out.PlanOut(
+        **{k: v for k, v in plan.items() if k in out.PlanOut.model_fields and k != "stale"},
+        drafted_by=_drafted_by(plan),
+        stale=stale_labels,
+    )
+
+
+def run_summary(record: KickoffRun, current: int) -> out.RunSummaryOut:
+    return out.RunSummaryOut(
+        run_number=record.run_number,
+        kind=record.kind,
+        reader=record.reader,
+        model=record.model,
+        instructions=record.instructions,
+        task_count=len((record.plan or {}).get("tasks", [])),
+        created_by=record.created_by,
+        created_at=as_utc(record.created_at),
+        is_current=record.run_number == current,
+    )
+
+
+def run_detail(row: KickoffAnalysis, record: KickoffRun, previous: KickoffRun | None) -> out.RunDetailOut:
+    return out.RunDetailOut(
+        run_number=record.run_number,
+        kind=record.kind,
+        instructions=record.instructions,
+        created_by=record.created_by,
+        created_at=as_utc(record.created_at),
+        # An earlier run is shown as it was drafted; staleness is only ever about the live plan.
+        plan=_plan_out(row, record.plan, []),
+        diff=diff(previous.plan, record.plan) if previous else None,
     )
 
 

@@ -1,0 +1,87 @@
+<sl-modal label="Before creating" title="Ticket options"
+          sub="Applied to every ticket this analysis creates. Checked against Jira again before anything is written."
+          (closed)="closed.emit()">
+  <div body>
+    @if (problem(); as message) {
+      <p class="notice notice-watch" role="status"><span aria-hidden="true">!</span> {{ message }}</p>
+    }
+
+    @if (loading()) {
+      <p class="meta"><span class="spinner dark" aria-hidden="true"></span> Reading what this project offers…</p>
+    } @else if (draft(); as d) {
+      <div class="opt-field">
+        <label class="label-caps" for="opt-labels">Labels</label>
+        <input id="opt-labels" type="text" placeholder="platform, open-banking"
+               [ngModel]="labelText()" (ngModelChange)="setLabels($event)" />
+        <p class="meta">
+          Comma separated. <span class="mono">shiftleft-kickoff-{{ analysisId() }}</span> and
+          <span class="mono">shiftleft-tracked</span> are always applied as well — finding these
+          tickets again depends on them.
+        </p>
+      </div>
+
+      @if (fields(); as f) {
+        <div class="opt-field">
+          <span class="label-caps">Components</span>
+          @if (f.components.length) {
+            <div class="opt-picks">
+              @for (name of f.components; track name) {
+                <label class="opt-pick" [class.on]="d.components.includes(name)">
+                  <input type="checkbox" [checked]="d.components.includes(name)" (change)="toggleComponent(name)" />
+                  <span>{{ name }}</span>
+                </label>
+              }
+            </div>
+          } @else {
+            <p class="meta">{{ f.project_key }} has no components, or this account can't read them.</p>
+          }
+        </div>
+
+        <div class="opt-field">
+          <label class="label-caps" for="opt-priority">Priority</label>
+          @if (f.priorities.length) {
+            <select id="opt-priority" [ngModel]="d.priority" (ngModelChange)="patch('priority', $event)">
+              <option value="">Leave it to the project's default</option>
+              @for (name of f.priorities; track name) { <option [value]="name">{{ name }}</option> }
+            </select>
+          } @else {
+            <p class="meta">This account can't read the priority list, so priority is left alone.</p>
+          }
+        </div>
+
+        <div class="opt-field">
+          <label class="label-caps" for="opt-version">Fix version</label>
+          @if (f.fix_versions.length) {
+            <select id="opt-version" [ngModel]="d.fix_version" (ngModelChange)="patch('fix_version', $event)">
+              <option value="">None</option>
+              @for (name of f.fix_versions; track name) { <option [value]="name">{{ name }}</option> }
+            </select>
+          } @else {
+            <p class="meta">{{ f.project_key }} has no unarchived versions.</p>
+          }
+        </div>
+      }
+
+      <div class="opt-field">
+        <label class="label-caps" for="opt-assignee">Assignee</label>
+        <input id="opt-assignee" type="text" placeholder="Atlassian account id, or leave empty"
+               [ngModel]="d.assignee_account_id" (ngModelChange)="patch('assignee_account_id', $event)" />
+        <p class="meta">Left unassigned when empty, which is usually what a new backlog wants.</p>
+      </div>
+
+      <div class="opt-field">
+        <label class="label-caps" for="opt-due">Due in</label>
+        <input id="opt-due" type="number" min="0" max="365" placeholder="days from creation"
+               [ngModel]="d.due_in_days" (ngModelChange)="patch('due_in_days', $event)" />
+        <p class="meta">Counted from the day the tickets are created. Empty means no due date.</p>
+      </div>
+    }
+  </div>
+
+  <div foot>
+    <button class="btn btn-primary" [disabled]="!draft() || saving()" (click)="save()">
+      {{ saving() ? 'Saving…' : 'Save options' }}
+    </button>
+    <button class="btn" (click)="closed.emit()">Cancel</button>
+  </div>
+</sl-modal>

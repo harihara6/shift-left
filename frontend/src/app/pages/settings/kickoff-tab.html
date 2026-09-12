@@ -1,0 +1,182 @@
+<div class="detail">
+  @if (notice(); as message) { <p class="notice" role="status" aria-live="polite">{{ message }}</p> }
+
+  @if (draft(); as d) {
+    @if (!editable()) {
+      <p class="warn">
+        These are service-wide, so only a platform admin can change them. You can see what new
+        analyses will start from.
+      </p>
+    }
+
+    <section class="card panel">
+      <div class="head-card" style="padding: 0">
+        <div class="head-text">
+          <h3>Technical design</h3>
+          <p class="meta">
+            The TDD that shows the house style, and where a generated one is written. Both are
+            starting values: an analysis can point at a different template or a different space.
+          </p>
+        </div>
+      </div>
+
+      <div class="config-row">
+        <label class="config-label" for="tdd-template">
+          <span class="name">Sample TDD</span>
+          <span class="help">A Confluence page whose sections and tone a generated design follows.</span>
+        </label>
+        <input id="tdd-template" type="url" [disabled]="!editable()" placeholder="https://…/wiki/spaces/…/pages/…"
+               [ngModel]="d.tdd_template_url" (ngModelChange)="patch('tdd_template_url', $event)" />
+      </div>
+
+      <div class="config-row">
+        <label class="config-label" for="tdd-space">
+          <span class="name">Space</span>
+          <span class="help">Where a new design is created, when it isn't updating an existing page.</span>
+        </label>
+        <input id="tdd-space" type="text" [disabled]="!editable()" placeholder="PLT"
+               [ngModel]="d.tdd_space_key" (ngModelChange)="patch('tdd_space_key', $event)" />
+      </div>
+
+      <div class="config-row">
+        <label class="config-label" for="tdd-parent">
+          <span class="name">Parent page</span>
+          <span class="help">Optional. New designs are created underneath it, so they land where the team looks.</span>
+        </label>
+        <input id="tdd-parent" type="url" [disabled]="!editable()" placeholder="https://…/wiki/spaces/…/pages/…"
+               [ngModel]="d.tdd_parent_url" (ngModelChange)="patch('tdd_parent_url', $event)" />
+      </div>
+
+      <div class="config-row">
+        <div class="config-label">
+          <span class="name">Sections ticked by default</span>
+          <span class="help">
+            What a new analysis proposes to write. Nothing is ever written for a section nobody
+            ticked, and the ticks are confirmed again per analysis before it runs.
+          </span>
+        </div>
+        <div class="section-picks">
+          @for (s of sections(); track s.key) {
+            <label class="section-pick" [class.on]="ticked(s.key)">
+              <input type="checkbox" [disabled]="!editable()" [checked]="ticked(s.key)"
+                     (change)="toggleSection(s.key)" />
+              <span class="section-text">
+                <span class="name">{{ s.name }}</span>
+                <span class="help">{{ s.summary }}</span>
+              </span>
+            </label>
+          }
+          @if (editable()) {
+            <button class="btn btn-small" type="button" (click)="tickRecommended()">Tick the usual set</button>
+          }
+        </div>
+      </div>
+    </section>
+
+    <section class="card panel">
+      <div class="head-card" style="padding: 0">
+        <div class="head-text">
+          <h3>Jira tickets</h3>
+          <p class="meta">
+            What every ticket this service creates should carry. The two labels that let ShiftLeft
+            find its own tickets again are always applied on top of these.
+          </p>
+        </div>
+      </div>
+
+      <div class="config-row">
+        <label class="config-label" for="jira-project">
+          <span class="name">Default backlog</span>
+          <span class="help">The Jira project or board a new analysis points at.</span>
+        </label>
+        <input id="jira-project" type="text" [disabled]="!editable()" placeholder="https://…/projects/ENT or ENT"
+               [ngModel]="d.jira_project_url" (ngModelChange)="patch('jira_project_url', $event)" />
+      </div>
+
+      <div class="config-row">
+        <label class="config-label" for="jira-labels">
+          <span class="name">Labels</span>
+          <span class="help">Comma separated.</span>
+        </label>
+        <input id="jira-labels" type="text" [disabled]="!editable()" placeholder="platform, open-banking"
+               [ngModel]="jira('labels')" (ngModelChange)="setJira('labels', $event)" />
+      </div>
+
+      <div class="config-row">
+        <label class="config-label" for="jira-components">
+          <span class="name">Components</span>
+          <span class="help">Comma separated. Checked against the project before anything is created.</span>
+        </label>
+        <input id="jira-components" type="text" [disabled]="!editable()" placeholder="Accounts, Payments"
+               [ngModel]="jira('components')" (ngModelChange)="setJira('components', $event)" />
+      </div>
+
+      <div class="config-row">
+        <label class="config-label" for="jira-priority">
+          <span class="name">Priority</span>
+          <span class="help">Left to the project's own default when empty.</span>
+        </label>
+        <input id="jira-priority" type="text" [disabled]="!editable()" placeholder="Medium"
+               [ngModel]="jira('priority')" (ngModelChange)="setJira('priority', $event)" />
+      </div>
+
+      <div class="config-row">
+        <label class="config-label" for="jira-version">
+          <span class="name">Fix version</span>
+          <span class="help">Optional.</span>
+        </label>
+        <input id="jira-version" type="text" [disabled]="!editable()" placeholder="2026.4"
+               [ngModel]="jira('fix_version')" (ngModelChange)="setJira('fix_version', $event)" />
+      </div>
+    </section>
+
+    <section class="card panel">
+      <div class="head-card" style="padding: 0">
+        <div class="head-text">
+          <h3>Standing instructions</h3>
+          <p class="meta">
+            Prefilled into every run, on top of the prompt itself. It steers what the draft
+            emphasises; it can't override what the draft is held to — the repos, the compliance
+            keys and the PRD lines it has to cite.
+          </p>
+        </div>
+      </div>
+
+      <div class="config-row">
+        <label class="config-label" for="prompt-analysis">
+          <span class="name">For the analysis</span>
+          <span class="help">Shown in the run panel, where it can still be changed.</span>
+        </label>
+        <textarea id="prompt-analysis" rows="3" [disabled]="!editable()"
+                  placeholder="Call out anything that needs another team, and split work by region."
+                  [ngModel]="d.analysis_prompt" (ngModelChange)="patch('analysis_prompt', $event)"></textarea>
+      </div>
+
+      <div class="config-row">
+        <label class="config-label" for="prompt-tdd">
+          <span class="name">For the design</span>
+          <span class="help">Applied only when an analysis asks for a technical design.</span>
+        </label>
+        <textarea id="prompt-tdd" rows="3" [disabled]="!editable()"
+                  placeholder="Follow the template's numbering, and keep sequence diagrams to the main paths."
+                  [ngModel]="d.tdd_prompt" (ngModelChange)="patch('tdd_prompt', $event)"></textarea>
+      </div>
+    </section>
+
+    @if (editable()) {
+      <div class="actions">
+        <button class="btn btn-primary" [disabled]="!dirty() || saving()" (click)="save()">
+          {{ saving() ? 'Saving…' : 'Save defaults' }}
+        </button>
+        <button class="btn" [disabled]="!dirty() || saving()" (click)="revert()">Undo changes</button>
+        @if (settings()?.updated_by) {
+          <span class="project-meta">
+            Last changed by {{ settings()!.updated_by }} · {{ settings()!.updated_at | date: 'd MMM, HH:mm' }}
+          </span>
+        }
+      </div>
+    }
+  } @else if (!notice()) {
+    <p class="empty">Loading…</p>
+  }
+</div>

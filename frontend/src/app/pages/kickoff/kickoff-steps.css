@@ -9,7 +9,7 @@
 .saved:hover { border-color: var(--accent-border); box-shadow: 0 10px 30px rgba(18, 19, 22, 0.06); }
 .saved-top { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .saved-title { margin: 0; font-size: 17px; line-height: 1.35; font-weight: 600; letter-spacing: -0.01em; }
-.progress { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.progress { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; }
 .progress-seg { height: 6px; border-radius: 99px; background: var(--neutral-bg); }
 .progress-seg.on { background: var(--accent); }
 .saved-facts { display: flex; gap: 16px; font-size: 12.5px; color: var(--muted); }

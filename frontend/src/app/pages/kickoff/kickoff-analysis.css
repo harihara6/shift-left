@@ -122,3 +122,46 @@
 @media (max-width: 720px) {
   .need, .ticket { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* The standing instruction, beside the drafter it steers. */
+.instruct textarea { width: 100%; resize: vertical; }
+.instruct .optional { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--faint); }
+
+/* Earlier drafts, and what changed between two of them. */
+.result-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.run-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.run-row { display: block; }
+.run-open {
+  width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 12px; cursor: pointer;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.run-open:hover { border-color: var(--accent-border); }
+.run-row.on .run-open { border-color: var(--accent); background: var(--accent-bg); }
+.run-detail { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.diff-head { margin: 6px 0 0; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 7px; }
+.diff-mark {
+  display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px;
+  border-radius: 6px; font-size: 11px; font-weight: 700;
+}
+.diff-list, .run-tasks { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.diff-list { list-style: none; padding-left: 24px; }
+.diff-list li, .run-tasks li { font-size: 12.5px; color: var(--ink-2); line-height: 1.6; }
+.was { text-decoration: line-through; color: var(--faint); }
+
+/* What the tickets will carry, beside the button that creates them. */
+.backlog-options { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.backlog-options .meta { margin: 0; }
+
+/* The design the run wrote. */
+.tdd-sections { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.tdd-section {
+  border: 1px solid var(--border-soft); border-radius: 10px; padding: 11px 13px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.table-scroll { overflow-x: auto; }
+.trace { border-collapse: collapse; font-size: 11.5px; width: 100%; }
+.trace th, .trace td {
+  border: 1px solid var(--border-soft); padding: 5px 8px; text-align: left; vertical-align: top;
+}
+.trace th { color: var(--faint); font-weight: 500; white-space: nowrap; }

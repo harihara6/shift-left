@@ -76,6 +76,22 @@ async def test_only_a_platform_admin_changes_service_wide_connectors(
     assert next(f for f in detail["fields"] if f["key"] == "site_url")["value"] != "https://evil.example"
 
 
+async def test_only_a_platform_admin_changes_the_kickoff_defaults(client, contributor, viewer):
+    """They belong to no project either: a project admin role is not enough to change them.
+
+    Reading them is open, unlike a connector's secrets: they hold no credential, and the kickoff
+    wizard fills a new analysis in from them for whoever is running it.
+    """
+    assert (await client.get("/api/kickoff/settings", headers=viewer)).status_code == 200
+    assert (await client.get("/api/kickoff/settings", headers=viewer)).json()["editable"] is False
+
+    refused = await client.put(
+        "/api/kickoff/settings", headers=contributor, json={"jira_project_url": "EVIL"}
+    )
+    assert refused.status_code == 403
+    assert (await client.get("/api/kickoff/settings", headers=viewer)).json()["jira_project_url"] != "EVIL"
+
+
 async def test_any_signed_in_user_can_read_connectors(client, viewer):
     assert (await client.get("/api/connectors", headers=viewer)).status_code == 200
     assert (await client.get("/api/connectors/jira", headers=viewer)).status_code == 200

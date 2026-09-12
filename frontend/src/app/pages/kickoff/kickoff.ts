@@ -30,6 +30,7 @@ import {
   KickoffRepo,
   KickoffStatus,
   KickoffStepKey,
+  KickoffTdd,
   PerspectiveGuide,
   ProviderCatalogEntry,
 } from '../../core/models';
@@ -61,8 +62,9 @@ const STEP_COPY: Record<KickoffStepKey, { title: string; lede: string; optional?
   dependencies: {
     title: 'What you rely on',
     lede:
-      "Other teams' repos this feature calls or builds on. The analysis checks whether their APIs already " +
-      'offer what the PRD needs, and flags what you must ask them for.',
+      "Anything this feature is built on top of: another team's repo, a Confluence page describing a " +
+      'service, a docs site. Repos are read at a pinned commit, pages and documents as text. The analysis ' +
+      'checks whether what you rely on already offers what the PRD needs, and flags what you must ask for.',
     optional: true,
   },
   compliance: {
@@ -85,6 +87,14 @@ const STEP_COPY: Record<KickoffStepKey, { title: string; lede: string; optional?
       'plan covers access, authentication and failure modes.',
     optional: true,
   },
+  tdd: {
+    title: 'The technical design',
+    lede:
+      'Optional. The analysis can also write the design — high-level and low-level, sequence and ' +
+      'data diagrams, traceability, risks, monitoring — into Confluence. Point at a sample to ' +
+      'follow, or at the design itself to update. You tick the sections; nothing else is touched.',
+    optional: true,
+  },
   plan: {
     title: 'The analysis',
     lede:
@@ -105,7 +115,12 @@ const STEP_COPY: Record<KickoffStepKey, { title: string; lede: string; optional?
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [DatePipe, DecimalPipe, FormsModule, GuideModal, KickoffAnalysisStep, NgTemplateOutlet],
   templateUrl: './kickoff.html',
-  styleUrls: ['./kickoff-shared.css', './kickoff.css', './kickoff-steps.css'],
+  styleUrls: [
+    './kickoff-shared.css',
+    './kickoff.css',
+    './kickoff-steps.css',
+    './kickoff-tdd.css',
+  ],
 })
 export class KickoffPage {
   private readonly api = inject(Api);
@@ -124,8 +139,12 @@ export class KickoffPage {
     { key: 'compliance', label: 'Compliance' },
     { key: 'api_docs', label: 'API docs' },
     { key: 'third_parties', label: 'Third parties' },
+    { key: 'tdd', label: 'Design' },
     { key: 'plan', label: 'Analysis' },
   ];
+
+  /** The step count comes from the journey, so adding a step is one edit rather than five. */
+  readonly stepCount = this.journey.length;
 
   readonly status = signal<KickoffStatus | null>(null);
   readonly catalog = signal<KickoffCatalog | null>(null);
@@ -370,27 +389,40 @@ export class KickoffPage {
   addRepo(role: RepoRole): void {
     const url = this.draft(role).trim();
     if (!url) return;
-    const urls = [...this.repos(role).map((r) => r.url), ...url.split(/[\s,]+/).filter(Boolean)];
+    const before = this.materials(role).length;
+    const urls = [...this.urlsAt(role), ...url.split(/[\s,]+/).filter(Boolean)];
     this.saveRepos(role, urls, false, () => {
       this.setDraft(role, '');
-      const added = this.repos(role).at(-1);
-      return added?.ok ? `Read ${added.full_name} at ${added.commit}.` : `Couldn't read it: ${added?.error}`;
+      const repo = this.repos(role).at(-1);
+      const doc = this.materials(role).at(-1);
+      // Which reader it went to is the server's call, so report whichever list grew.
+      const added = this.materials(role).length > before ? doc : repo;
+      if (!added) return 'Saved.';
+      if (!added.ok) return `Couldn't read it: ${added.error}`;
+      return 'commit' in added ? `Read ${added.full_name} at ${added.commit}.` : `Read ${added.title}.`;
     });
   }
 
+  /** Step 3's documents. Step 2 takes repos only, so it has none. */
+  materials(role: RepoRole): KickoffDoc[] {
+    return role === 'dependencies' ? (this.analysis()?.dependencies.docs ?? []) : [];
+  }
+
+  /** Everything saved at a step, in the one list the server takes. */
+  private urlsAt(role: RepoRole): string[] {
+    return [...this.repos(role).map((r) => r.url), ...this.materials(role).map((d) => d.url)];
+  }
+
   removeRepo(role: RepoRole, url: string): void {
-    this.saveRepos(
-      role,
-      this.repos(role)
-        .map((r) => r.url)
-        .filter((u) => u !== url),
-      false,
-      () => 'Removed.',
-    );
+    this.saveRepos(role, this.urlsAt(role).filter((u) => u !== url), false, () => 'Removed.');
   }
 
   refreshRepos(role: RepoRole): void {
-    this.saveRepos(role, this.repos(role).map((r) => r.url), true, () => 'Read every repo again at its latest commit.');
+    this.saveRepos(role, this.urlsAt(role), true, () =>
+      role === 'repos'
+        ? 'Read every repo again at its latest commit.'
+        : 'Read everything again: repos at their latest commit, documents as they now read.',
+    );
   }
 
   skipDependencies(): void {
@@ -404,6 +436,69 @@ export class KickoffPage {
     const a = this.analysis();
     if (!a) return;
     this.run(role, this.api.setKickoffRepos(this.projectId(), a.id, role, urls, refresh), done);
+  }
+
+  // --- Step 7: the technical design ---------------------------------------------------------------
+
+  readonly tddMode = signal<'sample' | 'existing'>('sample');
+  readonly tddUrl = signal('');
+  /** The ticks being edited. Null means "whatever is saved". */
+  readonly tddTicked = signal<string[] | null>(null);
+  readonly tddSpace = signal('');
+  readonly tddParent = signal('');
+  readonly tddTitle = signal('');
+
+  ticked(): string[] {
+    return this.tddTicked() ?? this.analysis()?.tdd.selected ?? [];
+  }
+
+  isTicked(key: string): boolean {
+    return this.ticked().includes(key);
+  }
+
+  toggleTick(key: string): void {
+    const now = this.ticked();
+    const wanted = new Set(now.includes(key) ? now.filter((k) => k !== key) : [...now, key]);
+    // Kept in the page's own order, so what gets written reads the way the document does.
+    const sections = this.analysis()?.tdd.sections ?? [];
+    this.tddTicked.set(sections.map((s) => s.key).filter((k) => wanted.has(k)));
+  }
+
+  tickRecommended(): void {
+    const sections = this.analysis()?.tdd.sections ?? [];
+    this.tddTicked.set(sections.filter((s) => s.recommended).map((s) => s.key));
+  }
+
+  readTddPage(): void {
+    const a = this.analysis();
+    const url = this.tddUrl().trim();
+    if (!a || !url) return;
+    this.tddTicked.set(null);
+    this.run('tdd', this.api.readKickoffTddPage(this.projectId(), a.id, this.tddMode(), url), (next) => {
+      const t = next.tdd;
+      if (!this.tddTitle()) this.tddTitle.set(`${next.prd?.title ?? next.title} — TDD`);
+      const has = t.sections.filter((s) => s.present).length;
+      return `Read ${t.source?.title}: ${has} section${has === 1 ? '' : 's'} on the page. Tick what to write.`;
+    });
+  }
+
+  saveTdd(enabled: boolean): void {
+    const a = this.analysis();
+    if (!a) return;
+    const body = {
+      enabled,
+      selected: enabled ? this.ticked() : [],
+      space_key: this.tddSpace().trim(),
+      parent_url: this.tddParent().trim(),
+      title: this.tddTitle().trim(),
+    };
+    this.run('tdd', this.api.setKickoffTdd(this.projectId(), a.id, body), (next) => {
+      this.tddTicked.set(null);
+      this.next();
+      if (!enabled) return 'No design: saved.';
+      const n = next.tdd.selected.length;
+      return `Confirmed: ${n} section${n === 1 ? '' : 's'} will be written when the analysis runs.`;
+    });
   }
 
   docs(): KickoffDoc[] {
@@ -628,6 +723,15 @@ export class KickoffPage {
     const before = this.analysis();
     this.analysis.set(a);
     this.prdUrl.set(a.prd?.url ?? '');
+    // A different analysis shows its own answers; the same one keeps what is being typed.
+    if (!before || before.id !== a.id) {
+      this.tddUrl.set(a.tdd.source?.url ?? '');
+      this.tddSpace.set(a.tdd.space_key);
+      this.tddParent.set(a.tdd.parent_url);
+      this.tddTitle.set(a.tdd.title);
+      this.tddTicked.set(null);
+    }
+    this.tddMode.set(a.tdd.mode);
     const c = a.compliance;
     // A different analysis, or a new approval: the working selection starts from the record.
     if (!before || before.id !== a.id || before.compliance.approved_at !== c.approved_at) {

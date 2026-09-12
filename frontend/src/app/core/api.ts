@@ -14,6 +14,12 @@ import {
   KickoffAnalysis,
   KickoffAnalysisSummary,
   KickoffCatalog,
+  BacklogFields,
+  JiraTicketDefaults,
+  KickoffRunDetail,
+  KickoffRunSummary,
+  KickoffSettings,
+  KickoffSettingsWrite,
   KickoffStatus,
   KickoffTaskInput,
   CustomCompliance,
@@ -189,6 +195,18 @@ export class Api {
 
   // --- Feature Kickoff ------------------------------------------------------------------------
 
+  /**
+   * Service-wide kickoff defaults. Readable by anyone (no credential is stored in them);
+   * `editable` says whether this person may write them back.
+   */
+  kickoffSettings(): Observable<KickoffSettings> {
+    return this.http.get<KickoffSettings>(`${API}/kickoff/settings`);
+  }
+
+  saveKickoffSettings(body: KickoffSettingsWrite): Observable<KickoffSettings> {
+    return this.http.put<KickoffSettings>(`${API}/kickoff/settings`, body);
+  }
+
   /** Where each step reads and writes, from configuration. Never carries a credential. */
   kickoffStatus(projectId: string): Observable<KickoffStatus> {
     return this.http.get<KickoffStatus>(`${API}/projects/${projectId}/kickoff/status`);
@@ -265,8 +283,91 @@ export class Api {
   }
 
   /** Step 7: drafts the plan. Replaces the previous draft and its edits. */
-  runKickoffAnalysis(projectId: string, id: number, provider: string, model: string): Observable<KickoffAnalysis> {
-    return this.http.post<KickoffAnalysis>(`${this.analysisUrl(projectId, id)}/run`, { provider, model });
+  /**
+   * Step 7: read the sample or the design itself, and offer its sections. Writes nothing —
+   * the sections offered are the ones the page actually has, plus the standard ones it lacks.
+   */
+  readKickoffTddPage(
+    projectId: string,
+    id: number,
+    mode: 'sample' | 'existing',
+    url: string,
+  ): Observable<KickoffAnalysis> {
+    return this.http.post<KickoffAnalysis>(`${this.analysisUrl(projectId, id)}/tdd/page`, { mode, url });
+  }
+
+  /** Confirms which sections the run will write, and where. This confirmation is the acceptance. */
+  setKickoffTdd(
+    projectId: string,
+    id: number,
+    body: {
+      enabled: boolean;
+      selected: string[];
+      space_key: string;
+      parent_url: string;
+      title: string;
+    },
+  ): Observable<KickoffAnalysis> {
+    return this.http.put<KickoffAnalysis>(`${this.analysisUrl(projectId, id)}/tdd`, body);
+  }
+
+  /** Writes the drafted design again, after a write that didn't land. */
+  publishKickoffTdd(projectId: string, id: number): Observable<KickoffAnalysis> {
+    return this.http.post<KickoffAnalysis>(`${this.analysisUrl(projectId, id)}/tdd/publish`, {});
+  }
+
+  /** Drafts the plan. The draft it replaces is kept as a run, so nothing is lost by running again. */
+  runKickoffAnalysis(
+    projectId: string,
+    id: number,
+    provider: string,
+    model: string,
+    instructions: string,
+  ): Observable<KickoffAnalysis> {
+    return this.http.post<KickoffAnalysis>(`${this.analysisUrl(projectId, id)}/run`, {
+      provider,
+      model,
+      instructions,
+    });
+  }
+
+  /** Amends the plan that is already there. Tasks it leaves alone keep their wording and refs. */
+  refineKickoffPlan(
+    projectId: string,
+    id: number,
+    provider: string,
+    model: string,
+    instructions: string,
+  ): Observable<KickoffAnalysis> {
+    return this.http.post<KickoffAnalysis>(`${this.analysisUrl(projectId, id)}/refine`, {
+      provider,
+      model,
+      instructions,
+    });
+  }
+
+  /** What the target project offers for each ticket option. Read-only: nothing is written. */
+  kickoffBacklogFields(projectId: string, id: number, backlogUrl: string): Observable<BacklogFields> {
+    return this.http.get<BacklogFields>(`${this.analysisUrl(projectId, id)}/backlog-fields`, {
+      params: { backlog_url: backlogUrl },
+    });
+  }
+
+  setKickoffBacklogOptions(
+    projectId: string,
+    id: number,
+    options: JiraTicketDefaults,
+  ): Observable<KickoffAnalysis> {
+    return this.http.put<KickoffAnalysis>(`${this.analysisUrl(projectId, id)}/backlog-options`, options);
+  }
+
+  kickoffRuns(projectId: string, id: number): Observable<KickoffRunSummary[]> {
+    return this.http.get<KickoffRunSummary[]>(`${this.analysisUrl(projectId, id)}/runs`);
+  }
+
+  /** One earlier draft, with what changed since the draft before it. */
+  kickoffRun(projectId: string, id: number, number: number): Observable<KickoffRunDetail> {
+    return this.http.get<KickoffRunDetail>(`${this.analysisUrl(projectId, id)}/runs/${number}`);
   }
 
   editKickoffPlan(

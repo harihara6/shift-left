@@ -16,14 +16,21 @@ from app.models.project import Project
 from app.schemas.kickoff import (
     AnalysisOut,
     AnalysisSummary,
+    BacklogFieldsOut,
     BacklogRequest,
     CatalogOut,
     ComplianceApproval,
+    JiraDefaults,
     KickoffStatus,
     PlanEdit,
     PrdRequest,
     ProvidersUpdate,
+    RefineRequest,
+    RunDetailOut,
     RunRequest,
+    RunSummaryOut,
+    TddPageRequest,
+    TddUpdate,
     TitleUpdate,
     UrlsUpdate,
 )
@@ -283,6 +290,94 @@ async def set_third_parties(
     return await _saved(session, row)
 
 
+@router.post(ONE + "/tdd/page", response_model=AnalysisOut)
+async def read_tdd_page(
+    analysis_id: int,
+    body: TddPageRequest,
+    project: Project = Depends(require("contributor")),
+    user: CurrentUser = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> AnalysisOut:
+    """Step 7: read the sample or the design itself, and offer its sections. Writes nothing."""
+    row = await _analysis(session, project, analysis_id)
+    try:
+        await service.read_tdd_page(session, row, user.email, body.mode, body.url)
+    except service.Refused as exc:
+        raise _refused(exc) from exc
+    return await _saved(session, row)
+
+
+@router.put(ONE + "/tdd", response_model=AnalysisOut)
+async def write_tdd(
+    analysis_id: int,
+    body: TddUpdate,
+    project: Project = Depends(require("contributor")),
+    user: CurrentUser = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> AnalysisOut:
+    """Confirm which sections the run will write, and where.
+
+    This is the acceptance: the run writes these sections and no others, into a page a team owns.
+    It is recorded against the person who confirmed it and audited, which is why it is a step of
+    its own rather than a checkbox beside the Run button.
+    """
+    row = await _analysis(session, project, analysis_id)
+    try:
+        service.set_tdd(row, user.email, body)
+    except service.Refused as exc:
+        raise _refused(exc) from exc
+    t = row.inputs["tdd"]
+    await audit.record(
+        session,
+        actor=user.email,
+        action="kickoff_tdd_approve",
+        resource_type="kickoff_analysis",
+        resource_id=str(row.id),
+        project_id=project.id,
+        detail={
+            "enabled": t["enabled"],
+            "mode": t.get("mode", ""),
+            "page_id": (t.get("source") or {}).get("page_id", ""),
+            "sections": t.get("selected", []),
+            "space_key": t.get("space_key", ""),
+        },
+        note="What the next run will write to Confluence. Nothing is written until it runs.",
+    )
+    return await _saved(session, row)
+
+
+@router.post(ONE + "/tdd/publish", response_model=AnalysisOut)
+async def publish_tdd(
+    analysis_id: int,
+    project: Project = Depends(require("contributor")),
+    user: CurrentUser = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> AnalysisOut:
+    """Write the drafted design again, after a write that didn't land."""
+    row = await _analysis(session, project, analysis_id)
+    if not row.tdd or not row.tdd.get("sections"):
+        raise _refused(service.Refused("There is no drafted design to publish. Run the analysis first."))
+    await service.publish_tdd(session, row, user.email)
+    published = (row.tdd or {}).get("published") or {}
+    await audit.record(
+        session,
+        actor=user.email,
+        action="kickoff_tdd_publish",
+        resource_type="kickoff_analysis",
+        resource_id=str(row.id),
+        project_id=project.id,
+        detail={
+            "page_id": published.get("page_id", ""),
+            "version": published.get("version", 0),
+            "written": published.get("written", []),
+            "appended": published.get("appended", []),
+            "note": (row.tdd or {}).get("note", ""),
+        },
+        note="Only the confirmed sections are written; the rest of the page is left as it was.",
+    )
+    return await _saved(session, row)
+
+
 @router.post(ONE + "/run", response_model=AnalysisOut)
 async def run_analysis(
     analysis_id: int,
@@ -291,10 +386,10 @@ async def run_analysis(
     user: CurrentUser = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ) -> AnalysisOut:
-    """Step 7: draft the plan. Replaces the previous draft, including edits made to it."""
+    """Draft the plan. The draft it replaces is kept as a run, so nothing is lost by running again."""
     row = await _analysis(session, project, analysis_id)
     try:
-        await service.run(row, user.email, body.provider, body.model)
+        await service.run(session, row, user.email, body.provider, body.model, body.instructions)
     except service.Refused as exc:
         raise _refused(exc) from exc
     await audit.record(
@@ -315,6 +410,69 @@ async def run_analysis(
     return await _saved(session, row)
 
 
+@router.post(ONE + "/refine", response_model=AnalysisOut)
+async def refine_analysis(
+    analysis_id: int,
+    body: RefineRequest,
+    project: Project = Depends(require("contributor")),
+    user: CurrentUser = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> AnalysisOut:
+    """Amend the plan that is already there. Tasks the model leaves alone keep their wording,
+    their refs and whoever edited them, so this is the cheap way to iterate on a moving
+    requirement. A refine that fails leaves the plan exactly as it was."""
+    row = await _analysis(session, project, analysis_id)
+    try:
+        await service.refine(session, row, user.email, body.provider, body.model, body.instructions)
+    except service.Refused as exc:
+        raise _refused(exc) from exc
+    await audit.record(
+        session,
+        actor=user.email,
+        action="kickoff_analysis_refine",
+        resource_type="kickoff_analysis",
+        resource_id=str(row.id),
+        project_id=project.id,
+        detail={
+            "run": row.runs,
+            "reader": row.plan["reader"],
+            "model": row.plan["model"],
+            "tasks": len(row.plan["tasks"]),
+            "instructions": body.instructions,
+        },
+        note="A draft. It counts toward nothing until a named person creates it in the backlog.",
+    )
+    return await _saved(session, row)
+
+
+@router.get(ONE + "/runs", response_model=list[RunSummaryOut])
+async def list_runs(
+    analysis_id: int,
+    project: Project = Depends(require("viewer")),
+    session: AsyncSession = Depends(get_session),
+) -> list[RunSummaryOut]:
+    """Every draft this analysis has had, newest first."""
+    row = await _analysis(session, project, analysis_id)
+    return [service.run_summary(r, row.runs) for r in await service.runs(session, row)]
+
+
+@router.get(ONE + "/runs/{number}", response_model=RunDetailOut)
+async def read_run(
+    analysis_id: int,
+    number: int,
+    project: Project = Depends(require("viewer")),
+    session: AsyncSession = Depends(get_session),
+) -> RunDetailOut:
+    """One earlier draft, with what changed since the draft before it."""
+    row = await _analysis(session, project, analysis_id)
+    records = await service.runs(session, row)
+    record = next((r for r in records if r.run_number == number), None)
+    if record is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such run")
+    earlier = [r for r in records if r.run_number < number]
+    return service.run_detail(row, record, earlier[0] if earlier else None)
+
+
 @router.put(ONE + "/plan", response_model=AnalysisOut)
 async def edit_plan(
     analysis_id: int,
@@ -328,6 +486,35 @@ async def edit_plan(
         service.edit_plan(row, user.email, body)
     except service.Refused as exc:
         raise _refused(exc) from exc
+    return await _saved(session, row)
+
+
+@router.get(ONE + "/backlog-fields", response_model=BacklogFieldsOut)
+async def read_backlog_fields(
+    analysis_id: int,
+    backlog_url: str,
+    project: Project = Depends(require("contributor")),
+    session: AsyncSession = Depends(get_session),
+) -> BacklogFieldsOut:
+    """What the target project offers for each ticket option. Read-only: nothing is written."""
+    await _analysis(session, project, analysis_id)
+    try:
+        return await service.backlog_fields(session, backlog_url)
+    except service.Refused as exc:
+        raise _refused(exc) from exc
+
+
+@router.put(ONE + "/backlog-options", response_model=AnalysisOut)
+async def write_backlog_options(
+    analysis_id: int,
+    body: JiraDefaults,
+    project: Project = Depends(require("contributor")),
+    user: CurrentUser = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> AnalysisOut:
+    """What every ticket this analysis creates should carry. Checked against Jira again on create."""
+    row = await _analysis(session, project, analysis_id)
+    service.set_backlog_options(row, user.email, body)
     return await _saved(session, row)
 
 

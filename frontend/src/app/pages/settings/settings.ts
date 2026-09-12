@@ -5,14 +5,15 @@ import { PerspectiveGuide } from '../../core/models';
 import { GuideModal } from '../../ui/guide-modal';
 import { AccessTab } from './access-tab';
 import { ConnectorsTab } from './connectors-tab';
+import { KickoffTab } from './kickoff-tab';
 import { ProjectsTab } from './projects-tab';
 
-type Tab = 'projects' | 'connectors' | 'access';
+type Tab = 'projects' | 'connectors' | 'kickoff' | 'access';
 
 @Component({
   selector: 'sl-settings',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ProjectsTab, ConnectorsTab, AccessTab, GuideModal],
+  imports: [ProjectsTab, ConnectorsTab, KickoffTab, AccessTab, GuideModal],
   template: `
     <div class="settings">
       <nav class="tabs" aria-label="Settings sections">
@@ -27,6 +28,7 @@ type Tab = 'projects' | 'connectors' | 'access';
       @switch (active()) {
         @case ('projects') { <sl-projects-tab (changed)="projectsChanged.emit($event)" /> }
         @case ('connectors') { <sl-connectors-tab /> }
+        @case ('kickoff') { <sl-kickoff-tab /> }
         @case ('access') { <sl-access-tab /> }
       }
     </div>
@@ -58,6 +60,7 @@ export class Settings {
   readonly tabs: { key: Tab; label: string }[] = [
     { key: 'projects', label: 'Projects' },
     { key: 'connectors', label: 'Connectors' },
+    { key: 'kickoff', label: 'Feature Kickoff' },
     { key: 'access', label: 'Access & SSO' },
   ];
 

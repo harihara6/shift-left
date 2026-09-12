@@ -18,6 +18,8 @@ PAY = "/api/projects/db-payments"
 SITE = "https://example.atlassian.net"
 PAGE_ID = "9100001"
 PAGE_URL = f"{SITE}/wiki/spaces/ENT/pages/{PAGE_ID}/Instant+account+aggregation"
+DEP_PAGE_ID = "9100777"
+DEP_PAGE_URL = f"{SITE}/wiki/spaces/PLT/pages/{DEP_PAGE_ID}/Accounts+service+contract"
 TOKEN = "atl-token-never-shown"
 GH_TOKEN = "gh-token-never-shown"
 
@@ -38,6 +40,22 @@ PRD_LINES = [
     "- Let the customer remove a linked account at any time",
     "## Data",
     "The feature stores personal data: account holder name and IBAN.",
+]
+
+TDD_PAGE_ID = "9100888"
+TDD_PAGE_URL = f"{SITE}/wiki/spaces/ENT/pages/{TDD_PAGE_ID}/Accounts+TDD"
+# A design a team already owns: two sections this analysis touches, and one it must not.
+TDD_STORAGE = (
+    "<h1>Accounts TDD</h1><p>Owned by the accounts team.</p>"
+    "<h2>High-level design</h2><p>The old high-level design.</p>"
+    "<h2>Risks</h2><p>A risk nobody asked us to rewrite.</p>"
+    "<h2>Monitoring and alerting</h2><p>Old monitoring.</p>"
+)
+
+DEP_PAGE_LINES = [
+    "## What the accounts service guarantees",
+    "- Balances are refreshed every four hours, not on demand",
+    "- Removing a link is asynchronous and completes within a day",
 ]
 
 SPEC = """
@@ -108,6 +126,11 @@ class World:
         self.links: list[tuple[str, str]] = []
         self.created: list[dict] = []
         self.auth_seen: set[str] = set()
+        self.pages = {TDD_PAGE_ID: TDD_STORAGE}
+        self.page_version = 4
+        self.version_messages: list[str] = []
+        self.created_pages: list[dict] = []
+        self.page_labels: list[dict] = []
 
     # -- the transport -----------------------------------------------------------------------
     def __call__(self, request: httpx.Request) -> httpx.Response:
@@ -135,10 +158,54 @@ class World:
                     "_links": {"webui": f"/spaces/ENT/pages/{PAGE_ID}/Instant+account+aggregation"},
                 },
             )
+        if path.startswith("/wiki/api/v2/pages/") and path.rsplit("/", 1)[1] in self.pages:
+            page_id = path.rsplit("/", 1)[1]
+            if request.method == "PUT":
+                body = json.loads(request.content)
+                self.pages[page_id] = body["body"]["value"]
+                self.page_version += 1
+                self.version_messages.append(body["version"]["message"])
+                return httpx.Response(200, json={"id": page_id})
+            return httpx.Response(
+                200,
+                json={
+                    "id": page_id,
+                    "title": "Accounts TDD",
+                    "spaceId": "77",
+                    "version": {"number": self.page_version, "createdAt": "2026-09-02T10:00:00Z"},
+                    "body": {"storage": {"value": self.pages[page_id]}},
+                    "_links": {"webui": f"/spaces/ENT/pages/{page_id}/Accounts+TDD"},
+                },
+            )
+        if path == "/wiki/api/v2/pages" and request.method == "POST":
+            body = json.loads(request.content)
+            self.created_pages.append(body)
+            return httpx.Response(
+                200, json={"id": "9200000", "_links": {"webui": "/spaces/ENT/pages/9200000/New"}}
+            )
+        if path == "/wiki/api/v2/pages":
+            return httpx.Response(200, json={"results": []})
+        if path.startswith("/wiki/rest/api/content/") and path.endswith("/label"):
+            self.page_labels += json.loads(request.content)
+            return httpx.Response(200, json={})
+        if path == f"/wiki/api/v2/pages/{DEP_PAGE_ID}":
+            return httpx.Response(
+                200,
+                json={
+                    "id": DEP_PAGE_ID,
+                    "title": "Accounts service contract",
+                    "spaceId": "77",
+                    "version": {"number": 3, "createdAt": "2026-08-20T10:00:00Z"},
+                    "body": {"storage": {"value": storage_of(DEP_PAGE_LINES)}},
+                    "_links": {"webui": f"/spaces/PLT/pages/{DEP_PAGE_ID}/Accounts+service+contract"},
+                },
+            )
         if path.startswith("/wiki/api/v2/pages/"):
             return httpx.Response(404, json={"message": "Not found"})
         if path == "/wiki/api/v2/spaces/77":
             return httpx.Response(200, json={"key": "ENT"})
+        if path == "/wiki/api/v2/spaces":
+            return httpx.Response(200, json={"results": [{"id": "77", "key": "ENT"}]})
         if path == "/rest/api/3/issue/createmeta/ENT/issuetypes":
             return httpx.Response(
                 200,
@@ -154,6 +221,19 @@ class World:
             return httpx.Response(200, json={"fields": self.required})
         if path.startswith("/rest/api/3/issue/createmeta/"):
             return httpx.Response(404, json={"errorMessages": ["No project"]})
+        if path == "/rest/api/3/project/ENT/components":
+            return httpx.Response(200, json=[{"id": "1", "name": "Accounts"}, {"id": "2", "name": "Web"}])
+        if path == "/rest/api/3/project/ENT/versions":
+            return httpx.Response(
+                200,
+                json=[
+                    {"id": "9", "name": "2026.2", "released": True, "archived": False},
+                    {"id": "10", "name": "2026.4", "released": False, "archived": False},
+                    {"id": "11", "name": "old", "released": True, "archived": True},
+                ],
+            )
+        if path == "/rest/api/3/priority":
+            return httpx.Response(200, json=[{"id": "1", "name": "High"}, {"id": "3", "name": "Medium"}])
         if path == "/rest/api/3/search/jql":
             jql = parse_qs(urlparse(str(request.url)).query)["jql"][0]
             label = jql.split('labels = "')[1].rstrip('"')
@@ -318,11 +398,11 @@ async def test_the_prd_is_read_from_confluence_and_saved_as_an_analysis(
         assert a["prd"]["version"] == 7 and a["prd"]["via"] == "rest" and a["prd"]["space"] == "ENT"
         assert a["prd"]["lines"] == PRD_LINES
         assert a["prd"]["read_by"] == "dev@backbase.com"
-        assert [s["done"] for s in a["steps"]] == [True, False, False, False, False, False, False]
+        assert [s["done"] for s in a["steps"]] == [True, False, False, False, False, False, False, False]
 
         listed = (await c.get(f"{ENT}/kickoff/analyses", headers=contributor)).json()
         assert [x["id"] for x in listed] == [a["id"]]
-        assert listed[0]["steps_done"] == 1 and listed[0]["steps_total"] == 7
+        assert listed[0]["steps_done"] == 1 and listed[0]["steps_total"] == 8
 
 
 async def test_a_page_on_another_site_or_a_missing_page_is_refused_with_the_reason(
@@ -436,6 +516,74 @@ async def test_vendored_paths_are_left_out_of_the_tree(boot, contributor, world,
         repo = r.json()["repos"]["repos"][0]
         assert repo["file_count"] == 3
         assert "package.json" in repo["manifests"]
+
+
+def test_a_pasted_link_goes_to_the_reader_it_belongs_to():
+    """Step 3 takes whatever a team relies on, so the link decides the reader, not the person."""
+    from app.services.kickoff_sources import classify
+
+    gh, atl = "github.com", "example.atlassian.net"
+    assert classify("https://github.com/acme/accounts-api", gh, atl) == "repo"
+    assert classify("acme/accounts-api", gh, atl) == "repo"
+    assert classify("git@github.com:acme/accounts-api.git", gh, atl) == "repo"
+    assert classify(DEP_PAGE_URL, gh, atl) == "confluence"
+    # A Confluence page on a site we aren't connected to is still a page, and says so when read.
+    assert classify("https://other.atlassian.net/wiki/spaces/X/pages/12/Y", gh, "") == "confluence"
+    assert classify("https://wiki.corp.example/x?pageId=44", gh, atl) == "confluence"
+    assert classify("https://docs.example.com/openapi.yaml", gh, atl) == "doc"
+    assert classify("https://docs.example.com/guide", gh, atl) == "doc"
+
+
+async def test_what_we_rely_on_takes_repos_pages_and_documents_alike(
+    boot, contributor, world, monkeypatch
+):
+    async with boot(**ENV) as c:
+        _wire(world, monkeypatch)
+        a = (await c.post(f"{ENT}/kickoff/analyses", headers=contributor, json={"prd_url": PAGE_URL})).json()
+        r = await c.put(
+            f"{ENT}/kickoff/analyses/{a['id']}/dependencies",
+            headers=contributor,
+            json={
+                "urls": [
+                    "https://github.com/acme/accounts-api",
+                    DEP_PAGE_URL,
+                    "https://docs.example.com/guide",
+                ]
+            },
+        )
+        assert r.status_code == 200, r.text
+        deps = r.json()["dependencies"]
+        assert [repo["full_name"] for repo in deps["repos"]] == ["acme/accounts-api"]
+        kinds = {d["kind"]: d for d in deps["docs"]}
+        assert set(kinds) == {"confluence", "page"}
+        page = kinds["confluence"]
+        assert page["ok"] and page["title"] == "Accounts service contract"
+        assert page["version"] == "v3"
+        assert "refreshed every four hours" in page["summary"]
+        assert deps["saved"] is True
+        # The step reports both kinds, so "3 repos" never stands in for a page nobody read.
+        step = next(s for s in r.json()["steps"] if s["key"] == "dependencies")
+        assert step["done"] and step["summary"] == "1 repo · 2 documents"
+
+
+async def test_material_relied_on_is_part_of_what_makes_a_plan_stale(
+    boot, contributor, world, monkeypatch
+):
+    async with boot(**ENV) as c:
+        _wire(world, monkeypatch)
+        a = await _ready(c, contributor)
+        base = f"{ENT}/kickoff/analyses/{a['id']}"
+        assert not (await _run(c, contributor, a))["plan"]["stale"]
+        r = await c.put(
+            f"{base}/dependencies",
+            headers=contributor,
+            json={"urls": ["https://github.com/acme/accounts-api", DEP_PAGE_URL]},
+        )
+        assert r.json()["plan"]["stale"] == ["what you rely on"]
+        created = await c.post(
+            f"{base}/backlog", headers=contributor, json={"backlog_url": f"{SITE}/browse/ENT-1"}
+        )
+        assert created.status_code == 409
 
 
 async def test_a_repo_is_either_coded_in_or_relied_on(boot, contributor, world, monkeypatch):
@@ -910,6 +1058,198 @@ async def test_a_plan_older_than_its_inputs_says_which_and_cannot_be_created(
         assert world.created == []
 
 
+# --- Step 7: the technical design ---------------------------------------------------------------------
+
+
+def _tdd(ai, sections: list[tuple[str, str]]):
+    return ai.TddDraft(
+        sections=[
+            ai.TddSectionDraft(
+                key=key,
+                title=title,
+                body_markdown="- Reads balances from acme/accounts-api\n\n```mermaid\nsequenceDiagram\n```",
+                diagrams=[
+                    ai.Diagram(kind="sequence", title="Link flow", source="sequenceDiagram\n  A->>B: hi")
+                ],
+            )
+            for key, title in sections
+        ]
+    )
+
+
+async def _tdd_ready(c, headers, world, monkeypatch, mode: str, selected: list[str]):
+    """An analysis with step 7 read and confirmed, ready to run."""
+    a = await _ready(c, headers)
+    base = f"{ENT}/kickoff/analyses/{a['id']}"
+    r = await c.post(f"{base}/tdd/page", headers=headers, json={"mode": mode, "url": TDD_PAGE_URL})
+    assert r.status_code == 200, r.text
+    r = await c.put(
+        f"{base}/tdd",
+        headers=headers,
+        json={"enabled": True, "selected": selected, "space_key": "ENT", "title": "Accounts TDD"},
+    )
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+async def test_the_sections_offered_are_the_ones_the_page_has(boot, contributor, world, monkeypatch):
+    async with boot(**ENV) as c:
+        _wire(world, monkeypatch)
+        a = (await c.post(f"{ENT}/kickoff/analyses", headers=contributor, json={"prd_url": PAGE_URL})).json()
+        base = f"{ENT}/kickoff/analyses/{a['id']}"
+
+        r = await c.post(
+            f"{base}/tdd/page", headers=contributor, json={"mode": "existing", "url": TDD_PAGE_URL}
+        )
+        assert r.status_code == 200, r.text
+        tdd = r.json()["tdd"]
+        # An existing design offers only what it has: nothing is invented into a team's page.
+        on_the_page = [s for s in tdd["sections"] if s["present"]]
+        assert [s["key"] for s in on_the_page] == ["other-accounts-tdd", "hld", "risks", "monitoring"]
+        # A section the page lacks can be added deliberately, but is never ticked for you.
+        addable = {s["key"]: s for s in tdd["sections"] if not s["present"]}
+        assert "traceability" in addable and addable["traceability"]["recommended"] is False
+        assert tdd["source"]["version"] == 4
+
+        # A sample also offers the standard sections it lacks, so a thin template still works.
+        r = await c.post(
+            f"{base}/tdd/page", headers=contributor, json={"mode": "sample", "url": TDD_PAGE_URL}
+        )
+        offered = {s["key"]: s for s in r.json()["tdd"]["sections"]}
+        assert offered["hld"]["present"] is True
+        assert offered["traceability"]["present"] is False
+        assert offered["lld"]["present"] is False
+
+        # Nothing may be ticked that the page didn't offer.
+        r = await c.put(f"{base}/tdd", headers=contributor, json={"enabled": True, "selected": ["invented"]})
+        assert r.status_code == 409 and "aren't on that page" in r.json()["detail"]["message"]
+
+
+async def test_the_design_replaces_only_the_ticked_sections_and_leaves_the_rest_byte_for_byte(
+    boot, contributor, world, monkeypatch
+):
+    async with boot(**ENV, SHIFTLEFT_ANTHROPIC_API_KEY="sk-test") as c:
+        _wire(world, monkeypatch)
+        ai = _fake_model(monkeypatch, [])
+        monkeypatch.setattr(
+            ai,
+            "_call",
+            _queue(
+                ai,
+                [
+                    _plan(ai, ["Build the UI"]),
+                    _tdd(ai, [("hld", "High-level design"), ("lld", "Low-level design")]),
+                ],
+            ),
+        )
+        a = await _tdd_ready(c, contributor, world, monkeypatch, "existing", ["hld", "traceability"])
+        assert a["tdd"]["approved_by"] == "dev@backbase.com"
+
+        a = await _run(c, contributor, a, provider="claude")
+        doc = a["tdd_document"]
+        assert doc["drafted"] and doc["note"] == ""
+        # A section nobody ticked is dropped, however good it looks.
+        assert [s["key"] for s in doc["sections"]] == ["hld", "traceability"]
+        assert any("wasn't ticked" in n for n in doc["notes"])
+        # The traceability matrix is built from the analysis, not drafted.
+        built = doc["sections"][1]
+        assert built["built"] is True and built["body_markdown"] == ""
+        assert built["rows"][0][0].startswith("T1 · Build the UI")
+        assert built["rows"][0][6] == "—"
+
+        published = doc["published"]
+        assert published["written"] == ["hld"] and published["version"] == 5
+        page = world.pages[TDD_PAGE_ID]
+        # This is the guarantee: every section nobody ticked survives exactly as it was.
+        assert "<p>A risk nobody asked us to rewrite.</p>" in page
+        assert "<p>Old monitoring.</p>" in page
+        assert "<p>Owned by the accounts team.</p>" in page
+        assert "<p>The old high-level design.</p>" not in page
+        assert "acme/accounts-api" in page
+        # The version message says who and what, so it is traceable and revertible in Confluence.
+        assert "dev@backbase.com" in world.version_messages[-1]
+        assert "High-level design" in world.version_messages[-1]
+        assert {"prefix": "global", "name": f"shiftleft-kickoff-{a['id']}"} in world.page_labels
+
+
+async def test_a_sample_writes_a_new_page_and_running_again_writes_the_same_one(
+    boot, contributor, world, monkeypatch
+):
+    async with boot(**ENV, SHIFTLEFT_ANTHROPIC_API_KEY="sk-test") as c:
+        _wire(world, monkeypatch)
+        ai = _fake_model(monkeypatch, [])
+        monkeypatch.setattr(
+            ai,
+            "_call",
+            _queue(
+                ai,
+                [
+                    _plan(ai, ["Build the UI"]),
+                    _tdd(ai, [("hld", "High-level design")]),
+                    _plan(ai, ["Build the UI"]),
+                    _tdd(ai, [("hld", "High-level design")]),
+                ],
+            ),
+        )
+        a = await _tdd_ready(c, contributor, world, monkeypatch, "sample", ["hld"])
+        a = await _run(c, contributor, a, provider="claude")
+        assert len(world.created_pages) == 1
+        assert world.created_pages[0]["title"] == "Accounts TDD"
+        assert a["tdd_document"]["published"]["page_id"] == "9200000"
+
+        # Running again writes the page it made, rather than leaving a trail of duplicates.
+        world.pages["9200000"] = world.created_pages[0]["body"]["value"]
+        await _run(c, contributor, a, provider="claude")
+        assert len(world.created_pages) == 1
+
+
+async def test_a_design_that_cannot_be_written_says_why_and_never_costs_the_plan(
+    boot, contributor, world, monkeypatch
+):
+    async with boot(**ENV, SHIFTLEFT_ANTHROPIC_API_KEY="sk-test") as c:
+        _wire(world, monkeypatch)
+        ai = _fake_model(monkeypatch, [])
+        monkeypatch.setattr(
+            ai, "_call", _queue(ai, [_plan(ai, ["Build the UI"]), _tdd(ai, [("hld", "High-level design")])])
+        )
+        a = await _tdd_ready(c, contributor, world, monkeypatch, "existing", ["hld"])
+
+        from app.services import kickoff_tdd
+
+        async def refuses(*args, **kwargs):
+            from app.connectors.atlassian_rest import AtlassianError
+
+            raise AtlassianError("Updating the page failed", 409)
+
+        monkeypatch.setattr(kickoff_tdd, "publish", refuses)
+        a = await _run(c, contributor, a, provider="claude")
+
+        assert "Someone saved the page while this ran" in a["tdd_document"]["note"]
+        assert a["tdd_document"]["published"] is None
+        # The plan is what the backlog is made from, and it is unaffected.
+        assert [t["title"] for t in a["plan"]["tasks"]] == ["Build the UI"]
+        assert world.pages[TDD_PAGE_ID] == TDD_STORAGE
+
+
+async def test_changing_the_ticked_sections_makes_the_plan_stale(boot, contributor, world, monkeypatch):
+    async with boot(**ENV, SHIFTLEFT_ANTHROPIC_API_KEY="sk-test") as c:
+        _wire(world, monkeypatch)
+        ai = _fake_model(monkeypatch, [])
+        monkeypatch.setattr(
+            ai, "_call", _queue(ai, [_plan(ai, ["Build the UI"]), _tdd(ai, [("hld", "High-level design")])])
+        )
+        a = await _tdd_ready(c, contributor, world, monkeypatch, "existing", ["hld"])
+        a = await _run(c, contributor, a, provider="claude")
+        assert not a["plan"]["stale"]
+
+        r = await c.put(
+            f"{ENT}/kickoff/analyses/{a['id']}/tdd",
+            headers=contributor,
+            json={"enabled": True, "selected": ["hld", "risks"], "space_key": "ENT"},
+        )
+        assert r.json()["plan"]["stale"] == ["the technical design sections"]
+
+
 # --- Creating the backlog ----------------------------------------------------------------------------------
 
 
@@ -972,6 +1312,70 @@ async def test_the_preflight_refuses_before_anything_is_written(boot, contributo
         assert world.created == []
 
 
+async def test_ticket_options_are_offered_by_jira_and_applied_to_every_ticket(
+    boot, contributor, world, monkeypatch
+):
+    async with boot(**ENV) as c:
+        _wire(world, monkeypatch)
+        a = await _run(c, contributor, await _ready(c, contributor))
+        base = f"{ENT}/kickoff/analyses/{a['id']}"
+
+        # Nothing is typed blind: the choices come from the project itself.
+        r = await c.get(f"{base}/backlog-fields", headers=contributor, params={"backlog_url": "ENT"})
+        assert r.status_code == 200, r.text
+        offered = r.json()
+        assert offered["components"] == ["Accounts", "Web"]
+        # Unreleased first, and an archived version is not offered at all.
+        assert offered["fix_versions"] == ["2026.4", "2026.2"]
+        assert offered["priorities"] == ["High", "Medium"]
+
+        r = await c.put(
+            f"{base}/backlog-options",
+            headers=contributor,
+            json={
+                "labels": ["platform"],
+                "components": ["Accounts", "Invented"],
+                "priority": "High",
+                "fix_version": "2026.4",
+            },
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["backlog_options"]["priority"] == "High"
+
+        r = await c.post(f"{base}/backlog", headers=contributor, json={"backlog_url": "ENT"})
+        assert r.status_code == 200, r.text
+        for issue in world.created:
+            fields = issue["fields"]
+            # A component the project doesn't have is dropped rather than failing every create.
+            assert fields["components"] == [{"name": "Accounts"}]
+            assert fields["priority"] == {"name": "High"}
+            assert fields["fixVersions"] == [{"name": "2026.4"}]
+            # The two identity labels always go on: finding these tickets again depends on them.
+            assert fields["labels"] == [f"shiftleft-kickoff-{a['id']}", "shiftleft-tracked", "platform"]
+
+
+async def test_a_required_field_the_options_can_fill_stops_blocking_the_create(
+    boot, contributor, world, monkeypatch
+):
+    async with boot(**ENV) as c:
+        _wire(world, monkeypatch)
+        world.required = [
+            {"key": "components", "name": "Component/s", "required": True, "hasDefaultValue": False}
+        ]
+        a = await _run(c, contributor, await _ready(c, contributor))
+        base = f"{ENT}/kickoff/analyses/{a['id']}"
+
+        r = await c.post(f"{base}/backlog", headers=contributor, json={"backlog_url": "ENT"})
+        assert r.status_code == 409
+        assert any("Ticket options" in b for b in r.json()["detail"]["blockers"])
+        assert world.created == []
+
+        await c.put(f"{base}/backlog-options", headers=contributor, json={"components": ["Accounts"]})
+        r = await c.post(f"{base}/backlog", headers=contributor, json={"backlog_url": "ENT"})
+        assert r.status_code == 200, r.text
+        assert world.created and world.created[0]["fields"]["components"] == [{"name": "Accounts"}]
+
+
 # --- Access --------------------------------------------------------------------------------
 
 
@@ -991,12 +1395,23 @@ async def test_a_viewer_reads_analyses_but_cannot_change_or_run_them(
             ("post", "/compliance/suggest", None),
             ("put", "/compliance", {"selected": []}),
             ("post", "/run", {"provider": "rules", "model": "rules"}),
+            ("post", "/refine", {"provider": "claude", "model": "m", "instructions": "x"}),
+            ("post", "/tdd/page", {"mode": "sample", "url": TDD_PAGE_URL}),
+            ("put", "/tdd", {"enabled": False}),
+            ("post", "/tdd/publish", None),
+            ("put", "/backlog-options", {"labels": ["x"]}),
             ("post", "/backlog", {"backlog_url": "ENT"}),
             ("patch", "", {"title": "x"}),
             ("delete", "", None),
         ]:
             r = await c.request(method.upper(), base + path, headers=viewer, json=body)
             assert r.status_code == 404, (method, path, r.status_code)
+        # Reading what an analysis has produced is a viewer's to do.
+        for path in ("/runs", "/runs/1"):
+            assert (await c.get(base + path, headers=viewer)).status_code in (200, 404)
+        # The ticket-option choices come from Jira, so reading them is a write-shaped read.
+        r = await c.get(f"{base}/backlog-fields", headers=viewer, params={"backlog_url": "ENT"})
+        assert r.status_code == 404
 
 
 async def test_analyses_do_not_leak_across_projects_or_to_strangers(
@@ -1021,3 +1436,295 @@ async def test_deleting_an_analysis_is_audited_and_leaves_jira_alone(
         r = await c.delete(f"{ENT}/kickoff/analyses/{a['id']}", headers=contributor)
         assert r.status_code == 204
         assert (await c.get(f"{ENT}/kickoff/analyses/{a['id']}", headers=contributor)).status_code == 404
+
+
+# --- Service-wide defaults ---------------------------------------------------------------------------------
+
+
+async def test_defaults_are_readable_by_anyone_and_changed_only_by_a_platform_admin(
+    boot, admin, contributor, viewer
+):
+    async with boot(**ENV) as c:
+        # No credential lives here, so reading it is not restricted: the wizard fills in from it.
+        r = await c.get("/api/kickoff/settings", headers=viewer)
+        assert r.status_code == 200
+        assert r.json()["tdd_template_url"] == "" and r.json()["editable"] is False
+
+        body = {
+            "tdd_template_url": f"{SITE}/wiki/spaces/PLT/pages/{DEP_PAGE_ID}/Template",
+            "tdd_space_key": "plt",
+            "tdd_parent_url": "",
+            "tdd_sections": ["hld", "lld", "hld"],
+            "jira_project_url": f"{SITE}/browse/ENT-1",
+            "jira_defaults": {"labels": ["platform"], "components": ["Accounts"], "priority": "High"},
+            "analysis_prompt": "Call out anything that needs another team.",
+            "tdd_prompt": "",
+        }
+        assert (await c.put("/api/kickoff/settings", headers=contributor, json=body)).status_code == 403
+        r = await c.put("/api/kickoff/settings", headers=admin, json=body)
+        assert r.status_code == 200, r.text
+        saved = r.json()
+        assert saved["editable"] is True
+        assert saved["tdd_space_key"] == "PLT"
+        assert saved["tdd_sections"] == ["hld", "lld"]
+        assert saved["jira_defaults"]["labels"] == ["platform"]
+        assert saved["updated_by"] == "h.nuti@backbase.com"
+
+
+async def test_a_new_analysis_starts_from_the_defaults_and_can_still_change_them(
+    boot, admin, contributor, world, monkeypatch
+):
+    async with boot(**ENV) as c:
+        _wire(world, monkeypatch)
+        await c.put(
+            "/api/kickoff/settings",
+            headers=admin,
+            json={
+                "jira_project_url": f"{SITE}/browse/ENT-1",
+                "jira_defaults": {"labels": ["platform"]},
+                "analysis_prompt": "Call out anything that needs another team.",
+                "tdd_sections": ["hld"],
+                "tdd_template_url": f"{SITE}/wiki/spaces/PLT/pages/{DEP_PAGE_ID}/Template",
+            },
+        )
+        a = (await c.post(f"{ENT}/kickoff/analyses", headers=contributor, json={"prd_url": PAGE_URL})).json()
+        assert a["backlog_target"]["url"] == f"{SITE}/browse/ENT-1"
+
+        # A later change to the defaults never reaches an analysis already under way.
+        await c.put(
+            "/api/kickoff/settings",
+            headers=admin,
+            json={"jira_project_url": f"{SITE}/browse/OTHER-1"},
+        )
+        again = (await c.get(f"{ENT}/kickoff/analyses/{a['id']}", headers=contributor)).json()
+        assert again["backlog_target"]["url"] == f"{SITE}/browse/ENT-1"
+
+
+# --- Running again, and refining instead ---------------------------------------------------------------
+
+
+def _plan(ai, titles: list[str], epic: str = "Account aggregation"):
+    """A drafted plan of the given task titles, in order."""
+    return ai.DraftPlan(
+        summary="Aggregation.",
+        epic_title=epic,
+        epic_description="Epic.",
+        repo_work=[],
+        dependency_needs=[],
+        risks=[],
+        open_questions=[],
+        tasks=[
+            ai.DraftTask(
+                title=title,
+                type="Story",
+                repo="acme/accounts-web",
+                description="d",
+                acceptance_criteria=["a"],
+                depends_on=[],
+                estimate="M",
+                compliance=[],
+                prd_lines=[],
+            )
+            for title in titles
+        ],
+    )
+
+
+def _fake_model(monkeypatch, drafts: list, seen: dict | None = None):
+    """Answers each model call with the next draft, and records what it was given."""
+    from app.services import kickoff_ai, model_provider
+
+    async def models(api_key: str, default: str):
+        return [model_provider.ModelOption("claude-opus-5", "Claude Opus 5")], "1 model"
+
+    queue = list(drafts)
+
+    async def fake_call(provider, model, system, content, output, max_tokens):
+        if output is kickoff_ai.ComplianceSuggestions:
+            return kickoff_ai.ComplianceSuggestions(frameworks=[], other=[])
+        if seen is not None:
+            seen.setdefault("calls", []).append({"system": system, "content": content})
+        return queue.pop(0)
+
+    monkeypatch.setattr(kickoff_ai, "_call", fake_call)
+    monkeypatch.setattr(model_provider, "_claude_models", models)
+    return kickoff_ai
+
+
+async def test_running_again_keeps_the_draft_it_replaced_and_says_what_changed(
+    boot, contributor, world, monkeypatch
+):
+    async with boot(**ENV, SHIFTLEFT_ANTHROPIC_API_KEY="sk-test") as c:
+        _wire(world, monkeypatch)
+        ai = _fake_model(monkeypatch, [])
+        # The drafts name the module's own types, so they are built once it is imported.
+        monkeypatch.setattr(
+            ai,
+            "_call",
+            _queue(
+                ai,
+                [
+                    _plan(ai, ["Build the UI", "Salt Edge client"]),
+                    _plan(ai, ["Build the UI", "Consent screen"]),
+                ],
+            ),
+        )
+        a = await _ready(c, contributor)
+        base = f"{ENT}/kickoff/analyses/{a['id']}"
+        first = await _run(c, contributor, a, provider="claude")
+        assert [t["title"] for t in first["plan"]["tasks"]] == ["Build the UI", "Salt Edge client"]
+
+        second = await _run(c, contributor, a, provider="claude")
+        assert second["plan"]["run_number"] == 2
+
+        runs = (await c.get(f"{base}/runs", headers=contributor)).json()
+        assert [(r["run_number"], r["kind"], r["is_current"]) for r in runs] == [
+            (2, "run", True),
+            (1, "run", False),
+        ]
+
+        # The draft that was replaced is still readable, whole.
+        one = (await c.get(f"{base}/runs/1", headers=contributor)).json()
+        assert [t["title"] for t in one["plan"]["tasks"]] == ["Build the UI", "Salt Edge client"]
+        assert one["diff"] is None
+
+        two = (await c.get(f"{base}/runs/2", headers=contributor)).json()
+        assert [t["title"] for t in two["diff"]["added"]] == ["Consent screen"]
+        assert [t["title"] for t in two["diff"]["removed"]] == ["Salt Edge client"]
+
+
+def _queue(ai, drafts: list):
+    queue = list(drafts)
+
+    async def fake_call(provider, model, system, content, output, max_tokens):
+        if output is ai.ComplianceSuggestions:
+            return ai.ComplianceSuggestions(frameworks=[], other=[])
+        return queue.pop(0)
+
+    return fake_call
+
+
+async def test_refining_amends_the_plan_and_keeps_what_a_person_wrote(
+    boot, contributor, world, monkeypatch
+):
+    async with boot(**ENV, SHIFTLEFT_ANTHROPIC_API_KEY="sk-test") as c:
+        _wire(world, monkeypatch)
+        ai = _fake_model(monkeypatch, [])
+        monkeypatch.setattr(
+            ai,
+            "_call",
+            _queue(
+                ai,
+                [
+                    _plan(ai, ["Build the UI", "Salt Edge client"]),
+                    # The refine leaves the first task alone and adds one after it.
+                    _plan(ai, ["Build the UI", "Salt Edge client", "Rollback plan"]),
+                ],
+            ),
+        )
+        a = await _ready(c, contributor)
+        base = f"{ENT}/kickoff/analyses/{a['id']}"
+        drafted = await _run(c, contributor, a, provider="claude")
+        tasks = drafted["plan"]["tasks"]
+
+        # A person rewrites the second task. Refining must not throw that away.
+        edited = [{**t, "title": "Salt Edge client" if t["ref"] == "T2" else t["title"]} for t in tasks]
+        edited[0] = {**edited[0], "description": "Written by a person."}
+        r = await c.put(
+            f"{base}/plan",
+            headers=contributor,
+            json={
+                "epic_title": drafted["plan"]["epic_title"],
+                "tasks": [
+                    {k: t[k] for k in
+                     ("ref", "title", "type", "repo", "description", "acceptance_criteria",
+                      "depends_on", "estimate", "compliance")}
+                    for t in edited
+                ],
+            },
+        )
+        assert r.status_code == 200, r.text
+
+        r = await c.post(
+            f"{base}/refine",
+            headers=contributor,
+            json={"provider": "claude", "model": "claude-opus-5", "instructions": "Add a rollback task."},
+        )
+        assert r.status_code == 200, r.text
+        plan = r.json()["plan"]
+        assert plan["run_number"] == 2
+        assert plan["instructions"] == "Add a rollback task."
+        refs = {t["title"]: t["ref"] for t in plan["tasks"]}
+        # An untouched task keeps its ref, so a ticket already created still matches.
+        assert refs["Salt Edge client"] == "T2"
+        assert refs["Rollback plan"] not in ("T1", "T2")
+        runs = (await c.get(f"{base}/runs", headers=contributor)).json()
+        assert runs[0]["kind"] == "refine" and runs[0]["instructions"] == "Add a rollback task."
+
+
+async def test_a_refine_says_what_it_needs_and_never_costs_the_plan(
+    boot, contributor, world, monkeypatch
+):
+    async with boot(**ENV, SHIFTLEFT_ANTHROPIC_API_KEY="sk-test") as c:
+        _wire(world, monkeypatch)
+        ai = _fake_model(monkeypatch, [])
+        monkeypatch.setattr(ai, "_call", _queue(ai, [_plan(ai, ["Build the UI"])]))
+        a = await _ready(c, contributor)
+        base = f"{ENT}/kickoff/analyses/{a['id']}"
+
+        # Nothing to refine yet.
+        r = await c.post(
+            f"{base}/refine",
+            headers=contributor,
+            json={"provider": "claude", "model": "claude-opus-5", "instructions": "Change it."},
+        )
+        assert r.status_code == 409 and "Run the analysis first" in r.text
+
+        await _run(c, contributor, a, provider="claude")
+
+        async def fails(*args, **kwargs):
+            raise ai.ModelFailed("the model declined to draft this")
+
+        monkeypatch.setattr(ai, "_call", fails)
+        r = await c.post(
+            f"{base}/refine",
+            headers=contributor,
+            json={"provider": "claude", "model": "claude-opus-5", "instructions": "Change it."},
+        )
+        assert r.status_code == 409 and "The plan wasn't changed" in r.text
+        still = (await c.get(base, headers=contributor)).json()
+        assert [t["title"] for t in still["plan"]["tasks"]] == ["Build the UI"]
+        assert still["plan"]["run_number"] == 1
+
+
+async def test_an_instruction_reaches_the_draft_and_is_recorded_with_it(
+    boot, contributor, world, monkeypatch
+):
+    async with boot(**ENV, SHIFTLEFT_ANTHROPIC_API_KEY="sk-test") as c:
+        _wire(world, monkeypatch)
+        seen: dict = {}
+        ai = _fake_model(monkeypatch, [], seen)
+        queue = _queue(ai, [_plan(ai, ["Build the UI"])])
+
+        async def recording(provider, model, system, content, output, max_tokens):
+            seen["content"] = content
+            seen["system"] = system
+            return await queue(provider, model, system, content, output, max_tokens)
+
+        monkeypatch.setattr(ai, "_call", recording)
+        a = await _ready(c, contributor)
+        r = await c.post(
+            f"{ENT}/kickoff/analyses/{a['id']}/run",
+            headers=contributor,
+            json={
+                "provider": "claude",
+                "model": "claude-opus-5",
+                "instructions": "Split the work by region.",
+            },
+        )
+        assert r.status_code == 200, r.text
+        # Named as what it is, so the model treats it as a request and not as the inputs.
+        assert "# Extra instructions from the person asking for this draft" in seen["content"]
+        assert "Split the work by region." in seen["content"]
+        assert "It cannot relax the rules above" in seen["system"]
+        assert r.json()["plan"]["instructions"] == "Split the work by region."
